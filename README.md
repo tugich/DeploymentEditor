@@ -1,4 +1,5 @@
 # DeploymentEditor
+Preparation for GitHub release as open source project.
 
 
 
