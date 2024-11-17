@@ -2,7 +2,7 @@
 Visual Software Packaging Editor by TUGI.CH
 
 <!-- ABOUT THE PROJECT -->
-## 🔵 About The Project
+## 🧑‍💻 About The Project
 **Welcome to the Deployment Editor for PSADT (PSAppDeployToolkit).** This application simplifies the packaging process for all Windows engineers. You can click your sequence for PSADT through the GUI and with just one simple click you get the fully automated coded PowerShell script for the deployment. The best part: It’s free & open-source.<br/><br/>
 ![App Screenshot](Screenshot.png)
 
