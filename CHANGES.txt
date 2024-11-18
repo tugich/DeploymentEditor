@@ -1,0 +1,43 @@
+Version 1.0.5 (Preview 5):
+* News: Project released as open source on GitHub - https://github.com/tugich/DeploymentEditor
+* Updated demo project
+
+Version 1.0.4 (Preview 4):
+* Added Action Editor: Prompts for saving steps/actions if changes are detected in the action tab
+* Added Project > Open Files and SupportFiles folder
+* Added Tools > Generate Executables List by folder path
+* Added Export > Create Intune Package for creating *.intunewin files
+* Added IntuneWinAppUtil download to the user temp folder at startup
+* Added new projects support
+* Added new template: Deploy-Application.db (empty database for new projects)
+* Added Project Settings window
+* Added New Project window (Welcome dialog)
+
+Version 1.0.3 (Preview 3):
+* Added a new editor feature: variable assignment for command results
+* Updated the database: Added over 80 new PowerShell commands
+* Fixed the script builder for parameters of type SwitchParameter
+* Fixed logic handling for command parameters of type SwitchParameter
+
+Version 1.0.2 (Preview 2):
+* Added support for all deployment types (Installation, Uninstall, and Repair)
+* Added support for inline custom commands (custom PowerShell scripts)
+* Added script builder for additional deployment types: [Uninstall] and [Repair]
+* Added save dialog before closing the app
+* Added confirmation dialog for action/step removal
+* Added disable button above the sequence view (better reachable for testing)
+* Added a new button for command help access (PSADT Online Documentation)
+* Added a new menu (Project) - Open deployment file in PS ISE or Notepad++
+* Added quick access for Project > Open Project Folder
+* Added a new menu (Tools) for special tools
+* Added quick access for Tools > Windows Software Logs (C:\Windows\Logs\Software)
+* Added a new menu (Run) with all deployment types
+* Added a new menu (Help) for quick help access
+* Added parameter type as an affix to the parameter title (in action/step editor)
+* Improved: "Continue on Error" and "Disable this Action" will now trigger a save operation automatically
+* Fixed wrong parameter types in PSADT command examples
+* Fixed save operation before refreshing the sequence view
+* Fixed toggle continue on error in PowerShell Script Builder (there was repeatedly "ContinueOnError" in the same command)
+
+Version 1.0.0/1.0.1 (Preview 1):
+(First release)

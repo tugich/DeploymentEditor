@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://www.purebasic.com/namespace" version="1.0" creator="PureBasic 6.12 LTS (Windows - x64)">
+  <section name="config">
+    <options closefiles="1" openmode="0" name="Deployment Editor"/>
+  </section>
+  <section name="data">
+    <explorer view="C:\ProgramData\PureBasic\Examples\" pattern="0"/>
+    <log show="1"/>
+    <lastopen date="2024-11-17 19:55" user="taski" host="TUGI-FUSIONVM"/>
+  </section>
+  <section name="files">
+    <file name="DeploymentEditor.pb">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="1" panelstate="+"/>
+      <fingerprint md5="d3cebde5ad2762cc45c72a0a8e5ba840"/>
+    </file>
+    <file name="Forms\MainWindow.pbf">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="2" panelstate="++"/>
+      <fingerprint md5="2998c9913c980126255ff8a7b4b2db7f"/>
+    </file>
+    <file name="Forms\NewProjectWindow.pbf">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="3" panelstate="++"/>
+      <fingerprint md5="9323cd27c33dc8446bfe11f33e856b2c"/>
+    </file>
+    <file name="Forms\ProjectSettingsWindow.pbf">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="4" panelstate="++"/>
+      <fingerprint md5="9100b0a55ff56804d790931399882ee0"/>
+    </file>
+    <file name="Forms\AboutWindow.pbf">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="5" panelstate="++"/>
+      <fingerprint md5="431ee61c433f6c7a8645fc84c57687cf"/>
+    </file>
+    <file name="Forms\PluginWindow.pbf">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="6" panelstate="++"/>
+      <fingerprint md5="15b53eba5a9d2ab4a0821b01638c2443"/>
+    </file>
+    <file name="CHANGES.txt">
+      <config load="0" scan="0" panel="1" warn="1" lastopen="1" sortindex="7" panelstate="+"/>
+      <fingerprint md5="4af1f57cf9e05bc9e5726f05f80957e0"/>
+    </file>
+    <file name="TODO.txt">
+      <config load="0" scan="0" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="+"/>
+      <fingerprint md5=""/>
+    </file>
+    <file name="Templates\Deploy-Application.ps1">
+      <config load="0" scan="0" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="++"/>
+      <fingerprint md5="54321ac66c2b22c775499401523aca8f"/>
+    </file>
+    <file name="LICENSE.txt">
+      <config load="0" scan="0" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="+"/>
+      <fingerprint md5="9392991c58f969dc29921652efe78b1a"/>
+    </file>
+    <file name="Scripts\PSADT-ExportCommands.ps1">
+      <config load="0" scan="0" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="++"/>
+      <fingerprint md5="71330540c9a6aca03ab9a34b667dc8f2"/>
+    </file>
+    <file name="LICENSE_ThirdParty.txt">
+      <config load="0" scan="0" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="+"/>
+      <fingerprint md5="a5200dc5aede9ae3097704087be139c2"/>
+    </file>
+    <file name="README.txt">
+      <config load="0" scan="0" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="+"/>
+      <fingerprint md5="72df91a127c6abd37137701d6cb1e6c0"/>
+    </file>
+  </section>
+  <section name="targets">
+    <target name="Default Target" enabled="1" default="1">
+      <inputfile value="DeploymentEditor.pb"/>
+      <outputfile value="DeploymentEditor.exe"/>
+      <executable value="DeploymentEditor.exe"/>
+      <options thread="1" xpskin="1" dpiaware="1" debug="1" optimizer="0"/>
+      <icon enable="1">Icon.ico</icon>
+      <versioninfo enable="1">
+        <field0 value="1.0.5.0"/>
+        <field1 value="1.0.5.0"/>
+        <field4 value="1.0.5.0"/>
+        <field5 value="1.0.5.0"/>
+      </versioninfo>
+      <constants>
+        <constant value="DE_Version=&quot;Preview 5&quot;" enable="1"/>
+      </constants>
+    </target>
+  </section>
+</project>
