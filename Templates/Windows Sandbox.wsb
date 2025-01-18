@@ -1,0 +1,12 @@
+<Configuration>
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>$(ProjectPath)</HostFolder>
+      <SandboxFolder>C:\Packaging</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+  <LogonCommand>
+    <Command>C:\Packaging\Invoke-AppDeployToolkit.exe</Command>
+  </LogonCommand>
+</Configuration>

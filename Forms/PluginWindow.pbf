@@ -9,16 +9,19 @@
 
 Global PluginWindow
 
-Global Button_ClosePlugin, ListView_Plugins, Button_RunPlugin
+Global ListView_Plugins, Button_ClosePlugin, Button_RunPlugin, Frame_AboutPlugin, Text_PluginDetails
 
 Declare ClosePluginWindow(EventType)
-Declare NotAvailableFeatureMessage(EventType)
+Declare RunPlugin(EventType)
 
 Procedure OpenPluginWindow(x = 0, y = 0, width = 600, height = 400)
   PluginWindow = OpenWindow(#PB_Any, x, y, width, height, "Plugins", #PB_Window_SystemMenu | #PB_Window_ScreenCentered)
-  Button_ClosePlugin = ButtonGadget(#PB_Any, 270, 356, 100, 35, "Close")
   ListView_Plugins = ListViewGadget(#PB_Any, 10, 10, 250, 380)
+  Button_ClosePlugin = ButtonGadget(#PB_Any, 270, 356, 100, 35, "Close")
   Button_RunPlugin = ButtonGadget(#PB_Any, 380, 356, 210, 35, "Run Plugin")
+  DisableGadget(Button_RunPlugin, 1)
+  Frame_AboutPlugin = FrameGadget(#PB_Any, 270, 10, 320, 330, "Details")
+  Text_PluginDetails = TextGadget(#PB_Any, 290, 40, 290, 290, "")
 EndProcedure
 
 Procedure PluginWindow_Events(event)
@@ -35,7 +38,7 @@ Procedure PluginWindow_Events(event)
         Case Button_ClosePlugin
           ClosePluginWindow(EventType())          
         Case Button_RunPlugin
-          NotAvailableFeatureMessage(EventType())          
+          RunPlugin(EventType())          
       EndSelect
   EndSelect
   ProcedureReturn #True

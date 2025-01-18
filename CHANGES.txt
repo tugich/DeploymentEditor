@@ -1,3 +1,15 @@
+Version 1.0.6 (Preview 6):
+* Added new feature: Run Installation in Windows Sandbox
+* Added PowerShell & PureBasic script to build PSADT.sqlite
+* Added basic plugin support (PowerShell only)
+* Added scrollbar area for action editor/command values (support for lower screen resolutions)
+* Updated Script Builder: -ContinueOnError 1" replaced with "-ErrorAction SilentlyContinue"
+* Updated links to new PSADTv4 documentation
+* Updated PSADT templates for PSADTv4
+* Updated PSADT template: Added install/uninstall/repair registry entry to HKEY_LOCAL_MACHINE\SOFTWARE\Company\Deployments
+* Updated PSADT.sqlite to PSADTv4
+* Fixed PowerShell Start button - added set location to project path
+
 Version 1.0.5 (Preview 5):
 * News: Project released as open source on GitHub - https://github.com/tugich/DeploymentEditor
 * Updated demo project

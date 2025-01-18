@@ -50,20 +50,34 @@ Structure ProjectSetting
   Value.s
 EndStructure
 
+Structure EditorPlugin
+  ID.s
+  Name.s
+  Version.s
+  Date.s
+  Description.s
+  Author.s
+  Website.s
+  Path.s
+  File.s
+  Parameter.s
+EndStructure
+
 ;------------------------------------------------------------------------------------
 ;- Variables, Enumerations and Maps
 ;------------------------------------------------------------------------------------
 Global Event = #Null, Quit = #False
 Global MainWindowTitle.s = "Deployment Editor ("+#DE_Version+") - TUGI.CH"
 Global DonationUrl.s = "https://www.paypal.com/donate/?hosted_button_id=PXABL8ESQQ4F8"
+Global PluginDirectory.s = GetCurrentDirectory() + "Plugins"
 
 ; Templates
 Global Template_PSADT.s = GetCurrentDirectory() + "ThirdParty\PSAppDeployToolkit\"
-Global Template_EmptyDatabase.s = GetCurrentDirectory() + "Templates\Deploy-Application.db"
+Global Template_EmptyDatabase.s = GetCurrentDirectory() + "Templates\Invoke-AppDeployToolkit.db"
 
 ; PSADT
 Global PSADT_Database.s = GetCurrentDirectory() + "Databases\PSADT.sqlite"
-Global PSADT_TemplateFile.s = GetCurrentDirectory() + "Templates\Deploy-Application.ps1"
+Global PSADT_TemplateFile.s = GetCurrentDirectory() + "Templates\Invoke-AppDeployToolkit.ps1"
 Global PSADT_OnlineDocumentation.s = "https://psappdeploytoolkit.com/docs"
 
 ; Intune
@@ -71,8 +85,11 @@ Global IntuneWinAppUtil.s = ""
 
 ; Project
 Global Project_FolderPath.s = GetCurrentDirectory() + "Test\"
-Global Project_DeploymentFile.s = Project_FolderPath + "Deploy-Application.ps1"
-Global Project_Database.s = Project_FolderPath + "Deploy-Application.db"
+Global Project_DeploymentFile.s = Project_FolderPath + "Invoke-AppDeployToolkit.ps1"
+Global Project_Database.s = Project_FolderPath + "Invoke-AppDeployToolkit.db"
+
+; Windows Sandbox
+Global PSADT_SandboxTemplate.s = GetCurrentDirectory() + "Templates\Windows Sandbox.wsb"
 
 ; Deployment
 Global CurrentDeploymentType.s = "Installation"
@@ -85,8 +102,10 @@ Global NewMap ProjectSettings.ProjectSetting()
 Global NewList RecentProjects.RecentProject()
 ; > Add Demo Project
 AddElement(RecentProjects())
-RecentProjects()\FileName = "Deploy-Application.db"
+RecentProjects()\FileName = "Invoke-AppDeployToolkit.db"
 RecentProjects()\FolderPath = Project_FolderPath
+; Plugins
+Global NewList EditorPlugins.EditorPlugin()
 
 ; Action
 Global SelectedActionID.i
@@ -111,6 +130,7 @@ Enumeration KeyboardShortcuts
   #MenuItem_OpenWithISE
   #MenuItem_OpenWithNotepadPlusPlus
   #MenuItem_RunInstallation
+  #MenuItem_RunInstallationSandbox
   #MenuItem_RunUninstall
   #MenuItem_RunRepair
   #MenuItem_CreateIntunePackage
@@ -392,11 +412,11 @@ Procedure ShowSupportFilesFolder(EventType)
 EndProcedure
 
 Procedure ShowOnlineDocumentation(EventType)
-  RunProgram(PSADT_OnlineDocumentation, "", "")
+  RunProgram(PSADT_OnlineDocumentation + "/reference", "", "")
 EndProcedure
 
 Procedure ShowOnlineVariablesOverview(EventType)
-  RunProgram(PSADT_OnlineDocumentation + "/variables", "", "")
+  RunProgram(PSADT_OnlineDocumentation + "/reference/variables", "", "")
 EndProcedure
 
 Procedure ShowCommandHelp(EventType)
@@ -720,7 +740,7 @@ Procedure CreateIntunePackage(EventType)
   Protected InstallerFile.s, InstallerPath.s, PackagePath.s
   Protected WrapperParameters$, Compiler, Output$, Exitcode = 1
 
-  InstallerFile = "Deploy-Application.exe"
+  InstallerFile = "Invoke-AppDeployToolkit.exe"
   InstallerPath = Project_FolderPath + InstallerFile
   PackagePath = PathRequester("Intune Package Destination", "C:\")
   
@@ -799,7 +819,7 @@ Procedure OpenFirstRecentProject(EventType)
   ; Set Project Folder and File
   SelectElement(RecentProjects(), 0)
   Project_FolderPath.s = RecentProjects()\FolderPath
-  Project_DeploymentFile.s = Project_FolderPath + "Deploy-Application.ps1"
+  Project_DeploymentFile.s = Project_FolderPath + "Invoke-AppDeployToolkit.ps1"
   Project_Database.s = Project_FolderPath + RecentProjects()\FileName
   
   ; Load Project and Settings
@@ -840,7 +860,7 @@ Procedure OpenOtherProject(EventType)
   
   ; Set Project Folder and File
   Project_FolderPath.s = GetPathPart(File$)
-  Project_DeploymentFile.s = Project_FolderPath + "Deploy-Application.ps1"
+  Project_DeploymentFile.s = Project_FolderPath + "Invoke-AppDeployToolkit.ps1"
   Project_Database.s = Project_FolderPath + GetFilePart(File$)
   
   ; Load Project and Settings
@@ -893,12 +913,12 @@ Procedure CreateNewProject(EventType)
   
   ; Copy empty database template to destination folder
   Debug "Copy empty database file..."
-  CopyFile(Template_EmptyDatabase, Path$ + "Deploy-Application.db")
+  CopyFile(Template_EmptyDatabase, Path$ + "Invoke-AppDeployToolkit.db")
   
   ; Set Project Folder and File
   Project_FolderPath.s = Path$
-  Project_DeploymentFile.s = Project_FolderPath + "Deploy-Application.ps1"
-  Project_Database.s = Project_FolderPath + "Deploy-Application.db"
+  Project_DeploymentFile.s = Project_FolderPath + "Invoke-AppDeployToolkit.ps1"
+  Project_Database.s = Project_FolderPath + "Invoke-AppDeployToolkit.db"
   
   ; Load Project and Settings
   RefreshProject(0)
@@ -957,6 +977,7 @@ Procedure RenderActionEditor(ID.i = -1)
   Protected SelectedItem.i = GetGadgetState(Tree_Sequence)
   Protected Command.s = "", Name.s = "", Description.s = "", VariableName.s = ""
   Protected Disabled.i = 0, ContinueOnError.i = 0
+  Protected ActionScrollAreaGadget = 0
   
   If ID = -1
     ID = GetGadgetItemData(Tree_Sequence, SelectedItem)
@@ -1068,6 +1089,7 @@ Procedure RenderActionEditor(ID.i = -1)
   If DatabaseQuery(0, "Select C.Name As Command, P.Parameter, P.Description, P.Control, P.Required, P.Type FROM Parameters As P LEFT JOIN Commands As C ON P.Command = C.ID WHERE C.Command LIKE '"+Command+"' ORDER BY SortIndex ASC")
     OpenGadgetList(Panel_Options)
     AddGadgetItem(Panel_Options, -1, "Action")
+    ActionScrollAreaGadget = ScrollAreaGadget(#PB_Any, 0, 0, 325, 705, 300, 705)
     
     Protected Count.i = 1
     Protected GadgetPosY.i = 18
@@ -1098,8 +1120,8 @@ Procedure RenderActionEditor(ID.i = -1)
       
       ; Input
       If Command = "#CustomScript"
-        Define TextGadget = TextGadget(#PB_Any, 20, GadgetPosY, 290, GadgetDefaultHeight, NamePrefix+ParameterName+" ("+ParameterType+")"+":")
-        Define InputGadget = ScintillaGadget(#PB_Any, 20, (GadgetPosY + GadgetDefaultHeight), 290, 640, 0)
+        Define TextGadget = TextGadget(#PB_Any, 20, GadgetPosY, 270, GadgetDefaultHeight, NamePrefix+ParameterName+" ("+ParameterType+")"+":")
+        Define InputGadget = ScintillaGadget(#PB_Any, 20, (GadgetPosY + GadgetDefaultHeight), 270, 640, 0)
         GadgetToolTip(InputGadget, ParameterDescription)
         
         ; Set value for Scintilla gadget
@@ -1109,8 +1131,8 @@ Procedure RenderActionEditor(ID.i = -1)
         
       ElseIf ControlType = "Checkbox"
         Debug "Control is checkbox."
-        Define TextGadget = TextGadget(#PB_Any, 20, GadgetPosY, 290, GadgetDefaultHeight, NamePrefix+ParameterName+" ("+ParameterType+")"+":")
-        Define InputGadget = CheckBoxGadget(#PB_Any, 20, (GadgetPosY + GadgetDefaultHeight), 290, GadgetDefaultHeight, "Enabled")
+        Define TextGadget = TextGadget(#PB_Any, 20, GadgetPosY, 270, GadgetDefaultHeight, NamePrefix+ParameterName+" ("+ParameterType+")"+":")
+        Define InputGadget = CheckBoxGadget(#PB_Any, 20, (GadgetPosY + GadgetDefaultHeight), 270, GadgetDefaultHeight, "Enabled")
         GadgetToolTip(InputGadget, ParameterDescription)
         
         If ParameterValue = "1" Or ParameterValue = "Enabled"
@@ -1119,8 +1141,8 @@ Procedure RenderActionEditor(ID.i = -1)
           SetGadgetState(InputGadget, #PB_Checkbox_Unchecked)
         EndIf
       Else
-        Define TextGadget = TextGadget(#PB_Any, 20, GadgetPosY, 290, GadgetDefaultHeight, NamePrefix+ParameterName+" ("+ParameterType+")"+":")
-        Define InputGadget = StringGadget(#PB_Any, 20, (GadgetPosY + GadgetDefaultHeight), 290, GadgetDefaultHeight, ParameterValue)
+        Define TextGadget = TextGadget(#PB_Any, 20, GadgetPosY, 270, GadgetDefaultHeight, NamePrefix+ParameterName+" ("+ParameterType+")"+":")
+        Define InputGadget = StringGadget(#PB_Any, 20, (GadgetPosY + GadgetDefaultHeight), 270, GadgetDefaultHeight, ParameterValue)
         GadgetToolTip(InputGadget, ParameterDescription)
       EndIf
       
@@ -1137,6 +1159,9 @@ Procedure RenderActionEditor(ID.i = -1)
       
       Count + 1
     Wend
+    
+    ; Set scrollbar area
+    SetGadgetAttribute(ActionScrollAreaGadget, #PB_ScrollArea_InnerHeight, (Count * 70))
     
     CloseGadgetList()
     FinishDatabaseQuery(0)
@@ -1406,10 +1431,11 @@ Procedure StartDeploymentWithPSADT(DeploymentType.s = "Install")
   
   If GetGadgetState(Checkbox_SilentMode) = #PB_Checkbox_Checked
     Debug "Running PSADT deployment in silent mode: "+DeploymentType
-    SilentSwitch = " -DeployMode 'Silent'"
+    SilentSwitch = " -DeployMode Silent"
   EndIf
 
-  ShellExecute_(0, "RunAS", Chr(34)+Project_FolderPath+"\Deploy-Application.exe"+Chr(34), "-DeploymentType '"+DeploymentType+"'"+SilentSwitch, "", #SW_SHOWNORMAL)
+  ;ShellExecute_(0, "RunAS", Chr(34)+Project_FolderPath+"\Invoke-AppDeployToolkit.exe"+Chr(34), "-DeploymentType '"+DeploymentType+"'"+SilentSwitch, Project_FolderPath, #SW_SHOWNORMAL)
+  RunProgram(Chr(34)+Project_FolderPath+"\Invoke-AppDeployToolkit.exe"+Chr(34), "-DeploymentType "+DeploymentType+SilentSwitch, Project_FolderPath)
 EndProcedure
 
 Procedure StartInstallation(EventType)
@@ -1425,11 +1451,11 @@ Procedure StartRepair(EventType)
 EndProcedure
 
 Procedure StartPowerShell(EventType)
-  ShellExecute_(0, "RunAS", "powershell.exe", "", Project_FolderPath, #SW_SHOWNORMAL)
+  ShellExecute_(0, "RunAS", "powershell.exe", "-NoExit -Command " + Chr(34) + "Set-Location '"+Project_FolderPath+"'", Project_FolderPath, #SW_SHOWNORMAL)
 EndProcedure
 
 Procedure StartHelp(EventType)
-  ShellExecute_(0, "RunAS", "powershell.exe", "-ExecutionPolicy ByPass -File " + Chr(34) + Project_FolderPath + "\AppDeployToolkit\AppDeployToolkitHelp.ps1" + Chr(34) + "", "", #SW_SHOWNORMAL)
+  RunProgram("powershell.exe", "-ExecutionPolicy ByPass -File " + Chr(34) + GetCurrentDirectory() + "Scripts\PSADT4-HelpConsole.ps1", GetCurrentDirectory())
 EndProcedure
 
 Procedure StartPowerShellEditor(EventType)
@@ -1443,7 +1469,7 @@ EndProcedure
 Procedure.s BuildScript(DeploymentType.s = "Installation")
   
   Protected ScriptBuilder.s = ""
-  Protected PSADT_Spacing.s = Space(8)
+  Protected PSADT_Spacing.s = Space(4)
   
   ; Read database
   If OpenDatabase(1, Project_Database, "", "")
@@ -1464,8 +1490,11 @@ Procedure.s BuildScript(DeploymentType.s = "Installation")
         
         ; Enclosing character by type
         ParameterType = ParameterTypeByCommand(Command, Parameter)
-        If ParameterType <> "String"
+        Debug Command+": "+ParameterType+" ("+Value+")"
+        If Not FindString(ParameterType, "String")
           EnclosingCharacter = ""
+        Else
+          Debug "It's a string!"
         EndIf
         
         ; Fix Description if any new lines are defined
@@ -1483,7 +1512,7 @@ Procedure.s BuildScript(DeploymentType.s = "Installation")
             
         EndSelect
         
-        ; Build PowerShell command with parameters
+        ; Build PowerShell script (Command > Parameter > Value and special options)
         If CurrentAction <> LastAction Or (CurrentAction = 0 And Parameter = "")
           If Description <> ""
             ScriptBuilder = ScriptBuilder + #CRLF$ + PSADT_Spacing + "# " + Description
@@ -1496,7 +1525,7 @@ Procedure.s BuildScript(DeploymentType.s = "Installation")
           ScriptBuilder = ScriptBuilder + #CRLF$ + PSADT_Spacing + Prefix_Variable + Command
           
           If ContinueOnError
-            ScriptBuilder = ScriptBuilder+" -ContinueOnError 1"
+            ScriptBuilder = ScriptBuilder+" -ErrorAction SilentlyContinue"
           EndIf
         EndIf
 
@@ -1556,7 +1585,7 @@ Procedure GenerateDeploymentFile()
         sLine = ReplaceString(sLine, "<ProductVersion>", GetProjectSetting("App_Version"))
         sLine = ReplaceString(sLine, "<ProductLanguage>", GetProjectSetting("App_Language"))
         sLine = ReplaceString(sLine, "<ProductArchitecture>", GetProjectSetting("App_Architecture"))
-        sLine = ReplaceString(sLine, "<ScriptDate>", FormatDate("%dd/%mm/%yyyy", Date()))
+        sLine = ReplaceString(sLine, "<ScriptDate>", FormatDate("%yyyy-%mm-%dd", Date()))
         sLine = ReplaceString(sLine, "<ScriptAuthor>", GetProjectSetting("App_Author"))
         sLine = ReplaceString(sLine, "<InstallationPart>", InstallationPart)
         sLine = ReplaceString(sLine, "<UninstallPart>", UninstallPart)
@@ -1584,6 +1613,46 @@ Procedure GenerateAndStartInstallation(EventType)
   ; Starting deployment installation
   StatusBarText(0, 0, "Starting Deployment > Installation")
   StartInstallation(0)
+EndProcedure
+
+Procedure GenerateAndStartInstallationSandbox(EventType)
+  ; Save first the current action options
+  SaveAction(0)
+  
+  ; Generate deployment file
+  StatusBarText(0, 0, "Generate deployment file...")
+  GenerateDeploymentFile()
+  Delay(1000)
+  
+  ; Starting deployment installation
+  StatusBarText(0, 0, "Starting Deployment > Installation (in Windows Sandbox)")
+  
+  ; Copy template file to project folder
+  CopyFile(PSADT_SandboxTemplate, Project_FolderPath + "Windows Sandbox.wsb")
+  
+  ; Update Windows Sandbox file
+  Protected FileIn, FileOut, sLine.s
+  FileIn = ReadFile(#PB_Any, PSADT_SandboxTemplate, #PB_File_SharedRead)
+  If FileIn
+    FileOut = CreateFile(#PB_Any, Project_FolderPath + "Windows Sandbox.wsb")
+    
+    If FileOut
+      ; Read each line from the input file, replace text, and write to the output file
+      While Not Eof(FileIn)
+        sLine = ReadString(FileIn)
+        sLine = ReplaceString(sLine, "$(ProjectPath)", Project_FolderPath)
+        
+        WriteString(FileOut, sLine + #CRLF$)
+      Wend
+      CloseFile(FileOut)
+    Else
+      MessageRequester("Error", "Can't write new Windows Sandbox configuration file.", #PB_MessageRequester_Error)
+    EndIf
+    CloseFile(FileIn)
+  EndIf
+  
+  ; Run Windows Sandbox
+  RunProgram(Project_FolderPath + "Windows Sandbox.wsb")
 EndProcedure
 
 Procedure GenerateAndStartUninstall(EventType)
@@ -1661,21 +1730,92 @@ Procedure DownloadIntuneWinAppUtil(Event)
 EndProcedure
 
 Procedure LoadPlugins(Event)
+  Delay(200)
   Debug "Examine plugin folder..."
   
-  If ExamineDirectory(0, GetCurrentDirectory() + "\Plugins", "*.*")
+  ; Reset
+  ClearGadgetItems(ListView_Plugins)
+  ResetList(EditorPlugins()) 
+  
+  If ExamineDirectory(0, PluginDirectory, "*.*")
     While NextDirectoryEntry(0)
       Protected FileName$ = DirectoryEntryName(0)
       
       If DirectoryEntryType(0) = #PB_DirectoryEntry_Directory
         If FindString(FileName$, "Enabled-", 0)
-          Debug "Found plugin which is enabled by folder name: " + ReplaceString(FileName$, "Enabled-", "")          
+          Protected PluginFolder.s = PluginDirectory + "\" + FileName$
+          Protected PluginName.s = ReplaceString(FileName$, "Enabled-", "")
+          
+          Debug "Found plugin which is enabled by folder name: "+PluginName+" ("+PluginFolder+")"
+          AddGadgetItem(ListView_Plugins, -1, PluginName)
+          
+          ; Read preference file
+          Protected PluginPreference.s = PluginFolder+"\Plugin.ini"
+          Debug PluginPreference
+          OpenPreferences(PluginPreference)
+          PreferenceGroup("Details")
+          
+          ; Add plugin to the list
+          AddElement(EditorPlugins())
+          EditorPlugins()\ID = PluginName
+          EditorPlugins()\Name = ReadPreferenceString("Name", "")
+          EditorPlugins()\Version = ReadPreferenceString("Version", "")
+          EditorPlugins()\Date = ReadPreferenceString("Date", "")
+          EditorPlugins()\Description = ReadPreferenceString("Description", "")
+          EditorPlugins()\Author = ReadPreferenceString("Author", "")
+          EditorPlugins()\Website = ReadPreferenceString("Website", "")
+          PreferenceGroup("Script")
+          EditorPlugins()\Path = PluginFolder
+          EditorPlugins()\File = ReadPreferenceString("File", "")
+          EditorPlugins()\Parameter = ReadPreferenceString("Parameter", "")
+        Else
+          Continue
         EndIf
       EndIf
     Wend
   Else
     MessageRequester("Error","Can't examine this directory: "+GetGadgetText(0),0)
   EndIf
+  
+  DisableGadget(Button_RunPlugin, #False)
+EndProcedure
+
+Procedure RenderPluginDetails(Event)
+  Protected SelectedPluginID.s = GetGadgetText(ListView_Plugins)
+  Debug SelectedPluginID
+  
+  ForEach EditorPlugins()
+    If EditorPlugins()\ID = SelectedPluginID
+      Debug "Found details about the plugin!"
+      SetGadgetText(Text_PluginDetails, EditorPlugins()\Name+#CRLF$+EditorPlugins()\Description+#CRLF$+#CRLF$+"Developed by "+EditorPlugins()\Author+#CRLF$+"Version: "+EditorPlugins()\Version)
+      
+      ; Stop loop
+      Break
+    EndIf
+  Next
+EndProcedure
+
+Procedure RunPlugin(EventType)
+  Protected SelectedPluginID.s = GetGadgetText(ListView_Plugins)
+  
+  If Trim(SelectedPluginID) = ""
+    ProcedureReturn MessageRequester("Error", "First select the plugin you wish to run from the list view.", #PB_MessageRequester_Warning | #PB_MessageRequester_Ok)  
+  EndIf
+  
+  ForEach EditorPlugins()
+    If EditorPlugins()\ID = SelectedPluginID
+      Debug "Found the plugin! Lets run it."
+      Protected FilePath.s = EditorPlugins()\Path + "\" + EditorPlugins()\File
+      
+      ; Run process
+      Protected PowerShell_Parameter.s = "-ExecutionPolicy ByPass -File "+Chr(34)+FilePath+Chr(34)+" -ProjectPath "+Chr(34)+Project_FolderPath
+      Debug "PowerShell parameter: " + PowerShell_Parameter
+      RunProgram("powershell.exe", PowerShell_Parameter, GetPathPart(FilePath))
+      
+      ; Stop loop
+      Break
+    EndIf
+  Next
 EndProcedure
 
 Procedure ShowPluginWindow(EventType)
@@ -1737,7 +1877,7 @@ LoadUI()
 ShowNewProjectWindow(0)
 ShowSoftwareReadMe()
 
-; Download IntuneWinAppUtil
+; New Thread: Download IntuneWinAppUtil
 Debug "Downloading IntuneWinAppUtil..."
 CreateThread(@DownloadIntuneWinAppUtil(), 0)
 
@@ -1780,6 +1920,7 @@ Repeat
           Case #MenuItem_ShowSupportFilesFolder : ShowSupportFilesFolder(0)
           Case #MenuItem_PSADT_OnlineVariablesOverview : ShowOnlineVariablesOverview(0)
           Case #MenuItem_RunInstallation : GenerateAndStartInstallation(0)
+          Case #MenuItem_RunInstallationSandbox : GenerateAndStartInstallationSandbox(0)
           Case #MenuItem_RunUninstall : GenerateAndStartUninstall(0)
           Case #MenuItem_RunRepair : GenerateAndStartRepair(0)
           Case #MenuItem_GenerateExecutablesList : GenerateExecutablesList(0)
@@ -1825,10 +1966,15 @@ Repeat
         ProjectSettingsWindow_Events(Event)
       EndIf
       
-    ;- [About Window]
+    ;- [Plugin Window]
     Case PluginWindow
       If Event = #PB_Event_CloseWindow
         ClosePluginWindow(0)
+      ElseIf Event = #PB_Event_Gadget And EventGadget() = ListView_Plugins
+        Select EventType()
+          Case #PB_EventType_LeftClick
+            RenderPluginDetails(Event)
+        EndSelect
       Else
         PluginWindow_Events(Event)
       EndIf
@@ -1845,8 +1991,8 @@ Repeat
   
 Until Quit = #True
 ; IDE Options = PureBasic 6.12 LTS (Windows - x64)
-; CursorPosition = 1739
-; FirstLine = 293
-; Folding = AgAAAAAAAAAAw
+; CursorPosition = 1654
+; FirstLine = 361
+; Folding = AAAAIAAAAAgDA+
 ; EnableXP
 ; DPIAware
