@@ -1,4 +1,4 @@
-﻿; Form Designer for PureBasic - 6.12
+﻿; Form Designer for PureBasic - 6.20
 ; Warning: this file uses a strict syntax, if you edit it, make sure to respect the Form Designer limitation or it won't be opened again.
 
 ;
@@ -36,7 +36,7 @@ Procedure OpenAboutWindow(x = 0, y = 0, width = 600, height = 360)
   SetGadgetFont(Text_Title, FontID(#Font_AboutWindow_0))
   Text_AboutThisApp = TextGadget(#PB_Any, 200, 40, 100, 25, "About this app")
   SetGadgetFont(Text_AboutThisApp, FontID(#Font_AboutWindow_1))
-  Text_Version = TextGadget(#PB_Any, 200, 110, 350, 25, "Version 1.0.6 (Preview 6)")
+  Text_Version = TextGadget(#PB_Any, 200, 110, 350, 25, "Version 1.0.7 (Preview 7)")
   SetGadgetFont(Text_Version, FontID(#Font_AboutWindow_1))
   Text_Copyright = TextGadget(#PB_Any, 200, 140, 350, 25, "Copyright (c) 2025 Tugay Taskin - https://www.tugi.ch")
   Text_Description1 = TextGadget(#PB_Any, 200, 190, 350, 20, "Deployment Editor simplifies software packaging with")

@@ -1,4 +1,4 @@
-﻿; Form Designer for PureBasic - 6.12
+﻿; Form Designer for PureBasic - 6.20
 ; Warning: this file uses a strict syntax, if you edit it, make sure to respect the Form Designer limitation or it won't be opened again.
 
 ;
@@ -26,6 +26,7 @@ Enumeration FormMenu
   #MenuItem_OpenWithNotepadPlusPlus
   #MenuItem_RunInstallation
   #MenuItem_RunWindowsSandbox
+  #MenuItem_RunOnRemoteMachine
   #MenuItem_RunUninstall
   #MenuItem_RunRepair
   #MenuItem_CreateIntunePackage
@@ -111,6 +112,8 @@ Procedure OpenMainWindow(x = 0, y = 0, width = 1400, height = 945)
   MenuTitle("Run")
   MenuItem(#MenuItem_RunInstallation, "Run Installation" + Chr(9) + "F5")
   MenuItem(#MenuItem_RunWindowsSandbox, "Run Installation in Windows Sandbox")
+  MenuBar()
+  MenuItem(#MenuItem_RunOnRemoteMachine, "Run on Remote Machine")
   MenuBar()
   MenuItem(#MenuItem_RunUninstall, "Run Uninstall")
   MenuItem(#MenuItem_RunRepair, "Run Repair")
@@ -260,6 +263,7 @@ Procedure MainWindow_Events(event)
         Case #MenuItem_OpenWithNotepadPlusPlus
         Case #MenuItem_RunInstallation
         Case #MenuItem_RunWindowsSandbox
+        Case #MenuItem_RunOnRemoteMachine
         Case #MenuItem_RunUninstall
         Case #MenuItem_RunRepair
         Case #MenuItem_CreateIntunePackage

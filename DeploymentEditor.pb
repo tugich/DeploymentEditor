@@ -131,6 +131,7 @@ Enumeration KeyboardShortcuts
   #MenuItem_OpenWithNotepadPlusPlus
   #MenuItem_RunInstallation
   #MenuItem_RunInstallationSandbox
+  #MenuItem_RunRemoteMachine
   #MenuItem_RunUninstall
   #MenuItem_RunRepair
   #MenuItem_CreateIntunePackage
@@ -1921,6 +1922,7 @@ Repeat
           Case #MenuItem_PSADT_OnlineVariablesOverview : ShowOnlineVariablesOverview(0)
           Case #MenuItem_RunInstallation : GenerateAndStartInstallation(0)
           Case #MenuItem_RunInstallationSandbox : GenerateAndStartInstallationSandbox(0)
+          Case #MenuItem_RunRemoteMachine : NotAvailableFeatureMessage(0)
           Case #MenuItem_RunUninstall : GenerateAndStartUninstall(0)
           Case #MenuItem_RunRepair : GenerateAndStartRepair(0)
           Case #MenuItem_GenerateExecutablesList : GenerateExecutablesList(0)
@@ -1990,9 +1992,9 @@ Repeat
   EndSelect
   
 Until Quit = #True
-; IDE Options = PureBasic 6.12 LTS (Windows - x64)
-; CursorPosition = 1654
-; FirstLine = 361
-; Folding = AAAAIAAAAAgDA+
+; IDE Options = PureBasic 6.20 (Windows - x64)
+; CursorPosition = 1540
+; FirstLine = 331
+; Folding = AAAAAAAAAAQAA+
 ; EnableXP
 ; DPIAware

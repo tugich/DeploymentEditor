@@ -1,3 +1,8 @@
+Version 1.0.7 (Preview 7, Development):
+* Updated PSADT and templates to v4.0.6
+* Added action parameter to command: Start-ADTMsiProcess
+* Extended test project with MSI example
+
 Version 1.0.6 (Preview 6):
 * Added new feature: Run Installation in Windows Sandbox
 * Added PowerShell & PureBasic script to build PSADT.sqlite

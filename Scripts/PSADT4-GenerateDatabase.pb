@@ -125,14 +125,15 @@ If File
   ; Add custom entries
   CheckDatabaseUpdate(0, "INSERT INTO Commands (Name, Command, Category, Description) VALUES ('Custom Script', '#CustomScript', 'General', 'Custom scripts in PowerShell')")
   CheckDatabaseUpdate(0, "INSERT INTO Parameters (Command, Parameter, Type, Description, Required, Control, SortIndex) VALUES ((SELECT last_insert_rowid()), 'Script', 'Inline', 'Your custom PowerShell script.', 1, 'Script', 1)")
+  CheckDatabaseUpdate(0, "INSERT INTO Parameters (Command, Parameter, Type, Description, Required, Control, SortIndex) VALUES (101, 'Action', 'String', 'Specifies the action to be performed. Available options: Install, Uninstall, Patch, Repair, ActiveSetup.', 1, 'String', 1)")
   
   CloseFile(File)
   CloseDatabase(0)
 EndIf
 
-; IDE Options = PureBasic 6.12 LTS (Windows - x64)
-; CursorPosition = 124
-; FirstLine = 64
+; IDE Options = PureBasic 6.20 (Windows - x64)
+; CursorPosition = 127
+; FirstLine = 76
 ; Folding = -
 ; EnableXP
 ; DPIAware

@@ -8,7 +8,7 @@ This module can be directly imported from the command line via Import-Module, bu
 
 This module can usually be updated to the latest version without impacting your per-application Invoke-AppDeployToolkit.ps1 scripts. Please check release notes before upgrading.
 
-PSAppDeployToolkit is licensed under the GNU LGPLv3 License - (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+PSAppDeployToolkit is licensed under the GNU LGPLv3 License - (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the
 Free Software Foundation, either version 3 of the License, or any later version. This program is distributed in the hope that it will be useful, but
@@ -27,7 +27,7 @@ https://psappdeploytoolkit.com
 #-----------------------------------------------------------------------------
 
 # Throw if this psm1 file isn't being imported via our manifest.
-if (!([System.Environment]::StackTrace.Split("`n").Trim() -like '*Microsoft.PowerShell.Commands.ModuleCmdletBase.LoadModuleManifest(*'))
+if (!([System.Environment]::StackTrace.Split("`n") -like '*Microsoft.PowerShell.Commands.ModuleCmdletBase.LoadModuleManifest(*'))
 {
     throw [System.Management.Automation.ErrorRecord]::new(
         [System.InvalidOperationException]::new("This module must be imported via its .psd1 file, which is recommended for all modules that supply a .psd1 file."),
@@ -41,129 +41,157 @@ if (!([System.Environment]::StackTrace.Split("`n").Trim() -like '*Microsoft.Powe
 [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', 'ModuleImportStart', Justification = "This variable is used within ImportsLast.ps1 and therefore cannot be seen here.")]
 $ModuleImportStart = [System.DateTime]::Now
 
-# Build out lookup table for all cmdlets used within module, starting with the core cmdlets.
-$CommandTable = [System.Collections.Generic.Dictionary[System.String, System.Management.Automation.CommandInfo]]::new()
-$ExecutionContext.SessionState.InvokeCommand.GetCmdlets() | & { process { if ($_.PSSnapIn -and $_.PSSnapIn.Name.Equals('Microsoft.PowerShell.Core') -and $_.PSSnapIn.IsDefault) { $CommandTable.Add($_.Name, $_) } } }
-
-# Expand command lookup table with cmdlets used through this module.
-& {
-    $RequiredModules = [System.Collections.ObjectModel.ReadOnlyCollection[Microsoft.PowerShell.Commands.ModuleSpecification]]$(
-        @{ ModuleName = 'CimCmdlets'; Guid = 'fb6cc51d-c096-4b38-b78d-0fed6277096a'; ModuleVersion = '1.0' }
-        @{ ModuleName = 'Dism'; Guid = '389c464d-8b8d-48e9-aafe-6d8a590d6798'; ModuleVersion = '1.0' }
-        @{ ModuleName = 'International'; Guid = '561544e6-3a83-4d24-b140-78ad771eaf10'; ModuleVersion = '1.0' }
-        @{ ModuleName = 'Microsoft.PowerShell.Archive'; Guid = 'eb74e8da-9ae2-482a-a648-e96550fb8733'; ModuleVersion = '1.0' }
-        @{ ModuleName = 'Microsoft.PowerShell.Management'; Guid = 'eefcb906-b326-4e99-9f54-8b4bb6ef3c6d'; ModuleVersion = '1.0' }
-        @{ ModuleName = 'Microsoft.PowerShell.Security'; Guid = 'a94c8c7e-9810-47c0-b8af-65089c13a35a'; ModuleVersion = '1.0' }
-        @{ ModuleName = 'Microsoft.PowerShell.Utility'; Guid = '1da87e53-152b-403e-98dc-74d7b4d63d59'; ModuleVersion = '1.0' }
-        @{ ModuleName = 'NetAdapter'; Guid = '1042b422-63a8-4016-a6d6-293e19e8f8a6'; ModuleVersion = '1.0' }
-        @{ ModuleName = 'ScheduledTasks'; Guid = '5378ee8e-e349-49bb-83b9-f3d9c396c0a6'; ModuleVersion = '1.0' }
-    )
-    (& $Script:CommandTable.'Import-Module' -FullyQualifiedName $RequiredModules -Global -Force -PassThru -ErrorAction Stop).ExportedCommands.Values | & { process { $CommandTable.Add($_.Name, $_) } }
-}
-
-# Set required variables to ensure module functionality.
-& $Script:CommandTable.'New-Variable' -Name ErrorActionPreference -Value ([System.Management.Automation.ActionPreference]::Stop) -Option Constant -Force
-& $Script:CommandTable.'New-Variable' -Name InformationPreference -Value ([System.Management.Automation.ActionPreference]::Continue) -Option Constant -Force
-& $Script:CommandTable.'New-Variable' -Name ProgressPreference -Value ([System.Management.Automation.ActionPreference]::SilentlyContinue) -Option Constant -Force
-
-# Ensure module operates under the strictest of conditions.
-& $Script:CommandTable.'Set-StrictMode' -Version 3
-
-# Throw if any previous version of the unofficial PSADT module is found on the system.
-if (& $Script:CommandTable.'Get-Module' -FullyQualifiedName @{ ModuleName = 'PSADT'; Guid = '41b2dd67-8447-4c66-b08a-f0bd0d5458b9'; ModuleVersion = '1.0' } -ListAvailable -Refresh)
-{
-    & $Script:CommandTable.'Write-Warning' -Message "This module should not be used while the unofficial v3 PSADT module is installed."
-}
-
-# Store build information pertaining to this module's state.
-& $Script:CommandTable.'New-Variable' -Name Module -Option Constant -Force -Value ([ordered]@{
-        Manifest = & $Script:CommandTable.'Import-LocalizedData' -BaseDirectory $PSScriptRoot -FileName 'PSAppDeployToolkit'
-        Assemblies = (& $Script:CommandTable.'Get-ChildItem' -Path $PSScriptRoot\lib\PSADT*.dll).FullName
-        Compiled = $MyInvocation.MyCommand.Name.Equals('PSAppDeployToolkit.psm1')
-        Signed = (& $Script:CommandTable.'Get-AuthenticodeSignature' -LiteralPath $MyInvocation.MyCommand.Path).Status.Equals([System.Management.Automation.SignatureStatus]::Valid)
-    }).AsReadOnly()
-
-# Import our assemblies, factoring in whether they're on a network share or not.
-$Module.Assemblies | & {
-    begin
-    {
-        # Cache loaded assemblies to test whether they're already loaded.
-        $domainAssemblies = [System.AppDomain]::CurrentDomain.GetAssemblies()
-
-        # Determine whether we're on a network location.
-        $isNetworkLocation = [System.Uri]::new($PSScriptRoot).IsUnc -or ($PSScriptRoot -match '^([A-Za-z]:)\\' -and ((& $Script:CommandTable.'Get-CimInstance' -ClassName Win32_LogicalDisk -Filter "DeviceID='$($Matches[1])'").ProviderName -match '^\\\\'))
-    }
-
-    process
-    {
-        # Test whether the assembly is already loaded.
-        if (($existingAssembly = $domainAssemblies | & { process { if ([System.IO.Path]::GetFileName($_.Location).Equals([System.IO.Path]::GetFileName($args[0]))) { return $_ } } } $_ | & $Script:CommandTable.'Select-Object' -First 1))
-        {
-            # Test the loaded assembly for SHA256 hash equality, returning early if the assembly is OK.
-            if (!(& $Script:CommandTable.'Get-FileHash' -LiteralPath $existingAssembly.Location).Hash.Equals((& $Script:CommandTable.'Get-FileHash' -LiteralPath $_).Hash))
-            {
-                throw [System.Management.Automation.ErrorRecord]::new(
-                    [System.InvalidOperationException]::new("A PSAppDeployToolkit assembly of a different file hash is already loaded. Please restart PowerShell and try again."),
-                    'ConflictingModuleLoaded',
-                    [System.Management.Automation.ErrorCategory]::InvalidOperation,
-                    $existingAssembly
-                )
-            }
-            return
-        }
-
-        # If we're on a compiled build, confirm the DLLs are signed before proceeding.
-        if ($Module.Signed -and !($badFile = & $Script:CommandTable.'Get-AuthenticodeSignature' -LiteralPath $_).Status.Equals([System.Management.Automation.SignatureStatus]::Valid))
-        {
-            throw [System.Management.Automation.ErrorRecord]::new(
-                [System.InvalidOperationException]::new("The assembly [$_] has an invalid digital signature and cannot be loaded."),
-                'ADTAssemblyFileSignatureError',
-                [System.Management.Automation.ErrorCategory]::SecurityError,
-                $badFile
-            )
-        }
-
-        # If loading from an SMB path, load unsafely. This is OK because in signed (release) modules, we're validating the signature above.
-        if ($isNetworkLocation)
-        {
-            [System.Reflection.Assembly]::UnsafeLoadFrom($_)
-        }
-        else
-        {
-            & $Script:CommandTable.'Add-Type' -LiteralPath $_
-        }
-    }
-}
-
-# Set the process as HiDPI so long as we're in a real console.
-if ($Host.Name.Equals('ConsoleHost'))
-{
-    try
-    {
-        [PSADT.GUI.UiAutomation]::SetProcessDpiAwarenessForOSVersion()
-    }
-    catch
-    {
-        $null = $null
-    }
-}
-
-# All WinForms-specific initialization code.
+# Rethrowing caught exceptions makes the error output from Import-Module look better.
 try
 {
-    [System.Windows.Forms.Application]::EnableVisualStyles()
-    [System.Windows.Forms.Application]::SetCompatibleTextRenderingDefault($false)
+    # Determine if we're doing a minimal startup (i.e. on Linux but want to allow New-ADTTemplate to funcion).
+    $MinimumStartup = $PSEdition.Equals('Core') -and !$IsWindows
+
+    # Build out lookup table for all cmdlets used within module, starting with the core cmdlets.
+    $CommandTable = [System.Collections.Generic.Dictionary[System.String, System.Management.Automation.CommandInfo]]::new()
+    $ExecutionContext.SessionState.InvokeCommand.GetCmdlets() | & { process { if ($_.PSSnapIn -and $_.PSSnapIn.Name.Equals('Microsoft.PowerShell.Core') -and $_.PSSnapIn.IsDefault) { $CommandTable.Add($_.Name, $_) } } }
+
+    # Expand command lookup table with cmdlets used through this module.
+    & {
+        $RequiredModules = [System.Collections.ObjectModel.ReadOnlyCollection[Microsoft.PowerShell.Commands.ModuleSpecification]]$(
+            if (!$MinimumStartup)
+            {
+                @{ ModuleName = 'CimCmdlets'; Guid = 'fb6cc51d-c096-4b38-b78d-0fed6277096a'; ModuleVersion = '1.0' }
+                @{ ModuleName = 'Dism'; Guid = '389c464d-8b8d-48e9-aafe-6d8a590d6798'; ModuleVersion = '1.0' }
+                @{ ModuleName = 'International'; Guid = '561544e6-3a83-4d24-b140-78ad771eaf10'; ModuleVersion = '1.0' }
+                @{ ModuleName = 'NetAdapter'; Guid = '1042b422-63a8-4016-a6d6-293e19e8f8a6'; ModuleVersion = '1.0' }
+                @{ ModuleName = 'ScheduledTasks'; Guid = '5378ee8e-e349-49bb-83b9-f3d9c396c0a6'; ModuleVersion = '1.0' }
+            }
+            @{ ModuleName = 'Microsoft.PowerShell.Archive'; Guid = 'eb74e8da-9ae2-482a-a648-e96550fb8733'; ModuleVersion = '1.0' }
+            @{ ModuleName = 'Microsoft.PowerShell.Management'; Guid = 'eefcb906-b326-4e99-9f54-8b4bb6ef3c6d'; ModuleVersion = '1.0' }
+            @{ ModuleName = 'Microsoft.PowerShell.Security'; Guid = 'a94c8c7e-9810-47c0-b8af-65089c13a35a'; ModuleVersion = '1.0' }
+            @{ ModuleName = 'Microsoft.PowerShell.Utility'; Guid = '1da87e53-152b-403e-98dc-74d7b4d63d59'; ModuleVersion = '1.0' }
+        )
+        (& $Script:CommandTable.'Import-Module' -FullyQualifiedName $RequiredModules -Global -Force -PassThru -ErrorAction Stop).ExportedCommands.Values | & { process { $CommandTable.Add($_.Name, $_) } }
+    }
+
+    # Set required variables to ensure module functionality.
+    & $Script:CommandTable.'New-Variable' -Name ErrorActionPreference -Value ([System.Management.Automation.ActionPreference]::Stop) -Option Constant -Force
+    & $Script:CommandTable.'New-Variable' -Name InformationPreference -Value ([System.Management.Automation.ActionPreference]::Continue) -Option Constant -Force
+    & $Script:CommandTable.'New-Variable' -Name ProgressPreference -Value ([System.Management.Automation.ActionPreference]::SilentlyContinue) -Option Constant -Force
+
+    # Ensure module operates under the strictest of conditions.
+    & $Script:CommandTable.'Set-StrictMode' -Version 3
+
+    # Throw if any previous version of the unofficial PSADT module is found on the system.
+    if (& $Script:CommandTable.'Get-Module' -FullyQualifiedName @{ ModuleName = 'PSADT'; Guid = '41b2dd67-8447-4c66-b08a-f0bd0d5458b9'; ModuleVersion = '1.0' } -ListAvailable -Refresh)
+    {
+        & $Script:CommandTable.'Write-Warning' -Message "This module should not be used while the unofficial v3 PSADT module is installed."
+    }
+
+    # Store build information pertaining to this module's state.
+    & $Script:CommandTable.'New-Variable' -Name Module -Option Constant -Force -Value ([ordered]@{
+            Manifest = & $Script:CommandTable.'Import-LocalizedData' -BaseDirectory $PSScriptRoot -FileName 'PSAppDeployToolkit.psd1'
+            Assemblies = (& $Script:CommandTable.'Get-ChildItem' -LiteralPath $PSScriptRoot\lib -File -Filter PSADT*.dll).FullName
+            Compiled = $MyInvocation.MyCommand.Name.Equals('PSAppDeployToolkit.psm1')
+            Signed = $(if (!$MinimumStartup) { (& $Script:CommandTable.'Get-AuthenticodeSignature' -LiteralPath $MyInvocation.MyCommand.Path).Status.Equals([System.Management.Automation.SignatureStatus]::Valid) })
+        }).AsReadOnly()
+
+    # Perform remaining Windows setup.
+    if (!$MinimumStartup)
+    {
+        # Import our assemblies, factoring in whether they're on a network share or not.
+        $Module.Assemblies | & {
+            begin
+            {
+                # Cache loaded assemblies to test whether they're already loaded.
+                $domainAssemblies = [System.AppDomain]::CurrentDomain.GetAssemblies()
+
+                # Determine whether we're on a network location.
+                $isNetworkLocation = [System.Uri]::new($PSScriptRoot).IsUnc -or ($PSScriptRoot -match '^([A-Za-z]:)\\' -and ((& $Script:CommandTable.'Get-CimInstance' -ClassName Win32_LogicalDisk -Filter "DeviceID='$($Matches[1])'").ProviderName -match '^\\\\'))
+
+                # Add in system assemblies.
+                & $Script:CommandTable.'Add-Type' -AssemblyName @(
+                    'System.ServiceProcess'
+                    'System.Drawing'
+                    'System.Windows.Forms'
+                    'PresentationCore'
+                    'PresentationFramework'
+                    'WindowsBase'
+                )
+            }
+
+            process
+            {
+                # Test whether the assembly is already loaded.
+                if (($existingAssembly = $domainAssemblies | & { process { if ([System.IO.Path]::GetFileName($_.Location).Equals([System.IO.Path]::GetFileName($args[0]))) { return $_ } } } $_ | & $Script:CommandTable.'Select-Object' -First 1))
+                {
+                    # Test the loaded assembly for SHA256 hash equality, returning early if the assembly is OK.
+                    if (!(& $Script:CommandTable.'Get-FileHash' -LiteralPath $existingAssembly.Location).Hash.Equals((& $Script:CommandTable.'Get-FileHash' -LiteralPath $_).Hash))
+                    {
+                        throw [System.Management.Automation.ErrorRecord]::new(
+                            [System.InvalidOperationException]::new("A PSAppDeployToolkit assembly of a different file hash is already loaded. Please restart PowerShell and try again."),
+                            'ConflictingModuleLoaded',
+                            [System.Management.Automation.ErrorCategory]::InvalidOperation,
+                            $existingAssembly
+                        )
+                    }
+                    return
+                }
+
+                # If we're on a compiled build, confirm the DLLs are signed before proceeding.
+                if ($Module.Signed -and !($badFile = & $Script:CommandTable.'Get-AuthenticodeSignature' -LiteralPath $_).Status.Equals([System.Management.Automation.SignatureStatus]::Valid))
+                {
+                    throw [System.Management.Automation.ErrorRecord]::new(
+                        [System.InvalidOperationException]::new("The assembly [$_] has an invalid digital signature and cannot be loaded."),
+                        'ADTAssemblyFileSignatureError',
+                        [System.Management.Automation.ErrorCategory]::SecurityError,
+                        $badFile
+                    )
+                }
+
+                # If loading from an SMB path, load unsafely. This is OK because in signed (release) modules, we're validating the signature above.
+                if ($isNetworkLocation)
+                {
+                    [System.Reflection.Assembly]::UnsafeLoadFrom($_)
+                }
+                else
+                {
+                    & $Script:CommandTable.'Add-Type' -LiteralPath $_
+                }
+            }
+        }
+
+        # Set the process as HiDPI so long as we're in a real console.
+        if ($Host.Name.Equals('ConsoleHost'))
+        {
+            try
+            {
+                [PSADT.GUI.UiAutomation]::SetProcessDpiAwarenessForOSVersion()
+            }
+            catch
+            {
+                $null = $null
+            }
+        }
+
+        # All WinForms-specific initialization code.
+        try
+        {
+            [System.Windows.Forms.Application]::EnableVisualStyles()
+            [System.Windows.Forms.Application]::SetCompatibleTextRenderingDefault($false)
+        }
+        catch
+        {
+            $null = $null
+        }
+    }
+
+    # Remove any previous functions that may have been defined.
+    if ($Module.Compiled)
+    {
+        & $Script:CommandTable.'New-Variable' -Name FunctionPaths -Option Constant -Value ($MyInvocation.MyCommand.ScriptBlock.Ast.EndBlock.Statements | & { process { if ($_ -is [System.Management.Automation.Language.FunctionDefinitionAst]) { return "Microsoft.PowerShell.Core\Function::$($_.Name)" } } })
+        & $Script:CommandTable.'Remove-Item' -LiteralPath $FunctionPaths -Force -ErrorAction Ignore
+    }
 }
 catch
 {
-    $null = $null
-}
-
-# Remove any previous functions that may have been defined.
-if ($Module.Compiled)
-{
-    & $Script:CommandTable.'New-Variable' -Name FunctionPaths -Option Constant -Value ($MyInvocation.MyCommand.ScriptBlock.Ast.EndBlock.Statements | & { process { if ($_ -is [System.Management.Automation.Language.FunctionDefinitionAst]) { return "Microsoft.PowerShell.Core\Function::$($_.Name)" } } })
-    & $Script:CommandTable.'Remove-Item' -LiteralPath $FunctionPaths -Force -ErrorAction Ignore
+    throw
 }
 
 
@@ -341,8 +369,11 @@ function Exit-ADTInvocation
     param
     (
         [Parameter(Mandatory = $true)]
-        [AllowNull()]
-        [System.Nullable[System.Int32]]$ExitCode,
+        [ValidateNotNullOrEmpty()]
+        [System.Int32]$ExitCode,
+
+        [Parameter(Mandatory = $false)]
+        [System.Management.Automation.SwitchParameter]$NoShellExit,
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$Force
@@ -365,9 +396,10 @@ function Exit-ADTInvocation
     $Script:ADT.Initialized = $false
 
     # Return early if this function was called from the command line.
-    if (($null -eq $ExitCode) -and !$Force)
+    if ($NoShellExit -and !$Force)
     {
-        return
+        $Global:LASTEXITCODE = $ExitCode
+        break
     }
 
     # If a callback failed and we're in a proper console, forcibly exit the process.
@@ -662,6 +694,45 @@ function Get-ADTSCCMClientVersion
 
 #-----------------------------------------------------------------------------
 #
+# MARK: Get-ADTSessionCacheScriptDirectory
+#
+#-----------------------------------------------------------------------------
+
+function Get-ADTSessionCacheScriptDirectory
+{
+    # Determine whether we've got a valid script directory for caching purposes and throw if we don't.
+    $scriptDir = if (($adtSession = & $Script:CommandTable.'Get-ADTSession').ScriptDirectory -and $adtSession.ScriptDirectory.Count)
+    {
+        if ($adtSession.ScriptDirectory.Count -gt 1)
+        {
+            $adtSession.ScriptDirectory | & { process { if ([System.IO.Directory]::Exists([System.IO.Path]::Combine($_, 'Files'))) { return $_ } } } | & $Script:CommandTable.'Select-Object' -First 1
+        }
+        elseif ([System.IO.Directory]::Exists([System.IO.Path]::Combine($($adtSession.ScriptDirectory), 'Files')))
+        {
+            $($adtSession.ScriptDirectory)
+        }
+        elseif ($adtSession.DirFiles -and [System.IO.Directory]::Exists($adtSession.DirFiles))
+        {
+            [System.IO.DirectoryInfo]::new($adtSession.DirFiles).Parent.FullName
+        }
+    }
+    if (!$scriptDir)
+    {
+        $naerParams = @{
+            Exception = [System.IO.DirectoryNotFoundException]::new("None of the current session's ScriptDirectory paths contain any Files/SupportFiles directories.")
+            Category = [System.Management.Automation.ErrorCategory]::InvalidResult
+            ErrorId = 'ScriptDirectoryInvalid'
+            TargetObject = $adtSession.ScriptDirectory
+            RecommendedAction = "Please review the session's ScriptDirectory listing, then try again."
+        }
+        throw (& $Script:CommandTable.'New-ADTErrorRecord' @naerParams)
+    }
+    return $scriptDir
+}
+
+
+#-----------------------------------------------------------------------------
+#
 # MARK: Get-ADTStringLanguage
 #
 #-----------------------------------------------------------------------------
@@ -793,9 +864,9 @@ function Import-ADTConfig
     if (!$Script:Dialogs.Contains($config.UI.DialogStyle))
     {
         $naerParams = @{
-            Exception = [System.NotSupportedException]::new("The specified dialog style [$($config.UI.DialogStyle)] is not supported. Valid styles are ['$($Script:Dialogs.Keys -join "', '")'].")
+            Exception = [System.NotSupportedException]::new("The specified dialog style [$($config.UI.DialogStyle)] is not valid. Valid styles are ['$($Script:Dialogs.Keys -join "', '")'].")
             Category = [System.Management.Automation.ErrorCategory]::InvalidData
-            ErrorId = 'DialogStyleNotSupported'
+            ErrorId = 'DialogStyleInvalid'
             TargetObject = $config
             RecommendedAction = "Please review the supplied configuration file and try again."
         }
@@ -805,12 +876,6 @@ function Import-ADTConfig
     # Expand out environment variables and asset file paths.
     ($adtEnv = & $Script:CommandTable.'Get-ADTEnvironmentTable').GetEnumerator() | & { process { & $Script:CommandTable.'New-Variable' -Name $_.Name -Value $_.Value -Option Constant } end { $config | Expand-ADTVariablesInConfig } }
     $config.Assets | Update-ADTAssetFilePath
-
-    # Process the classic assets by grabbing the bytes of each image asset, storing them into a memory stream, then as an image for WinForms to use.
-    $Script:Dialogs.Classic.Assets.Logo = [System.Drawing.Image]::FromStream([System.IO.MemoryStream]::new([System.IO.File]::ReadAllBytes($config.Assets.Logo)))
-    $Script:Dialogs.Classic.Assets.Icon = [PSADT.Shared.Utility]::ConvertImageToIcon($Script:Dialogs.Classic.Assets.Logo)
-    $Script:Dialogs.Classic.Assets.Banner = [System.Drawing.Image]::FromStream([System.IO.MemoryStream]::new([System.IO.File]::ReadAllBytes($config.Assets.Banner)))
-    $Script:Dialogs.Classic.BannerHeight = [System.Math]::Ceiling($Script:Dialogs.Classic.Width * ($Script:Dialogs.Classic.Assets.Banner.Height / $Script:Dialogs.Classic.Assets.Banner.Width))
 
     # Set the app's AUMID so it doesn't just say "Windows PowerShell".
     if ($config.UI.BalloonNotifications -and ![PSADT.LibraryInterfaces.Shell32]::SetCurrentProcessExplicitAppUserModelID($config.UI.BalloonTitle))
@@ -823,19 +888,19 @@ function Import-ADTConfig
     # Change paths to user accessible ones if user isn't an admin.
     if (!$adtEnv.IsAdmin)
     {
-        if ($config.Toolkit.TempPathNoAdminRights)
+        if (![System.String]::IsNullOrWhiteSpace($config.Toolkit.TempPathNoAdminRights))
         {
             $config.Toolkit.TempPath = $config.Toolkit.TempPathNoAdminRights
         }
-        if ($config.Toolkit.RegPathNoAdminRights)
+        if (![System.String]::IsNullOrWhiteSpace($config.Toolkit.RegPathNoAdminRights))
         {
             $config.Toolkit.RegPath = $config.Toolkit.RegPathNoAdminRights
         }
-        if ($config.Toolkit.LogPathNoAdminRights)
+        if (![System.String]::IsNullOrWhiteSpace($config.Toolkit.LogPathNoAdminRights))
         {
             $config.Toolkit.LogPath = $config.Toolkit.LogPathNoAdminRights
         }
-        if ($config.MSI.LogPathNoAdminRights)
+        if (![System.String]::IsNullOrWhiteSpace($config.MSI.LogPathNoAdminRights))
         {
             $config.MSI.LogPath = $config.MSI.LogPathNoAdminRights
         }
@@ -980,6 +1045,42 @@ function Import-ADTModuleDataFile
 
 #-----------------------------------------------------------------------------
 #
+# MARK: Initialize-ADTClassicAssets
+#
+#-----------------------------------------------------------------------------
+
+function Initialize-ADTClassicAssets
+{
+    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This function is appropriately named and we don't need PSScriptAnalyzer telling us otherwise.")]
+    [CmdletBinding()]
+    param
+    (
+    )
+
+    # Return early if already initialised.
+    if ($Script:Dialogs.Classic.BannerHeight)
+    {
+        return
+    }
+
+    # Process the classic assets by grabbing the bytes of each image asset, storing them into a memory stream, then as an image for WinForms to use.
+    try
+    {
+        $adtConfig = & $Script:CommandTable.'Get-ADTConfig'
+        $Script:Dialogs.Classic.Assets.Logo = [System.Drawing.Image]::FromStream([System.IO.MemoryStream]::new([System.IO.File]::ReadAllBytes($adtConfig.Assets.Logo)))
+        $Script:Dialogs.Classic.Assets.Icon = [PSADT.Shared.Utility]::ConvertImageToIcon($Script:Dialogs.Classic.Assets.Logo)
+        $Script:Dialogs.Classic.Assets.Banner = [System.Drawing.Image]::FromStream([System.IO.MemoryStream]::new([System.IO.File]::ReadAllBytes($adtConfig.Assets.Banner)))
+        $Script:Dialogs.Classic.BannerHeight = [System.Math]::Ceiling($Script:Dialogs.Classic.Width * ($Script:Dialogs.Classic.Assets.Banner.Height / $Script:Dialogs.Classic.Assets.Banner.Width))
+    }
+    catch
+    {
+        $PSCmdlet.ThrowTerminatingError($_)
+    }
+}
+
+
+#-----------------------------------------------------------------------------
+#
 # MARK: Initialize-ADTModuleIfUnitialized
 #
 #-----------------------------------------------------------------------------
@@ -1031,11 +1132,11 @@ function Invoke-ADTServiceAndDependencyOperation
     .DESCRIPTION
     Process Windows service and its dependencies.
 
-    .PARAMETER Service
+    .PARAMETER Name
     Specify the name of the service.
 
     .PARAMETER SkipDependentServices
-    Choose to skip checking for dependent services. Default is: $false.
+    Choose to skip checking for dependent services.
 
     .PARAMETER PendingStatusWait
     The amount of time to wait for a service to get out of a pending state before continuing. Default is 60 seconds.
@@ -1050,28 +1151,23 @@ function Invoke-ADTServiceAndDependencyOperation
     System.ServiceProcess.ServiceController. Returns the service object.
 
     .EXAMPLE
-    Invoke-ADTServiceAndDependencyOperation -Service wuauserv -Operation Start
+    Invoke-ADTServiceAndDependencyOperation -Name wuauserv -Operation Start
 
     .EXAMPLE
-    Invoke-ADTServiceAndDependencyOperation -Service wuauserv -Operation Stop
+    Invoke-ADTServiceAndDependencyOperation -Name wuauserv -Operation Stop
 
     .LINK
     https://psappdeploytoolkit.com
 
     #>
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'SkipDependentServices', Justification = "This parameter is used within a child function that isn't immediately visible to PSScriptAnalyzer.")]
     [CmdletBinding()]
     param
     (
         [Parameter(Mandatory = $true)]
-        [ValidateScript({
-                if (!$_.Name)
-                {
-                    $PSCmdlet.ThrowTerminatingError((& $Script:CommandTable.'New-ADTValidateScriptErrorRecord' -ParameterName Service -ProvidedValue $_ -ExceptionMessage 'The specified service does not exist.'))
-                }
-                return !!$_
-            })]
-        [System.ServiceProcess.ServiceController]$Service,
+        [ValidateNotNullOrEmpty()]
+        [System.String]$Name,
 
         [Parameter(Mandatory = $true)]
         [ValidateSet('Start', 'Stop')]
@@ -1091,6 +1187,11 @@ function Invoke-ADTServiceAndDependencyOperation
     # Internal worker function.
     function Invoke-ADTDependentServiceOperation
     {
+        if (!$SkipDependentServices)
+        {
+            return
+        }
+
         # Discover all dependent services.
         & $Script:CommandTable.'Write-ADTLogEntry' -Message "Discovering all dependent service(s) for service [$Service] which are not '$(($status = if ($Operation -eq 'Start') {'Running'} else {'Stopped'}))'."
         if (!($dependentServices = & $Script:CommandTable.'Get-Service' -Name $Service.ServiceName -DependentServices | & { process { if ($_.Status -ne $status) { return $_ } } }))
@@ -1114,8 +1215,11 @@ function Invoke-ADTServiceAndDependencyOperation
         }
     }
 
+    # Get the service object before continuing.
+    $Service = & $Script:CommandTable.'Get-Service' -Name $Name
+
     # Wait up to 60 seconds if service is in a pending state.
-    if (($desiredStatus = @{ ContinuePending = 'Running'; PausePending = 'Paused'; StartPending = 'Running'; StopPending = 'Stopped' }[$Service.Status]))
+    if (($desiredStatus = @{ ContinuePending = 'Running'; PausePending = 'Paused'; StartPending = 'Running'; StopPending = 'Stopped' }.($Service.Status)))
     {
         & $Script:CommandTable.'Write-ADTLogEntry' -Message "Waiting for up to [$($PendingStatusWait.TotalSeconds)] seconds to allow service pending status [$($Service.Status)] to reach desired status [$([System.ServiceProcess.ServiceControllerStatus]$desiredStatus)]."
         $Service.WaitForStatus($desiredStatus, $PendingStatusWait)
@@ -1127,10 +1231,7 @@ function Invoke-ADTServiceAndDependencyOperation
     if (($Operation -eq 'Stop') -and ($Service.Status -ne 'Stopped'))
     {
         # Process all dependent services.
-        if (!$SkipDependentServices)
-        {
-            Invoke-ADTDependentServiceOperation
-        }
+        Invoke-ADTDependentServiceOperation
 
         # Stop the parent service.
         & $Script:CommandTable.'Write-ADTLogEntry' -Message "Stopping parent service [$($Service.ServiceName)] with display name [$($Service.DisplayName)]."
@@ -1143,10 +1244,7 @@ function Invoke-ADTServiceAndDependencyOperation
         $Service = $Service | & $Script:CommandTable.'Start-Service' -PassThru -WarningAction Ignore
 
         # Process all dependent services.
-        if (!$SkipDependentServices)
-        {
-            Invoke-ADTDependentServiceOperation
-        }
+        Invoke-ADTDependentServiceOperation
     }
 
     # Return the service object if option selected.
@@ -1645,7 +1743,7 @@ function New-ADTEnvironmentTable
 
     ## Variables: Invalid FileName Characters
     $variables.Add('invalidFileNameChars', [System.IO.Path]::GetInvalidFileNameChars())
-    $variables.Add('invalidFileNameCharsRegExPattern', [System.Text.RegularExpressions.Regex]::Escape([System.String]::Join($null, $variables.invalidFileNameChars)))
+    $variables.Add('invalidFileNameCharsRegExPattern', "[$([System.Text.RegularExpressions.Regex]::Escape([System.String]::Join($null, $variables.invalidFileNameChars)))]")
 
     ## Variables: RegEx Patterns
     $variables.Add('MSIProductCodeRegExPattern', '^(\{{0,1}([0-9a-fA-F]){8}-([0-9a-fA-F]){4}-([0-9a-fA-F]){4}-([0-9a-fA-F]){4}-([0-9a-fA-F]){12}\}{0,1})$')
@@ -1703,9 +1801,9 @@ function Set-ADTPreferenceVariables
 
         Original code inspired by: https://gallery.technet.microsoft.com/scriptcenter/Inherit-Preference-82343b9d
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
@@ -1798,7 +1896,7 @@ function Show-ADTHelpConsoleInternal
     $helpListBox.ClientSize = [System.Drawing.Size]::new(261, 675)
     $helpListBox.Font = [System.Drawing.SystemFonts]::MessageBoxFont
     $helpListBox.Location = [System.Drawing.Point]::new(3, 0)
-    $helpListBox.add_SelectedIndexChanged({ $helpTextBox.Text = [System.String]::Join("`n", ((Get-Help -Name $helpListBox.SelectedItem -Full | Out-String -Stream -Width ([System.Int32]::MaxValue)) -replace '^\s+$').TrimEnd()).Trim() })
+    $helpListBox.add_SelectedIndexChanged({ $helpTextBox.Text = [System.String]::Join("`n", ((Get-Help -Name $helpListBox.SelectedItem -Full | Out-String -Stream -Width ([System.Int32]::MaxValue)) -replace '^\s+$').TrimEnd()).Trim().Replace('<br />', $null) })
     $null = $helpListBox.Items.AddRange(($module.ExportedCommands.Keys | Sort-Object))
 
     # Build out the form's textbox.
@@ -1968,20 +2066,20 @@ function Show-ADTInstallationProgressClassic
         # Allow the thread to be spun up safely before invoking actions against it.
         while (!($Script:Dialogs.Classic.ProgressWindow.SyncHash.ContainsKey('Window') -and $Script:Dialogs.Classic.ProgressWindow.SyncHash.Window.IsInitialized -and $Script:Dialogs.Classic.ProgressWindow.SyncHash.Window.Dispatcher.Thread.ThreadState.Equals([System.Threading.ThreadState]::Running)))
         {
-            if ($Script:Dialogs.Classic.ProgressWindow.SyncHash.ContainsKey('Error'))
+            if ($Script:Dialogs.Classic.ProgressWindow.Invocation.IsCompleted)
             {
-                $PSCmdlet.ThrowTerminatingError($Script:Dialogs.Classic.ProgressWindow.SyncHash.Error)
-            }
-            elseif ($Script:Dialogs.Classic.ProgressWindow.Invocation.IsCompleted)
-            {
-                $naerParams = @{
-                    Exception = [System.InvalidOperationException]::new("The separate thread completed without presenting the progress dialog.")
-                    Category = [System.Management.Automation.ErrorCategory]::InvalidResult
-                    ErrorId = 'InstallationProgressDialogFailure'
-                    TargetObject = $(if ($Script:Dialogs.Classic.ProgressWindow.SyncHash.ContainsKey('Window')) { $Script:Dialogs.Classic.ProgressWindow.SyncHash.Window })
-                    RecommendedAction = "Please review the result in this error's TargetObject property and try again."
+                if (!$Script:Dialogs.Classic.ProgressWindow.PowerShell.HadErrors)
+                {
+                    $naerParams = @{
+                        Exception = [System.InvalidOperationException]::new("The separate thread completed without presenting the progress dialog.")
+                        Category = [System.Management.Automation.ErrorCategory]::InvalidResult
+                        ErrorId = 'InstallationProgressDialogFailure'
+                        TargetObject = $(if ($Script:Dialogs.Classic.ProgressWindow.SyncHash.ContainsKey('Window')) { $Script:Dialogs.Classic.ProgressWindow.SyncHash.Window })
+                        RecommendedAction = "Please review the result in this error's TargetObject property and try again."
+                    }
+                    $PSCmdlet.ThrowTerminatingError((& $Script:CommandTable.'New-ADTErrorRecord' @naerParams))
                 }
-                $PSCmdlet.ThrowTerminatingError((& $Script:CommandTable.'New-ADTErrorRecord' @naerParams))
+                $Script:Dialogs.Classic.ProgressWindow.PowerShell.Runspace.SessionStateProxy.PSVariable.GetValue('Error') | & { process { if ($_ -is [System.Management.Automation.ErrorRecord]) { $PSCmdlet.ThrowTerminatingError($_) } } }
             }
         }
 
@@ -2068,7 +2166,6 @@ function Show-ADTInstallationProgressClassicInternal
     }
     catch
     {
-        $SyncHash.Add('Error', $_)
         $PSCmdlet.ThrowTerminatingError($_)
     }
 }
@@ -2216,6 +2313,9 @@ function Show-ADTInstallationPromptClassic
     $buttonSize = [System.Drawing.Size]::new(130, 24)
     $adtEnv = & $Script:CommandTable.'Get-ADTEnvironmentTable'
     $adtConfig = & $Script:CommandTable.'Get-ADTConfig'
+
+    # Initalise the classic assets.
+    & $Script:CommandTable.'Initialize-ADTClassicAssets'
 
     # Define events for form windows.
     $installPromptTimer_Tick = {
@@ -2639,6 +2739,9 @@ function Show-ADTInstallationRestartPromptClassic
     $adtConfig = & $Script:CommandTable.'Get-ADTConfig'
     $adtStrings = & $Script:CommandTable.'Get-ADTStringTable'
 
+    # Initalise the classic assets.
+    & $Script:CommandTable.'Initialize-ADTClassicAssets'
+
     # Define starting counters.
     $startTime = [System.DateTime]::Now
     $countdownTime = $startTime
@@ -2664,13 +2767,13 @@ function Show-ADTInstallationRestartPromptClassic
 
         # Initialize the countdown timer.
         $currentTime = [System.DateTime]::Now
-        $countdownTime = $startTime.AddSeconds($countdownSeconds)
+        $countdownTime = $startTime.AddSeconds($CountdownSeconds)
         $timerCountdown.Start()
 
         # Set up the form.
         $remainingTime = $countdownTime.Subtract($currentTime)
         $labelCountdown.Text = [System.String]::Format('{0}:{1:d2}:{2:d2}', $remainingTime.Days * 24 + $remainingTime.Hours, $remainingTime.Minutes, $remainingTime.Seconds)
-        if ($remainingTime.TotalSeconds -le $countdownNoHideSeconds)
+        if ($remainingTime.TotalSeconds -le $CountdownNoHideSeconds)
         {
             $buttonRestartLater.Enabled = $false
         }
@@ -2706,7 +2809,7 @@ function Show-ADTInstallationRestartPromptClassic
     $timerCountdown_Tick = {
         # Get the time information.
         $currentTime = & $Script:CommandTable.'Get-Date'
-        $countdownTime = $startTime.AddSeconds($countdownSeconds)
+        $countdownTime = $startTime.AddSeconds($CountdownSeconds)
         $remainingTime = $countdownTime.Subtract($currentTime)
 
         # If the countdown is complete, restart the machine.
@@ -2718,7 +2821,7 @@ function Show-ADTInstallationRestartPromptClassic
         {
             # Update the form.
             $labelCountdown.Text = [String]::Format('{0}:{1:d2}:{2:d2}', $remainingTime.Days * 24 + $remainingTime.Hours, $remainingTime.Minutes, $remainingTime.Seconds)
-            if ($remainingTime.TotalSeconds -le $countdownNoHideSeconds)
+            if ($remainingTime.TotalSeconds -le $CountdownNoHideSeconds)
             {
                 $buttonRestartLater.Enabled = $false
 
@@ -3011,10 +3114,6 @@ function Show-ADTWelcomePromptClassic
     (
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
-        [PSADT.Types.WelcomeState]$WelcomeState,
-
-        [Parameter(Mandatory = $true)]
-        [ValidateNotNullOrEmpty()]
         [System.String]$Title,
 
         [Parameter(Mandatory = $true)]
@@ -3027,13 +3126,13 @@ function Show-ADTWelcomePromptClassic
 
         [Parameter(Mandatory = $false)]
         [ValidateScript({
-                if ($_ -gt (& $Script:CommandTable.'Get-ADTConfig').UI.DefaultTimeout)
+                if ($_.TotalSeconds -gt (& $Script:CommandTable.'Get-ADTConfig').UI.DefaultTimeout)
                 {
                     $PSCmdlet.ThrowTerminatingError((& $Script:CommandTable.'New-ADTValidateScriptErrorRecord' -ParameterName CloseProcessesCountdown -ProvidedValue $_ -ExceptionMessage 'The close applications countdown time cannot be longer than the timeout specified in the config file.'))
                 }
                 return ($_ -ge 0)
             })]
-        [System.Double]$CloseProcessesCountdown,
+        [System.TimeSpan]$CloseProcessesCountdown,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -3073,17 +3172,19 @@ function Show-ADTWelcomePromptClassic
     $adtConfig = & $Script:CommandTable.'Get-ADTConfig'
     $adtStrings = & $Script:CommandTable.'Get-ADTStringTable'
 
+    # Initalise the classic assets.
+    & $Script:CommandTable.'Initialize-ADTClassicAssets'
+
     # Initialize variables.
-    $countdownTime = $startTime = [System.DateTime]::Now
     $showCountdown = $false
     $showCloseProcesses = $false
     $showDeference = $false
     $persistWindow = $false
 
     # Initial form layout: Close Applications
-    if ($WelcomeState.RunningProcessDescriptions)
+    if ($welcomeState.RunningProcessDescriptions)
     {
-        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Prompting the user to close application(s) [$($WelcomeState.RunningProcessDescriptions -join ',')]..."
+        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Prompting the user to close application(s) [$($welcomeState.RunningProcessDescriptions -join ',')]..."
         $showCloseProcesses = $true
     }
 
@@ -3103,9 +3204,9 @@ function Show-ADTWelcomePromptClassic
     # If deferral is being shown and 'close apps countdown' or 'persist prompt' was specified, enable those features.
     if (!$showDeference)
     {
-        if ($CloseProcessesCountdown -gt 0)
+        if ($CloseProcessesCountdown -gt [System.TimeSpan]::Zero)
         {
-            & $Script:CommandTable.'Write-ADTLogEntry' -Message "Close applications countdown has [$CloseProcessesCountdown] seconds remaining."
+            & $Script:CommandTable.'Write-ADTLogEntry' -Message "Close applications countdown has [$($CloseProcessesCountdown - $(if ($welcomeState.CloseProcessesCountdown) { $welcomeState.CloseProcessesCountdown.Elapsed } else { [System.TimeSpan]::Zero }))] seconds remaining."
             $showCountdown = $true
         }
     }
@@ -3117,31 +3218,31 @@ function Show-ADTWelcomePromptClassic
     # If 'force close apps countdown' was specified, enable that feature.
     if ($ForceCloseProcessesCountdown)
     {
-        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Close applications countdown has [$CloseProcessesCountdown] seconds remaining."
+        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Close applications countdown has [$($CloseProcessesCountdown - $(if ($welcomeState.CloseProcessesCountdown) { $welcomeState.CloseProcessesCountdown.Elapsed } else { [System.TimeSpan]::Zero }))] seconds remaining."
         $showCountdown = $true
     }
 
     # If 'force countdown' was specified, enable that feature.
     if ($ForceCountdown)
     {
-        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Countdown has [$CloseProcessesCountdown] seconds remaining."
+        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Countdown has [$($CloseProcessesCountdown - $(if ($welcomeState.CloseProcessesCountdown) { $welcomeState.CloseProcessesCountdown.Elapsed } else { [System.TimeSpan]::Zero }))] seconds remaining."
         $showCountdown = $true
     }
 
     # Set up some default values.
     $controlSize = [System.Drawing.Size]::new($Script:Dialogs.Classic.Width, 0)
     $paddingNone = [System.Windows.Forms.Padding]::new(0, 0, 0, 0)
-    $buttonSize = [System.Drawing.Size]::new(130, 24)
+    $buttonSize = [System.Drawing.Size]::new(138, 24)
 
     # Add the timer if it doesn't already exist - this avoids the timer being reset if the continue button is clicked.
-    if (!$WelcomeState.WelcomeTimer)
+    if (!$welcomeState.WelcomeTimer)
     {
-        $WelcomeState.WelcomeTimer = [System.Windows.Forms.Timer]::new()
+        $welcomeState.WelcomeTimer = [System.Windows.Forms.Timer]::new()
     }
 
     # Define all form events.
     $formWelcome_FormClosed = {
-        $WelcomeState.WelcomeTimer.remove_Tick($welcomeTimer_Tick)
+        $welcomeState.WelcomeTimer.remove_Tick($welcomeTimer_Tick)
         $welcomeTimerPersist.remove_Tick($welcomeTimerPersist_Tick)
         $timerRunningProcesses.remove_Tick($timerRunningProcesses_Tick)
         $formWelcome.remove_Load($formWelcome_Load)
@@ -3161,37 +3262,36 @@ function Show-ADTWelcomePromptClassic
         }
 
         # Initialize the countdown timer.
-        $currentTime = [System.DateTime]::Now
-        $countdownTime = $startTime.AddSeconds($CloseProcessesCountdown)
-        $WelcomeState.WelcomeTimer.Start()
-
-        # Set up the form.
-        $remainingTime = $countdownTime.Subtract($currentTime)
-        $labelCountdown.Text = [System.String]::Format('{0}:{1:d2}:{2:d2}', $remainingTime.Days * 24 + $remainingTime.Hours, $remainingTime.Minutes, $remainingTime.Seconds)
+        if ($showCountdown -and !$welcomeState.CloseProcessesCountdown)
+        {
+            $welcomeState.CloseProcessesCountdown = [System.Diagnostics.Stopwatch]::StartNew()
+            $remainingTime = $CloseProcessesCountdown - $welcomeState.CloseProcessesCountdown.Elapsed
+            $labelCountdown.Text = [System.String]::Format('{0}:{1:d2}:{2:d2}', $remainingTime.Days * 24 + $remainingTime.Hours, $remainingTime.Minutes, $remainingTime.Seconds)
+        }
+        $welcomeState.WelcomeTimer.Start()
 
         # Correct the initial state of the form to prevent the .NET maximized form issue.
         $formWelcome.WindowState = [System.Windows.Forms.FormWindowState]::Normal
         $formWelcome.BringToFront()
 
         # Get the start position of the form so we can return the form to this position if PersistPrompt is enabled.
-        $WelcomeState.FormStartLocation = $formWelcome.Location
+        $welcomeState.FormStartLocation = $formWelcome.Location
     }
-    $welcomeTimer_Tick = if ($showCountdown)
+    if ($showCountdown)
     {
-        {
-            # Get the time information.
-            [DateTime]$currentTime = [System.DateTime]::Now
-            [DateTime]$countdownTime = $startTime.AddSeconds($CloseProcessesCountdown)
-            [Timespan]$remainingTime = $countdownTime.Subtract($currentTime)
-            $WelcomeState.CloseProcessesCountdown = $remainingTime.TotalSeconds
-
+        $welcomeTimer_Tick = {
             # If the countdown is complete, close the application(s) or continue.
-            if ($countdownTime -le $currentTime)
+            if ($welcomeState.CloseProcessesCountdown.Elapsed -gt $CloseProcessesCountdown)
             {
-                if ($ForceCountdown)
+                if ($ForceCountdown -and !$welcomeState.RunningProcessDescriptions)
                 {
-                    & $Script:CommandTable.'Write-ADTLogEntry' -Message 'Countdown timer has elapsed. Force continue.'
+                    & $Script:CommandTable.'Write-ADTLogEntry' -Message 'Countdown timer has elapsed and no processes running. Force continue.'
                     $buttonContinue.PerformClick()
+                }
+                elseif ($ForceCountdown -and $showDeference)
+                {
+                    & $Script:CommandTable.'Write-ADTLogEntry' -Message 'Countdown timer has elapsed and deferrals remaining. Force deferral.'
+                    $buttonDefer.PerformClick()
                 }
                 else
                 {
@@ -3209,38 +3309,39 @@ function Show-ADTWelcomePromptClassic
             else
             {
                 # Update the form.
+                $remainingTime = $CloseProcessesCountdown - $welcomeState.CloseProcessesCountdown.Elapsed
                 $labelCountdown.Text = [System.String]::Format('{0}:{1:d2}:{2:d2}', $remainingTime.Days * 24 + $remainingTime.Hours, $remainingTime.Minutes, $remainingTime.Seconds)
             }
         }
     }
     else
     {
-        $WelcomeState.WelcomeTimer.Interval = $adtConfig.UI.DefaultTimeout * 1000
-        {
+        $welcomeState.WelcomeTimer.Interval = $adtConfig.UI.DefaultTimeout * 1000
+        $welcomeTimer_Tick = {
             $buttonAbort.PerformClick()
         }
     }
     $welcomeTimerPersist_Tick = {
         $formWelcome.WindowState = [System.Windows.Forms.FormWindowState]::Normal
         $formWelcome.TopMost = !$NotTopMost
-        $formWelcome.Location = $WelcomeState.FormStartLocation
+        $formWelcome.Location = $welcomeState.FormStartLocation
         $formWelcome.BringToFront()
     }
     $timerRunningProcesses_Tick = {
         # Grab current list of running processes.
         $dynamicRunningProcesses = & $Script:CommandTable.'Get-ADTRunningProcesses' -ProcessObjects $ProcessObjects -InformationAction SilentlyContinue
         $dynamicRunningProcessDescriptions = $dynamicRunningProcesses | & $Script:CommandTable.'Select-Object' -ExpandProperty ProcessDescription | & $Script:CommandTable.'Sort-Object' -Unique
-        $previousRunningProcessDescriptions = $WelcomeState.RunningProcessDescriptions
+        $previousRunningProcessDescriptions = $welcomeState.RunningProcessDescriptions
 
         # Check the previous list against what's currently running.
-        if (& $Script:CommandTable.'Compare-Object' -ReferenceObject @($WelcomeState.RunningProcessDescriptions | & $Script:CommandTable.'Select-Object') -DifferenceObject @($dynamicRunningProcessDescriptions | & $Script:CommandTable.'Select-Object'))
+        if (& $Script:CommandTable.'Compare-Object' -ReferenceObject @($welcomeState.RunningProcessDescriptions | & $Script:CommandTable.'Select-Object') -DifferenceObject @($dynamicRunningProcessDescriptions | & $Script:CommandTable.'Select-Object'))
         {
             # Update the runningProcessDescriptions variable for the next time this function runs.
             $listboxCloseProcesses.Items.Clear()
-            if (($WelcomeState.RunningProcessDescriptions = $dynamicRunningProcessDescriptions))
+            if (($welcomeState.RunningProcessDescriptions = $dynamicRunningProcessDescriptions))
             {
-                & $Script:CommandTable.'Write-ADTLogEntry' -Message "The running processes have changed. Updating the apps to close: [$($WelcomeState.RunningProcessDescriptions -join ',')]..."
-                $listboxCloseProcesses.Items.AddRange($WelcomeState.RunningProcessDescriptions)
+                & $Script:CommandTable.'Write-ADTLogEntry' -Message "The running processes have changed. Updating the apps to close: [$($welcomeState.RunningProcessDescriptions -join ',')]..."
+                $listboxCloseProcesses.Items.AddRange($welcomeState.RunningProcessDescriptions)
             }
         }
 
@@ -3262,7 +3363,7 @@ function Show-ADTWelcomePromptClassic
     }
 
     # Welcome Timer.
-    $WelcomeState.WelcomeTimer.add_Tick($welcomeTimer_Tick)
+    $welcomeState.WelcomeTimer.add_Tick($welcomeTimer_Tick)
 
     # Persistence Timer.
     $welcomeTimerPersist = [System.Windows.Forms.Timer]::new()
@@ -3328,9 +3429,9 @@ function Show-ADTWelcomePromptClassic
     $listBoxCloseProcesses.HorizontalScrollbar = $true
     $listBoxCloseProcesses.Name = 'ListBoxCloseProcesses'
     $listBoxCloseProcesses.TabIndex = 3
-    if ($WelcomeState.RunningProcessDescriptions)
+    if ($welcomeState.RunningProcessDescriptions)
     {
-        $null = $listboxCloseProcesses.Items.AddRange($WelcomeState.RunningProcessDescriptions)
+        $null = $listboxCloseProcesses.Items.AddRange($welcomeState.RunningProcessDescriptions)
     }
 
     # Label Countdown.
@@ -3358,7 +3459,7 @@ function Show-ADTWelcomePromptClassic
     $flowLayoutPanel.WrapContents = $true
     $flowLayoutPanel.Controls.Add($labelWelcomeMessage)
     $flowLayoutPanel.Controls.Add($labelAppName)
-    if ($CustomText -and $adtStrings.WelcomePrompt.CustomMessage)
+    if ($CustomText -and $adtStrings.WelcomePrompt.Classic.CustomMessage)
     {
         # Label CustomMessage.
         $labelCustomMessage = [System.Windows.Forms.Label]::new()
@@ -3368,7 +3469,7 @@ function Show-ADTWelcomePromptClassic
         $labelCustomMessage.Anchor = [System.Windows.Forms.AnchorStyles]::Top
         $labelCustomMessage.Font = $Script:Dialogs.Classic.Font
         $labelCustomMessage.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
-        $labelCustomMessage.Text = $adtStrings.WelcomePrompt.CustomMessage
+        $labelCustomMessage.Text = $adtStrings.WelcomePrompt.Classic.CustomMessage
         $labelCustomMessage.Name = 'LabelCustomMessage'
         $labelCustomMessage.TabStop = $false
         $labelCustomMessage.AutoSize = $true
@@ -3454,9 +3555,9 @@ function Show-ADTWelcomePromptClassic
         $labelCountdownMessage.Name = 'LabelCountdownMessage'
         $labelCountdownMessage.TabStop = $false
         $labelCountdownMessage.AutoSize = $true
-        $labelCountdownMessage.Text = if ($ForceCountdown -or !$WelcomeState.RunningProcessDescriptions)
+        $labelCountdownMessage.Text = if ($ForceCountdown -or !$welcomeState.RunningProcessDescriptions)
         {
-            [System.String]::Format($adtStrings.WelcomePrompt.CountdownMessage, $adtStrings.DeploymentType.$DeploymentType)
+            [System.String]::Format($adtStrings.WelcomePrompt.Classic.CountdownMessage, $adtStrings.DeploymentType.$DeploymentType)
         }
         else
         {
@@ -3497,7 +3598,7 @@ function Show-ADTWelcomePromptClassic
         $buttonDefer = [System.Windows.Forms.Button]::new()
         $buttonDefer.MinimumSize = $buttonDefer.ClientSize = $buttonDefer.MaximumSize = $buttonSize
         $buttonDefer.Margin = $buttonDefer.Padding = $paddingNone
-        $buttonDefer.Location = [System.Drawing.Point]::new((14, 160)[$showCloseProcesses], 4)
+        $buttonDefer.Location = [System.Drawing.Point]::new((14, 154)[$showCloseProcesses], 4)
         $buttonDefer.DialogResult = [System.Windows.Forms.DialogResult]::No
         $buttonDefer.Font = $Script:Dialogs.Classic.Font
         $buttonDefer.Name = 'ButtonDefer'
@@ -3512,7 +3613,7 @@ function Show-ADTWelcomePromptClassic
     $buttonContinue = [System.Windows.Forms.Button]::new()
     $buttonContinue.MinimumSize = $buttonContinue.ClientSize = $buttonContinue.MaximumSize = $buttonSize
     $buttonContinue.Margin = $buttonContinue.Padding = $paddingNone
-    $buttonContinue.Location = [System.Drawing.Point]::new(306, 4)
+    $buttonContinue.Location = [System.Drawing.Point]::new(294, 4)
     $buttonContinue.DialogResult = [System.Windows.Forms.DialogResult]::OK
     $buttonContinue.Font = $Script:Dialogs.Classic.Font
     $buttonContinue.Name = 'ButtonContinue'
@@ -3641,10 +3742,6 @@ function Show-ADTWelcomePromptFluent
     (
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
-        [PSADT.Types.WelcomeState]$WelcomeState,
-
-        [Parameter(Mandatory = $true)]
-        [ValidateNotNullOrEmpty()]
         [System.String]$Title,
 
         [Parameter(Mandatory = $true)]
@@ -3671,9 +3768,9 @@ function Show-ADTWelcomePromptFluent
     $adtStrings = & $Script:CommandTable.'Get-ADTStringTable'
 
     # Convert the incoming ProcessObject objects into AppProcessInfo objects.
-    $appsToClose = if ($WelcomeState.RunningProcesses)
+    $appsToClose = if ($welcomeState.RunningProcesses)
     {
-        $WelcomeState.RunningProcesses | & {
+        $welcomeState.RunningProcesses | & {
             process
             {
                 $_.Refresh(); if (!$_.HasExited)
@@ -3883,7 +3980,7 @@ function Unblock-ADTAppExecutionInternal
     Get-ItemProperty -Path "Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\*" -Name Debugger -Verbose:$false -ErrorAction Ignore | & {
         process
         {
-            if ($_.Debugger.Contains('Show-ADTBlockedAppDialog'))
+            if ($_.Debugger.Contains('PSAppDeployToolkit'))
             {
                 Write-Verbose -Message "Removing the Image File Execution Options registry key to unblock execution of [$($_.PSChildName)]."
                 Remove-ItemProperty -LiteralPath $_.PSPath -Name Debugger -Verbose:$false
@@ -4010,13 +4107,13 @@ function Add-ADTEdgeExtension
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Add-ADTEdgeExtension
     #>
 
     [CmdletBinding()]
@@ -4131,13 +4228,13 @@ function Add-ADTSessionClosingCallback
     .NOTES
         An active ADT session is required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Add-ADTSessionClosingCallback
     #>
 
     [CmdletBinding()]
@@ -4196,13 +4293,13 @@ function Add-ADTSessionFinishingCallback
     .NOTES
         An active ADT session is required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Add-ADTSessionFinishingCallback
     #>
 
     [CmdletBinding()]
@@ -4261,13 +4358,13 @@ function Add-ADTSessionOpeningCallback
     .NOTES
         An active ADT session is required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Add-ADTSessionOpeningCallback
     #>
 
     [CmdletBinding()]
@@ -4326,13 +4423,13 @@ function Add-ADTSessionStartingCallback
     .NOTES
         An active ADT session is required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Add-ADTSessionStartingCallback
     #>
 
     [CmdletBinding()]
@@ -4370,13 +4467,11 @@ function Block-ADTAppExecution
     .DESCRIPTION
         This function is called when you pass the -BlockExecution parameter to the Stop-RunningApplications function. It does the following:
 
-        1.  Makes a copy of this script in a temporary directory on the local machine.
-        2.  Checks for an existing scheduled task from previous failed installation attempt where apps were blocked and if found, calls the Unblock-ADTAppExecution function to restore the original IFEO registry keys.
-            This is to prevent the function from overriding the backup of the original IFEO options.
-        3.  Creates a scheduled task to restore the IFEO registry key values in case the script is terminated uncleanly by calling the local temporary copy of this script with the parameter -CleanupBlockedApps.
-        4.  Modifies the "Image File Execution Options" registry key for the specified process(s) to call this script with the parameter -ShowBlockedAppDialog.
-        5.  When the script is called with those parameters, it will display a custom message to the user to indicate that execution of the application has been blocked while the installation is in progress.
-            The text of this message can be customized in the strings.psd1 file.
+        1) Makes a copy of this script in a temporary directory on the local machine.
+        2) Checks for an existing scheduled task from previous failed installation attempt where apps were blocked and if found, calls the Unblock-ADTAppExecution function to restore the original IFEO registry keys. This is to prevent the function from overriding the backup of the original IFEO options.
+        3) Creates a scheduled task to restore the IFEO registry key values in case the script is terminated uncleanly by calling `Unblock-ADTAppExecution` the local temporary copy of this module.
+        4) Modifies the "Image File Execution Options" registry key for the specified process(s) to call `Show-ADTInstallationPrompt` with the appropriate messaging via this module.
+        5) When the script is called with those parameters, it will display a custom message to the user to indicate that execution of the application has been blocked while the installation is in progress. The text of this message can be customized in the strings.psd1 file.
 
     .PARAMETER ProcessName
         Name of the process or processes separated by commas.
@@ -4401,13 +4496,13 @@ function Block-ADTAppExecution
 
         It is used when the -BlockExecution parameter is specified with the Show-ADTInstallationWelcome function to block applications.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Block-ADTAppExecution
     #>
 
     [CmdletBinding()]
@@ -4476,14 +4571,14 @@ function Block-ADTAppExecution
 
                 # Store the BlockExection command in the registry due to IFEO length issues when > 255 chars.
                 $blockExecRegPath = & $Script:CommandTable.'Convert-ADTRegistryPath' -Key (& $Script:CommandTable.'Join-Path' -Path $adtConfig.Toolkit.RegPath -ChildPath $adtEnv.appDeployToolkitName)
-                $blockExecCommand = "& (Import-Module -FullyQualifiedName @{ ModuleName = '$("$($Script:PSScriptRoot)\$($MyInvocation.MyCommand.Module.Name).psd1".Replace("'", "''"))'; Guid = '$($MyInvocation.MyCommand.Module.Guid)'; ModuleVersion = '$($MyInvocation.MyCommand.Module.Version)' } -PassThru) { & `$CommandTable.'Initialize-ADTModule' -ScriptDirectory '$($Script:ADT.Directories.Script.Replace("'", "''"))'; `$null = & `$CommandTable.'Show-ADTInstallationPrompt$($adtConfig.UI.DialogStyle)' -Title '$($adtSession.InstallTitle.Replace("'","''"))' -Subtitle '$([System.String]::Format($adtStrings.WelcomePrompt.Fluent.Subtitle, $adtSession.DeploymentType).Replace("'", "''"))' -Timeout $($adtConfig.UI.DefaultTimeout) -Message '$($adtStrings.BlockExecution.Message.Replace("'", "''"))' -Icon Warning -ButtonRightText OK }"
+                $blockExecCommand = "& (Import-Module -FullyQualifiedName @{ ModuleName = '$("$($Script:PSScriptRoot)\$($MyInvocation.MyCommand.Module.Name).psd1".Replace("'", "''"))'; Guid = '$($MyInvocation.MyCommand.Module.Guid)'; ModuleVersion = '$($MyInvocation.MyCommand.Module.Version)' } -PassThru) { & `$CommandTable.'Initialize-ADTModule' -ScriptDirectory '$([System.String]::Join("', '", $Script:ADT.Directories.Script.Replace("'", "''")))'; `$null = & `$CommandTable.'Show-ADTInstallationPrompt$($adtConfig.UI.DialogStyle)' -Title '$($adtSession.InstallTitle.Replace("'","''"))' -Subtitle '$([System.String]::Format($adtStrings.WelcomePrompt.Fluent.Subtitle, $adtSession.DeploymentType).Replace("'", "''"))' -Timeout $($adtConfig.UI.DefaultTimeout) -Message '$($adtStrings.BlockExecution.Message.Replace("'", "''"))' -Icon Warning -ButtonRightText OK }"
                 & $Script:CommandTable.'Set-ADTRegistryKey' -Key $blockExecRegPath -Name BlockExecutionCommand -Value $blockExecCommand
 
                 # Enumerate each process and set the debugger value to block application execution.
                 foreach ($process in ($ProcessName -replace '$', '.exe'))
                 {
                     & $Script:CommandTable.'Write-ADTLogEntry' -Message "Setting the Image File Execution Option registry key to block execution of [$process]."
-                    & $Script:CommandTable.'Set-ADTRegistryKey' -Key (& $Script:CommandTable.'Join-Path' -Path 'Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options' -ChildPath $process) -Name Debugger -Value "conhost.exe --headless $([System.IO.Path]::GetFileName($adtEnv.envPSProcessPath)) $(if (!(& $Script:CommandTable.'Test-ADTModuleIsReleaseBuild')) { "-ExecutionPolicy Bypass " })-NonInteractive -NoProfile -NoLogo -Command & ([scriptblock]::Create([Microsoft.Win32.Registry]::GetValue('$($blockExecRegPath -replace '^Microsoft\.PowerShell\.Core\\Registry::')', 'BlockExecutionCommand', `$null)))"
+                    & $Script:CommandTable.'Set-ADTRegistryKey' -Key (& $Script:CommandTable.'Join-Path' -Path 'Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options' -ChildPath $process) -Name Debugger -Value "conhost.exe --headless $([System.IO.Path]::GetFileName($adtEnv.envPSProcessPath)) $(if (!(& $Script:CommandTable.'Test-ADTModuleIsReleaseBuild')) { "-ExecutionPolicy Bypass " })-NonInteractive -NoProfile -Command & ([scriptblock]::Create([Microsoft.Win32.Registry]::GetValue('$($blockExecRegPath -replace '^Microsoft\.PowerShell\.Core\\Registry::')', 'BlockExecutionCommand', `$null))); #"
                 }
 
                 # Add callback to remove all blocked app executions during the shutdown of the final session.
@@ -4540,13 +4635,13 @@ function Close-ADTInstallationProgress
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Close-ADTInstallationProgress
     #>
 
     [CmdletBinding()]
@@ -4670,13 +4765,13 @@ function Close-ADTSession
     .NOTES
         An active ADT session is required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Close-ADTSession
     #>
 
     [CmdletBinding()]
@@ -4709,7 +4804,7 @@ function Close-ADTSession
 
     process
     {
-        # Change the install phase since we've finished initialising. This should get overwritten shortly.
+        # Change the install phase now that we're on the way out.
         $adtSession.InstallPhase = 'Finalization'
 
         # Update the session's exit code with the provided value.
@@ -4743,7 +4838,7 @@ function Close-ADTSession
         {
             try
             {
-                & $Script:CommandTable.'New-Variable' -Name ExitCode -Value $adtSession.Close() -Force -Confirm:$false
+                $ExitCode = $adtSession.Close()
             }
             catch
             {
@@ -4755,11 +4850,15 @@ function Close-ADTSession
             & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorRecord $_ -LogMessage "Failure occurred while closing ADTSession for [$($adtSession.InstallName)]."
             $ExitCode = 60001
         }
+        finally
+        {
+            $null = $Script:ADT.Sessions.Remove($adtSession)
+        }
 
         # Hand over to our backend closure routine if this was the last session.
         if (!$Script:ADT.Sessions.Count)
         {
-            & $Script:CommandTable.'Exit-ADTInvocation' -ExitCode $ExitCode -Force:($Force -or ($Host.Name.Equals('ConsoleHost') -and $callbackErrors))
+            & $Script:CommandTable.'Exit-ADTInvocation' -ExitCode $ExitCode -NoShellExit:(!$adtSession.CanExitOnClose()) -Force:($Force -or ($Host.Name.Equals('ConsoleHost') -and $callbackErrors))
         }
     }
 
@@ -4807,13 +4906,13 @@ function Complete-ADTFunction
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Complete-ADTFunction
     #>
 
     [CmdletBinding()]
@@ -4880,13 +4979,13 @@ function Convert-ADTRegistryPath
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Convert-ADTRegistryPath
     #>
 
     [CmdletBinding()]
@@ -5041,13 +5140,13 @@ function Convert-ADTValuesFromRemainingArguments
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Convert-ADTValuesFromRemainingArguments
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This function is appropriately named and we don't need PSScriptAnalyzer telling us otherwise.")]
@@ -5135,13 +5234,13 @@ function Convert-ADTValueType
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Convert-ADTValueType
     #>
 
     [CmdletBinding()]
@@ -5258,13 +5357,13 @@ function ConvertTo-ADTNTAccountOrSID
 
         The conversion can return an empty result if the user account does not exist anymore or if translation fails Refer to: http://blogs.technet.com/b/askds/archive/2011/07/28/troubleshooting-sid-translation-failures-from-the-obvious-to-the-not-so-obvious.aspx
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/ConvertTo-ADTNTAccountOrSID
 
     .LINK
         http://msdn.microsoft.com/en-us/library/system.security.principal.wellknownsidtype(v=vs.110).aspx
@@ -5296,76 +5395,69 @@ function ConvertTo-ADTNTAccountOrSID
 
     begin
     {
-        & $Script:CommandTable.'Initialize-ADTFunction' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState
+        # Make this function continue on error.
+        & $Script:CommandTable.'Initialize-ADTFunction' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorAction SilentlyContinue
+
+        # Pre-calculate the domain SID.
+        $DomainSid = if ($PSCmdlet.ParameterSetName.Equals('WellKnownName') -and !$LocalHost)
+        {
+            try
+            {
+                [System.Security.Principal.SecurityIdentifier]::new([System.DirectoryServices.DirectoryEntry]::new("LDAP://$((& $Script:CommandTable.'Get-CimInstance' -ClassName Win32_ComputerSystem).Domain.ToLower())").ObjectSid[0], 0)
+            }
+            catch
+            {
+                & $Script:CommandTable.'Write-ADTLogEntry' -Message 'Unable to get Domain SID from Active Directory. Setting Domain SID to $null.' -Severity 2
+            }
+        }
     }
 
     process
     {
-        switch ($PSCmdlet.ParameterSetName)
+        try
         {
-            SIDToNTAccount
+            try
             {
-                & $Script:CommandTable.'Write-ADTLogEntry' -Message "Converting $(($msg = "the SID [$SID] to an NT Account name"))."
-                try
+                switch ($PSCmdlet.ParameterSetName)
                 {
-                    return $SID.Translate([System.Security.Principal.NTAccount])
-                }
-                catch
-                {
-                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Unable to convert $msg. It may not be a valid account anymore or there is some other problem.`n$(& $Script:CommandTable.'Resolve-ADTErrorRecord' -ErrorRecord $_)" -Severity 2
-                }
-                break
-            }
-            NTAccountToSID
-            {
-                & $Script:CommandTable.'Write-ADTLogEntry' -Message "Converting $(($msg = "the NT Account [$AccountName] to a SID"))."
-                try
-                {
-                    return $AccountName.Translate([System.Security.Principal.SecurityIdentifier])
-                }
-                catch
-                {
-                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Unable to convert $msg. It may not be a valid account anymore or there is some other problem.`n$(& $Script:CommandTable.'Resolve-ADTErrorRecord' -ErrorRecord $_)" -Severity 2
-                }
-                break
-            }
-            WellKnownName
-            {
-                # Get the SID for the root domain.
-                & $Script:CommandTable.'Write-ADTLogEntry' -Message "Converting $(($msg = "the Well Known SID Name [$WellKnownSIDName] to a $(('SID', 'NTAccount')[!!$WellKnownToNTAccount])"))."
-                $DomainSid = if (!$LocalHost)
-                {
-                    try
+                    SIDToNTAccount
                     {
-                        [System.Security.Principal.SecurityIdentifier]::new([System.DirectoryServices.DirectoryEntry]::new("LDAP://$((& $Script:CommandTable.'Get-CimInstance' -ClassName Win32_ComputerSystem).Domain.ToLower())").ObjectSid[0], 0)
+                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Converting $(($msg = "the SID [$SID] to an NT Account name"))."
+                        return $SID.Translate([System.Security.Principal.NTAccount])
                     }
-                    catch
+                    NTAccountToSID
                     {
-                        & $Script:CommandTable.'Write-ADTLogEntry' -Message 'Unable to get Domain SID from Active Directory. Setting Domain SID to $null.' -Severity 2
+                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Converting $(($msg = "the NT Account [$AccountName] to a SID"))."
+                        return $AccountName.Translate([System.Security.Principal.SecurityIdentifier])
+                    }
+                    WellKnownName
+                    {
+                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Converting $(($msg = "the Well Known SID Name [$WellKnownSIDName] to a $(('SID', 'NTAccount')[!!$WellKnownToNTAccount])"))."
+                        $NTAccountSID = [System.Security.Principal.SecurityIdentifier]::new($WellKnownSIDName, $DomainSid)
+                        if ($WellKnownToNTAccount)
+                        {
+                            return $NTAccountSID.Translate([System.Security.Principal.NTAccount])
+                        }
+                        return $NTAccountSID
                     }
                 }
-
-                # Get the SID for the well known SID name.
-                try
-                {
-                    $NTAccountSID = [System.Security.Principal.SecurityIdentifier]::new($WellKnownSIDName, $DomainSid)
-                    if ($WellKnownToNTAccount)
-                    {
-                        return $NTAccountSID.Translate([System.Security.Principal.NTAccount])
-                    }
-                    return $NTAccountSID
-                }
-                catch
-                {
-                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Failed to convert $msg. It may not be a valid account anymore or there is some other problem.`n$(& $Script:CommandTable.'Resolve-ADTErrorRecord' -ErrorRecord $_)" -Severity 3
-                }
-                break
             }
+            catch
+            {
+                # Re-writing the ErrorRecord with Write-Error ensures the correct PositionMessage is used.
+                & $Script:CommandTable.'Write-Error' -ErrorRecord $_
+            }
+        }
+        catch
+        {
+            # Process the caught error, log it and throw depending on the specified ErrorAction.
+            & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorRecord $_ -LogMessage "Failed to convert $msg. It may not be a valid account anymore or there is some other problem."
         }
     }
 
     end
     {
+        # Finalize function.
         & $Script:CommandTable.'Complete-ADTFunction' -Cmdlet $PSCmdlet
     }
 }
@@ -5417,13 +5509,13 @@ function Copy-ADTContentToCache
 
         This can be done using `Remove-ADTFile -Path "(Get-ADTConfig).Toolkit.CachePath\$($adtSession.InstallName)" -Recurse -ErrorAction Ignore`.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Copy-ADTContentToCache
     #>
 
     [CmdletBinding()]
@@ -5431,7 +5523,7 @@ function Copy-ADTContentToCache
     (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Path = "$((& $Script:CommandTable.'Get-ADTConfig').Toolkit.CachePath)\$((& $Script:CommandTable.'Get-ADTSession').installName)"
+        [System.String]$Path = "$((& $Script:CommandTable.'Get-ADTConfig').Toolkit.CachePath)\$((& $Script:CommandTable.'Get-ADTSession').InstallName)"
     )
 
     begin
@@ -5439,6 +5531,7 @@ function Copy-ADTContentToCache
         try
         {
             $adtSession = & $Script:CommandTable.'Get-ADTSession'
+            $scriptDir = & $Script:CommandTable.'Get-ADTSessionCacheScriptDirectory'
         }
         catch
         {
@@ -5481,9 +5574,9 @@ function Copy-ADTContentToCache
         {
             try
             {
-                & $Script:CommandTable.'Copy-ADTFile' -Path (& $Script:CommandTable.'Join-Path' $adtSession.ScriptDirectory '*') -Destination $Path -Recurse
-                $adtSession.DirFiles = "$Path\Files"
-                $adtSession.DirSupportFiles = "$Path\SupportFiles"
+                & $Script:CommandTable.'Copy-ADTFile' -Path ([System.IO.Path]::Combine($scriptDir, '*')) -Destination $Path -Recurse
+                $adtSession.DirFiles = [System.IO.Path]::Combine($scriptDir, 'Files')
+                $adtSession.DirSupportFiles = [System.IO.Path]::Combine($scriptDir, 'SupportFiles')
             }
             catch
             {
@@ -5537,10 +5630,10 @@ function Copy-ADTFile
         Select from 'Native' or 'Robocopy'. Default is configured in config.psd1. Note that Robocopy supports * in file names, but not folders, in source paths.
 
     .PARAMETER RobocopyParams
-        Override the default Robocopy parameters. Default is: /NJH /NJS /NS /NC /NP /NDL /FP /IS /IT /IM /XX /MT:4 /R:1 /W:1
+        Override the default Robocopy parameters.
 
     .PARAMETER RobocopyAdditionalParams
-        Append to the default Robocopy parameters. Default is: /NJH /NJS /NS /NC /NP /NDL /FP /IS /IT /IM /XX /MT:4 /R:1 /W:1
+        Append to the default Robocopy parameters.
 
     .INPUTS
         None
@@ -5575,13 +5668,13 @@ function Copy-ADTFile
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Copy-ADTFile
     #>
 
     [CmdletBinding(SupportsShouldProcess = $false)]
@@ -5596,7 +5689,7 @@ function Copy-ADTFile
         [System.String]$Destination,
 
         [Parameter(Mandatory = $false)]
-        [System.Management.Automation.SwitchParameter]$Recurse = $false,
+        [System.Management.Automation.SwitchParameter]$Recurse,
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$Flatten,
@@ -5922,9 +6015,9 @@ function Copy-ADTFile
                         }
 
                         # Measure success.
-                        if ($ContinueFileCopyOnError -and (& $Script:CommandTable.'Test-Path' -LiteralPath Microsoft.PowerShell.Core\Variable::FileCopyError))
+                        if ($ContinueFileCopyOnError -and $FileCopyError.Count)
                         {
-                            & $Script:CommandTable.'Write-ADTLogEntry' -Message "The following warnings were detected while copying file(s) in path [$srcPath] to destination [$Destination].`n$FileCopyError" -Severity 2
+                            & $Script:CommandTable.'Write-ADTLogEntry' -Message "The following warnings were detected while copying file(s) in path [$srcPath] to destination [$Destination].`n`n$([System.String]::Join("`n", $FileCopyError.Exception.Message))" -Severity 2
                         }
                         else
                         {
@@ -5977,7 +6070,7 @@ function Copy-ADTFileToUserProfiles
         The path of the destination folder to append to the root of the user profile.
 
     .PARAMETER BasePath
-        The base path to append the destination folder to. Default is: Profile. Options are: Profile, AppData, LocalAppData, Desktop, Documents, StartMenu, Temp, OneDrive, OneDriveCommercial.
+        The base path to append the destination folder to.
 
     .PARAMETER Recurse
         Copy files in subdirectories.
@@ -5992,22 +6085,22 @@ function Copy-ADTFileToUserProfiles
         Select from 'Native' or 'Robocopy'. Default is configured in config.psd1. Note that Robocopy supports * in file names, but not folders, in source paths.
 
     .PARAMETER RobocopyParams
-        Override the default Robocopy parameters. Default is: /NJH /NJS /NS /NC /NP /NDL /FP /IS /IT /IM /XX /MT:4 /R:1 /W:1
+        Override the default Robocopy parameters.
 
     .PARAMETER RobocopyAdditionalParams
-        Append to the default Robocopy parameters. Default is: /NJH /NJS /NS /NC /NP /NDL /FP /IS /IT /IM /XX /MT:4 /R:1 /W:1
+        Append to the default Robocopy parameters.
 
     .PARAMETER ExcludeNTAccount
         Specify NT account names in Domain\Username format to exclude from the list of user profiles.
 
     .PARAMETER IncludeSystemProfiles
-        Include system profiles: SYSTEM, LOCAL SERVICE, NETWORK SERVICE. Default is: $false.
+        Include system profiles: SYSTEM, LOCAL SERVICE, NETWORK SERVICE.
 
     .PARAMETER IncludeServiceProfiles
-        Include service profiles where NTAccount begins with NT SERVICE. Default is: $false.
+        Include service profiles where NTAccount begins with NT SERVICE.
 
     .PARAMETER ExcludeDefaultUser
-        Exclude the Default User. Default is: $false.
+        Exclude the Default User.
 
     .INPUTS
         System.String[]
@@ -6042,13 +6135,13 @@ function Copy-ADTFileToUserProfiles
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Copy-ADTFileToUserProfiles
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This function is appropriately named and we don't need PSScriptAnalyzer telling us otherwise.")]
@@ -6210,13 +6303,13 @@ function Disable-ADTTerminalServerInstallMode
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Disable-ADTTerminalServerInstallMode
     #>
 
     [CmdletBinding()]
@@ -6306,13 +6399,13 @@ function Dismount-ADTWimFile
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Dismount-ADTWimFile
     #>
 
     [CmdletBinding()]
@@ -6449,13 +6542,13 @@ function Enable-ADTTerminalServerInstallMode
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Enable-ADTTerminalServerInstallMode
     #>
 
     [CmdletBinding()]
@@ -6542,13 +6635,13 @@ function Export-ADTEnvironmentTableToSessionState
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Export-ADTEnvironmentTableToSessionState
     #>
 
     [CmdletBinding()]
@@ -6561,8 +6654,7 @@ function Export-ADTEnvironmentTableToSessionState
 
     begin
     {
-        # Initialize function and store the environment table on the stack.
-        & $Script:CommandTable.'Initialize-ADTFunction' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState
+        # Store the environment table on the stack and initialize function.
         try
         {
             $adtEnv = & $Script:CommandTable.'Get-ADTEnvironmentTable'
@@ -6571,6 +6663,7 @@ function Export-ADTEnvironmentTableToSessionState
         {
             $PSCmdlet.ThrowTerminatingError($_)
         }
+        & $Script:CommandTable.'Initialize-ADTFunction' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState
     }
 
     process
@@ -6688,13 +6781,13 @@ function Get-ADTApplication
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTApplication
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'ProductCode', Justification = "This parameter is used within delegates that PSScriptAnalyzer has no visibility of. See https://github.com/PowerShell/PSScriptAnalyzer/issues/1472 for more details.")]
@@ -6733,11 +6826,11 @@ function Get-ADTApplication
         & $Script:CommandTable.'Initialize-ADTFunction' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState
         $updatesSkippedCounter = 0
         $uninstallKeyPaths = $(
-            'Microsoft.PowerShell.Core\Registry::HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*'
-            'Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*'
+            'Microsoft.PowerShell.Core\Registry::HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'
+            'Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'
             if ([System.Environment]::Is64BitProcess)
             {
-                'Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+                'Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
             }
         )
 
@@ -6748,22 +6841,22 @@ function Get-ADTApplication
             {
                 Contains
                 {
-                    { foreach ($eachName in $Name) { if ($_.DisplayName -like "*$eachName*") { $true; break } } }
+                    { foreach ($eachName in $Name) { if ($appRegProps.DisplayName -like "*$eachName*") { $true; break } } }
                     break
                 }
                 Exact
                 {
-                    { foreach ($eachName in $Name) { if ($_.DisplayName -eq $eachName) { $true; break } } }
+                    { foreach ($eachName in $Name) { if ($appRegProps.DisplayName -eq $eachName) { $true; break } } }
                     break
                 }
                 Wildcard
                 {
-                    { foreach ($eachName in $Name) { if ($_.DisplayName -like $eachName) { $true; break } } }
+                    { foreach ($eachName in $Name) { if ($appRegProps.DisplayName -like $eachName) { $true; break } } }
                     break
                 }
                 Regex
                 {
-                    { foreach ($eachName in $Name) { if ($_.DisplayName -match $eachName) { $true; break } } }
+                    { foreach ($eachName in $Name) { if ($appRegProps.DisplayName -match $eachName) { $true; break } } }
                     break
                 }
             }
@@ -6772,106 +6865,115 @@ function Get-ADTApplication
 
     process
     {
+        # Create a custom object with the desired properties for the installed applications and sanitize property details.
         & $Script:CommandTable.'Write-ADTLogEntry' -Message "Getting information for installed applications$(if ($FilterScript) {' matching the provided FilterScript'})..."
-        try
+        $installedApplication = foreach ($item in (& $Script:CommandTable.'Get-ChildItem' -LiteralPath $uninstallKeyPaths -ErrorAction Ignore))
         {
             try
             {
-                # Create a custom object with the desired properties for the installed applications and sanitize property details.
-                $installedApplication = & $Script:CommandTable.'Get-ItemProperty' -Path $uninstallKeyPaths -ErrorAction Ignore | & {
-                    process
-                    {
-                        # Exclude anything without a DisplayName field.
-                        if (!$_.PSObject.Properties.Name.Contains('DisplayName') -or [System.String]::IsNullOrWhiteSpace($_.DisplayName))
-                        {
-                            return
-                        }
-
-                        # Bypass any updates or hotfixes.
-                        if (!$IncludeUpdatesAndHotfixes -and ($_.DisplayName -match '((?i)kb\d+|(Cumulative|Security) Update|Hotfix)'))
-                        {
-                            $updatesSkippedCounter++
-                            return
-                        }
-
-                        # Apply application type filter if specified.
-                        $windowsInstaller = !!($_ | & $Script:CommandTable.'Select-Object' -ExpandProperty WindowsInstaller -ErrorAction Ignore)
-                        if ((($ApplicationType -eq 'MSI') -and !$windowsInstaller) -or (($ApplicationType -eq 'EXE') -and $windowsInstaller))
-                        {
-                            return
-                        }
-
-                        # Apply ProductCode filter if specified.
-                        $defaultGuid = [System.Guid]::Empty
-                        $appMsiGuid = if ($windowsInstaller -and [System.Guid]::TryParse($_.PSChildName, [ref]$defaultGuid)) { $defaultGuid }
-                        if ($ProductCode -and (!$appMsiGuid -or ($ProductCode -notcontains $appMsiGuid)))
-                        {
-                            return
-                        }
-
-                        # Apply name filter if specified.
-                        if ($nameFilterScript -and !(& $nameFilterScript))
-                        {
-                            return
-                        }
-
-                        # Build out the app object here before we filter as the caller needs to be able to filter on the object's properties.
-                        $app = [PSADT.Types.InstalledApplication]::new(
-                            $_.PSPath,
-                            $_.PSParentPath,
-                            $_.PSChildName,
-                            $appMsiGuid,
-                            $_.DisplayName,
-                            ($_ | & $Script:CommandTable.'Select-Object' -ExpandProperty DisplayVersion -ErrorAction Ignore),
-                            ($_ | & $Script:CommandTable.'Select-Object' -ExpandProperty UninstallString -ErrorAction Ignore),
-                            ($_ | & $Script:CommandTable.'Select-Object' -ExpandProperty QuietUninstallString -ErrorAction Ignore),
-                            ($_ | & $Script:CommandTable.'Select-Object' -ExpandProperty InstallSource -ErrorAction Ignore),
-                            ($_ | & $Script:CommandTable.'Select-Object' -ExpandProperty InstallLocation -ErrorAction Ignore),
-                            ($_ | & $Script:CommandTable.'Select-Object' -ExpandProperty InstallDate -ErrorAction Ignore),
-                            ($_ | & $Script:CommandTable.'Select-Object' -ExpandProperty Publisher -ErrorAction Ignore),
-                            !!($_ | & $Script:CommandTable.'Select-Object' -ExpandProperty SystemComponent -ErrorAction Ignore),
-                            $windowsInstaller,
-                            ([System.Environment]::Is64BitProcess -and ($_.PSPath -notmatch '^Microsoft\.PowerShell\.Core\\Registry::HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node'))
-                        )
-
-                        # Build out an object and return it to the pipeline if there's no filterscript or the filterscript returns something.
-                        if (!$FilterScript -or (& $Script:CommandTable.'ForEach-Object' -InputObject $app -Process $FilterScript -ErrorAction Ignore))
-                        {
-                            & $Script:CommandTable.'Write-ADTLogEntry' -Message "Found installed application [$($app.DisplayName)]$(if ($app.DisplayVersion) {" version [$($app.DisplayVersion)]"})."
-                            return $app
-                        }
-                    }
-                }
-
-                # Write to log the number of entries skipped due to them being considered updates.
-                if (!$IncludeUpdatesAndHotfixes -and $updatesSkippedCounter)
+                try
                 {
-                    if ($updatesSkippedCounter -eq 1)
-                    {
-                        & $Script:CommandTable.'Write-ADTLogEntry' -Message 'Skipped 1 entry while searching, because it was considered a Microsoft update.'
-                    }
-                    else
-                    {
-                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Skipped $UpdatesSkippedCounter entries while searching, because they were considered Microsoft updates."
-                    }
-                }
+                    # Set up initial variables.
+                    $appRegProps = & $Script:CommandTable.'Get-ItemProperty' -LiteralPath $item.PSPath
+                    $psPropNames = $appRegProps.PSObject.Properties | & $Script:CommandTable.'Select-Object' -ExpandProperty Name
+                    $defaultGuid = [System.Guid]::Empty
 
-                # Return any accumulated apps to the caller.
-                if ($installedApplication)
-                {
-                    return $installedApplication
+                    # Exclude anything without any properties.
+                    if (!$psPropNames)
+                    {
+                        continue
+                    }
+
+                    # Exclude anything without a DisplayName field.
+                    if (!$psPropNames.Contains('DisplayName') -or [System.String]::IsNullOrWhiteSpace($appRegProps.DisplayName))
+                    {
+                        continue
+                    }
+
+                    # Bypass any updates or hotfixes.
+                    if (!$IncludeUpdatesAndHotfixes -and ($appRegProps.DisplayName -match '((?i)kb\d+|(Cumulative|Security) Update|Hotfix)'))
+                    {
+                        $updatesSkippedCounter++
+                        continue
+                    }
+
+                    # Apply application type filter if specified.
+                    $windowsInstaller = !!$(if ($psPropNames.Contains('WindowsInstaller')) { $appRegProps.WindowsInstaller })
+                    if ((($ApplicationType -eq 'MSI') -and !$windowsInstaller) -or (($ApplicationType -eq 'EXE') -and $windowsInstaller))
+                    {
+                        continue
+                    }
+
+                    # Apply ProductCode filter if specified.
+                    $appMsiGuid = if ($windowsInstaller -and [System.Guid]::TryParse($appRegProps.PSChildName, [ref]$defaultGuid)) { $defaultGuid }
+                    if ($ProductCode -and (!$appMsiGuid -or ($ProductCode -notcontains $appMsiGuid)))
+                    {
+                        continue
+                    }
+
+                    # Apply name filter if specified.
+                    if ($nameFilterScript -and !(& $nameFilterScript))
+                    {
+                        continue
+                    }
+
+                    # Build out the app object here before we filter as the caller needs to be able to filter on the object's properties.
+                    $app = [PSADT.Types.InstalledApplication]::new(
+                        $appRegProps.PSPath,
+                        $appRegProps.PSParentPath,
+                        $appRegProps.PSChildName,
+                        $appMsiGuid,
+                        $appRegProps.DisplayName,
+                        $(if ($psPropNames.Contains('DisplayVersion') -and ![System.String]::IsNullOrWhiteSpace($appRegProps.DisplayVersion)) { $appRegProps.DisplayVersion }),
+                        $(if ($psPropNames.Contains('UninstallString') -and ![System.String]::IsNullOrWhiteSpace($appRegProps.UninstallString)) { $appRegProps.UninstallString }),
+                        $(if ($psPropNames.Contains('QuietUninstallString') -and ![System.String]::IsNullOrWhiteSpace($appRegProps.QuietUninstallString)) { $appRegProps.QuietUninstallString }),
+                        $(if ($psPropNames.Contains('InstallSource') -and ![System.String]::IsNullOrWhiteSpace($appRegProps.InstallSource)) { $appRegProps.InstallSource }),
+                        $(if ($psPropNames.Contains('InstallLocation') -and ![System.String]::IsNullOrWhiteSpace($appRegProps.InstallLocation)) { $appRegProps.InstallLocation }),
+                        $(if ($psPropNames.Contains('InstallDate') -and ![System.String]::IsNullOrWhiteSpace($appRegProps.InstallDate)) { $appRegProps.InstallDate }),
+                        $(if ($psPropNames.Contains('Publisher') -and ![System.String]::IsNullOrWhiteSpace($appRegProps.Publisher)) { $appRegProps.Publisher }),
+                        $(if ($psPropNames.Contains('HelpLink') -and ![System.String]::IsNullOrWhiteSpace($appRegProps.HelpLink)) { $appRegProps.HelpLink }),
+                        !!$(if ($psPropNames.Contains('SystemComponent')) { $appRegProps.SystemComponent }),
+                        $windowsInstaller,
+                        ([System.Environment]::Is64BitProcess -and ($appRegProps.PSPath -notmatch '^Microsoft\.PowerShell\.Core\\Registry::HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node'))
+                    )
+
+                    # Build out an object and return it to the pipeline if there's no filterscript or the filterscript returns something.
+                    if (!$FilterScript -or (& $Script:CommandTable.'ForEach-Object' -InputObject $app -Process $FilterScript -ErrorAction Ignore))
+                    {
+                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Found installed application [$($app.DisplayName)]$(if ($app.DisplayVersion) {" version [$($app.DisplayVersion)]"})."
+                        $app
+                    }
                 }
-                & $Script:CommandTable.'Write-ADTLogEntry' -Message 'Found no application based on the supplied FilterScript.'
+                catch
+                {
+                    & $Script:CommandTable.'Write-Error' -ErrorRecord $_
+                }
             }
             catch
             {
-                & $Script:CommandTable.'Write-Error' -ErrorRecord $_
+                & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorRecord $_ -LogMessage "Failed to process the uninstall data [$item]: $($_.Exception.Message)." -ErrorAction SilentlyContinue
             }
         }
-        catch
+
+        # Write to log the number of entries skipped due to them being considered updates.
+        if (!$IncludeUpdatesAndHotfixes -and $updatesSkippedCounter)
         {
-            & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorRecord $_
+            if ($updatesSkippedCounter -eq 1)
+            {
+                & $Script:CommandTable.'Write-ADTLogEntry' -Message 'Skipped 1 entry while searching, because it was considered a Microsoft update.'
+            }
+            else
+            {
+                & $Script:CommandTable.'Write-ADTLogEntry' -Message "Skipped $UpdatesSkippedCounter entries while searching, because they were considered Microsoft updates."
+            }
         }
+
+        # Return any accumulated apps to the caller.
+        if ($installedApplication)
+        {
+            return $installedApplication
+        }
+        & $Script:CommandTable.'Write-ADTLogEntry' -Message 'Found no application based on the supplied FilterScript.'
     }
 
     end
@@ -6929,13 +7031,13 @@ function Get-ADTBoundParametersAndDefaultValues
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTBoundParametersAndDefaultValues
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'ParameterSetName', Justification = "This parameter is used within delegates that PSScriptAnalyzer has no visibility of. See https://github.com/PowerShell/PSScriptAnalyzer/issues/1472 for more details.")]
@@ -7171,13 +7273,13 @@ function Get-ADTCommandTable
     .NOTES
         An active ADT session is required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTCommandTable
     #>
 
     # Return the module's read-only CommandTable to the caller.
@@ -7218,13 +7320,13 @@ function Get-ADTConfig
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTConfig
     #>
 
     [CmdletBinding()]
@@ -7279,13 +7381,13 @@ function Get-ADTDeferHistory
     .NOTES
         An active ADT session is required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTDeferHistory
 
     #>
 
@@ -7340,13 +7442,13 @@ function Get-ADTEnvironment
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTEnvironment
     #>
 
     [CmdletBinding()]
@@ -7393,13 +7495,13 @@ function Get-ADTEnvironmentTable
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTEnvironmentTable
     #>
 
     [CmdletBinding()]
@@ -7467,13 +7569,13 @@ function Get-ADTFileVersion
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTFileVersion
     #>
 
     [CmdletBinding()]
@@ -7556,13 +7658,13 @@ function Get-ADTFreeDiskSpace
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTFreeDiskSpace
     #>
 
     [CmdletBinding()]
@@ -7641,13 +7743,13 @@ function Get-ADTIniValue
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTIniValue
     #>
 
     [CmdletBinding()]
@@ -7785,13 +7887,13 @@ function Get-ADTLoggedOnUser
         Description of IsLocalAdmin property:
         - Checks whether the user is a member of the Administrators group
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTLoggedOnUser
     #>
 
     [CmdletBinding()]
@@ -7866,16 +7968,16 @@ function Get-ADTMsiExitCodeMessage
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
         http://msdn.microsoft.com/en-us/library/aa368542(v=vs.85).aspx
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTMsiExitCodeMessage
     #>
 
     [CmdletBinding()]
@@ -7948,13 +8050,13 @@ function Get-ADTMsiTableProperty
         The fully qualified path to a list of MST file(s) which should be applied to the MSI file.
 
     .PARAMETER Table
-        The name of the the MSI table from which all of the properties must be retrieved. Default is: 'Property'.
+        The name of the the MSI table from which all of the properties must be retrieved.
 
     .PARAMETER TablePropertyNameColumnNum
-        Specify the table column number which contains the name of the properties. Default is: 1 for MSIs and 2 for MSPs.
+        Specify the table column number which contains the name of the properties.
 
     .PARAMETER TablePropertyValueColumnNum
-        Specify the table column number which contains the value of the properties. Default is: 2 for MSIs and 3 for MSPs.
+        Specify the table column number which contains the value of the properties.
 
     .PARAMETER GetSummaryInformation
         Retrieves the Summary Information for the Windows Installer database.
@@ -7967,9 +8069,9 @@ function Get-ADTMsiTableProperty
         You cannot pipe objects to this function.
 
     .OUTPUTS
-        System.Management.Automation.PSObject
+        System.Collections.ObjectModel.ReadOnlyDictionary`2[[System.String],[System.Object]]
 
-        Returns a custom object with the following properties: 'Name' and 'Value'.
+        Returns a readonly dictionary with the properties as key/value pairs.
 
     .EXAMPLE
         Get-ADTMsiTableProperty -Path 'C:\Package\AppDeploy.msi' -TransformPath 'C:\Package\AppDeploy.mst'
@@ -7977,9 +8079,9 @@ function Get-ADTMsiTableProperty
         Retrieve all of the properties from the default 'Property' table.
 
     .EXAMPLE
-        Get-ADTMsiTableProperty -Path 'C:\Package\AppDeploy.msi' -TransformPath 'C:\Package\AppDeploy.mst' -Table 'Property' | Select-Object -ExpandProperty ProductCode
+        (Get-ADTMsiTableProperty -Path 'C:\Package\AppDeploy.msi' -TransformPath 'C:\Package\AppDeploy.mst' -Table 'Property').ProductCode
 
-        Retrieve all of the properties from the 'Property' table and then pipe to Select-Object to select the ProductCode property.
+        Retrieve all of the properties from the 'Property' table, then retrieves just the 'ProductCode' member.
 
     .EXAMPLE
         Get-ADTMsiTableProperty -Path 'C:\Package\AppDeploy.msi' -GetSummaryInformation
@@ -7989,13 +8091,13 @@ function Get-ADTMsiTableProperty
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTMsiTableProperty
     #>
 
     [CmdletBinding(DefaultParameterSetName = 'TableInfo')]
@@ -8025,14 +8127,17 @@ function Get-ADTMsiTableProperty
 
         [Parameter(Mandatory = $false, ParameterSetName = 'TableInfo')]
         [ValidateNotNullOrEmpty()]
+        [PSDefaultValue(Help = 'MSI file: "Property"; MSP file: "MsiPatchMetadata"')]
         [System.String]$Table,
 
         [Parameter(Mandatory = $false, ParameterSetName = 'TableInfo')]
         [ValidateNotNullOrEmpty()]
+        [PSDefaultValue(Help = 'MSI file: 1; MSP file: 2')]
         [System.Int32]$TablePropertyNameColumnNum,
 
         [Parameter(Mandatory = $false, ParameterSetName = 'TableInfo')]
         [ValidateNotNullOrEmpty()]
+        [PSDefaultValue(Help = 'MSI file: 2; MSP file: 3')]
         [System.Int32]$TablePropertyValueColumnNum,
 
         [Parameter(Mandatory = $true, ParameterSetName = 'SummaryInfo')]
@@ -8216,13 +8321,13 @@ function Get-ADTObjectProperty
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTObjectProperty
     #>
 
     [CmdletBinding()]
@@ -8305,13 +8410,13 @@ function Get-ADTOperatingSystemInfo
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTOperatingSystemInfo
     #>
 
     return [PSADT.OperatingSystem.OSVersionInfo]::Current
@@ -8357,13 +8462,13 @@ function Get-ADTPEFileArchitecture
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTPEFileArchitecture
     #>
 
     [CmdletBinding()]
@@ -8450,11 +8555,12 @@ function Get-ADTPendingReboot
 
     .DESCRIPTION
         Check WMI and the registry to determine if the system has a pending reboot operation from any of the following:
-        a) Component Based Servicing (Vista, Windows 2008)
-        b) Windows Update / Auto Update (XP, Windows 2003 / 2008)
-        c) SCCM 2012 Clients (DetermineIfRebootPending WMI method)
-        d) App-V Pending Tasks (global based Appv 5.0 SP2)
-        e) Pending File Rename Operations (XP, Windows 2003 / 2008)
+
+        - Component Based Servicing (Vista, Windows 2008)
+        - Windows Update / Auto Update (XP, Windows 2003 / 2008)
+        - SCCM 2012 Clients (DetermineIfRebootPending WMI method)
+        - App-V Pending Tasks (global based Appv 5.0 SP2)
+        - Pending File Rename Operations (XP, Windows 2003 / 2008)
 
     .INPUTS
         None
@@ -8465,6 +8571,7 @@ function Get-ADTPendingReboot
         PSADT.Types.RebootInfo
 
         Returns a custom object with the following properties:
+
         - ComputerName
         - LastBootUpTime
         - IsSystemRebootPending
@@ -8491,13 +8598,13 @@ function Get-ADTPendingReboot
 
         ErrorMsg only contains something if an error occurred.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTPendingReboot
     #>
 
     [CmdletBinding()]
@@ -8533,43 +8640,34 @@ function Get-ADTPendingReboot
                 $IsAppVRebootPending = & $Script:CommandTable.'Test-Path' -LiteralPath 'Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Software\Microsoft\AppV\Client\PendingTasks'
 
                 # Get the value of PendingFileRenameOperations.
-                $PendingFileRenameOperations = if ($IsFileRenameRebootPending = & $Script:CommandTable.'Test-ADTRegistryValue' -Key 'Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager' -Name 'PendingFileRenameOperations')
+                $IsFileRenameRebootPending = !!($PendingFileRenameOperations = & $Script:CommandTable.'Get-ItemProperty' -LiteralPath 'Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager' | & $Script:CommandTable.'Select-Object' -ExpandProperty PendingFileRenameOperations -ErrorAction Ignore)
+
+                # Determine SCCM 2012 Client reboot pending status.
+                $IsSCCMClientRebootPending = if ((& $Script:CommandTable.'Get-CimInstance' -Namespace root -ClassName __NAMESPACE -Verbose:$false).Name.Contains('CCM'))
                 {
                     try
                     {
-                        & $Script:CommandTable.'Get-ItemProperty' -LiteralPath 'Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager' | & $Script:CommandTable.'Select-Object' -ExpandProperty PendingFileRenameOperations
+                        if (($SCCMClientRebootStatus = & $Script:CommandTable.'Invoke-CimMethod' -Namespace ROOT\CCM\ClientSDK -ClassName CCM_ClientUtilities -Name DetermineIfRebootPending -Verbose:$false).ReturnValue -ne 0)
+                        {
+                            $naerParams = @{
+                                Exception = [System.InvalidOperationException]::new("The 'DetermineIfRebootPending' method of 'ROOT\CCM\ClientSDK\CCM_ClientUtilities' class returned error code [$($SCCMClientRebootStatus.ReturnValue)].")
+                                Category = [System.Management.Automation.ErrorCategory]::InvalidResult
+                                ErrorId = 'DetermineIfRebootPendingInvalidReturn'
+                                TargetObject = $SCCMClientRebootStatus
+                            }
+                            throw (& $Script:CommandTable.'New-ADTErrorRecord' @naerParams)
+                        }
+                        $SCCMClientRebootStatus.IsHardRebootPending -or $SCCMClientRebootStatus.RebootPending
                     }
                     catch
                     {
-                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Failed to get PendingFileRenameOperations.`n$(& $Script:CommandTable.'Resolve-ADTErrorRecord' -ErrorRecord $_)" -Severity 3
-                        $null = $PendRebootErrorMsg.Add("Failed to get PendingFileRenameOperations: $($_.Exception.Message)")
+                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Failed to get IsSCCMClientRebootPending.`n$(& $Script:CommandTable.'Resolve-ADTErrorRecord' -ErrorRecord $_)" -Severity 3
+                        $null = $PendRebootErrorMsg.Add("Failed to get IsSCCMClientRebootPending: $($_.Exception.Message)")
                     }
-                }
-
-                # Determine SCCM 2012 Client reboot pending status.
-                $IsSCCMClientRebootPending = try
-                {
-                    if (($SCCMClientRebootStatus = & $Script:CommandTable.'Invoke-CimMethod' -Namespace ROOT\CCM\ClientSDK -ClassName CCM_ClientUtilities -Name DetermineIfRebootPending).ReturnValue -eq 0)
-                    {
-                        $SCCMClientRebootStatus.IsHardRebootPending -or $SCCMClientRebootStatus.RebootPending
-                    }
-                }
-                catch
-                {
-                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Failed to get IsSCCMClientRebootPending.`n$(& $Script:CommandTable.'Resolve-ADTErrorRecord' -ErrorRecord $_)" -Severity 3
-                    $null = $PendRebootErrorMsg.Add("Failed to get IsSCCMClientRebootPending: $($_.Exception.Message)")
                 }
 
                 # Determine Intune Management Extension reboot pending status.
-                $IsIntuneClientRebootPending = try
-                {
-                    !!(& $Script:CommandTable.'Get-Item' -LiteralPath 'Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\IntuneManagementExtension\RebootSettings\RebootFlag')
-                }
-                catch
-                {
-                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Failed to get IsIntuneClientRebootPending.`n$(& $Script:CommandTable.'Resolve-ADTErrorRecord' -ErrorRecord $_)" -Severity 3
-                    $null = $PendRebootErrorMsg.Add("Failed to get IsIntuneClientRebootPending: $($_.Exception.Message)")
-                }
+                $IsIntuneClientRebootPending = & $Script:CommandTable.'Test-Path' -LiteralPath 'Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\IntuneManagementExtension\RebootSettings\RebootFlag'
 
                 # Create a custom object containing pending reboot information for the system.
                 $PendingRebootInfo = [PSADT.Types.RebootInfo]::new(
@@ -8639,13 +8737,13 @@ function Get-ADTPowerShellProcessPath
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTPowerShellProcessPath
     #>
 
     return "$PSHOME\$(('powershell.exe', 'pwsh.exe')[$PSVersionTable.PSEdition.Equals('Core')])"
@@ -8685,13 +8783,13 @@ function Get-ADTPresentationSettingsEnabledUsers
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTPresentationSettingsEnabledUsers
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This function is appropriately named and we don't need PSScriptAnalyzer telling us otherwise.")]
@@ -8758,8 +8856,8 @@ function Get-ADTRegistryKey
         Retrieves value names and value data for a specified registry key or optionally, a specific value.
 
     .DESCRIPTION
-        Retrieves value names and value data for a specified registry key or optionally, a specific value.
-        If the registry key does not exist or contain any values, the function will return $null by default.
+        Retrieves value names and value data for a specified registry key or optionally, a specific value. If the registry key does not exist or contain any values, the function will return $null by default.
+
         To test for existence of a registry key path, use built-in Test-Path cmdlet.
 
     .PARAMETER Key
@@ -8773,13 +8871,14 @@ function Get-ADTRegistryKey
 
     .PARAMETER SID
         The security identifier (SID) for a user. Specifying this parameter will convert a HKEY_CURRENT_USER registry key to the HKEY_USERS\$SID format.
+
         Specify this parameter from the Invoke-ADTAllUsersRegistryAction function to read/edit HKCU registry settings for all users on the system.
 
     .PARAMETER ReturnEmptyKeyIfExists
-        Return the registry key if it exists but it has no property/value pairs underneath it. Default is: $false.
+        Return the registry key if it exists but it has no property/value pairs underneath it.
 
     .PARAMETER DoNotExpandEnvironmentNames
-        Return unexpanded REG_EXPAND_SZ values. Default is: $false.
+        Return unexpanded REG_EXPAND_SZ values.
 
     .INPUTS
         None
@@ -8819,13 +8918,13 @@ function Get-ADTRegistryKey
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTRegistryKey
     #>
 
     [CmdletBinding()]
@@ -8975,6 +9074,7 @@ function Get-ADTRunAsActiveUser
 
     .DESCRIPTION
         The Get-ADTRunAsActiveUser function determines the account that will be used to execute commands in the user session when the toolkit is running under the SYSTEM account.
+
         The active console user will be chosen first. If no active console user is found, for multi-session operating systems, the first logged-on user will be used instead.
 
     .PARAMETER UserSessionInfo
@@ -8998,13 +9098,13 @@ function Get-ADTRunAsActiveUser
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTRunAsActiveUser
     #>
 
     [CmdletBinding()]
@@ -9049,6 +9149,7 @@ function Get-ADTSchedulerTask
 
     .DESCRIPTION
         Retrieve all details for scheduled tasks on the local computer using schtasks.exe. All property names have spaces and colons removed.
+
         This function is deprecated. Please migrate your scripts to use the built-in Get-ScheduledTask Cmdlet.
 
     .PARAMETER TaskName
@@ -9082,13 +9183,13 @@ function Get-ADTSchedulerTask
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTSchedulerTask
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'TaskName', Justification = "This parameter is used within delegates that PSScriptAnalyzer has no visibility of. See https://github.com/PowerShell/PSScriptAnalyzer/issues/1472 for more details.")]
@@ -9195,13 +9296,13 @@ function Get-ADTServiceStartMode
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTServiceStartMode
     #>
 
     [CmdletBinding()]
@@ -9294,13 +9395,13 @@ function Get-ADTSession
 
         Requires: PSADT session should be initialized using Open-ADTSession
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTSession
     #>
 
     [CmdletBinding()]
@@ -9371,13 +9472,13 @@ function Get-ADTShortcut
 
         Url shortcuts only support TargetPath, IconLocation, and IconIndex.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTShortcut
     #>
 
     [CmdletBinding()]
@@ -9387,7 +9488,7 @@ function Get-ADTShortcut
     (
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateScript({
-                if (![System.IO.File]::Exists($_) -or (![System.IO.Path]::GetExtension($Path).ToLower().Equals('.lnk') -and ![System.IO.Path]::GetExtension($Path).ToLower().Equals('.url')))
+                if (![System.IO.File]::Exists($_) -or (![System.IO.Path]::GetExtension($_).ToLower().Equals('.lnk') -and ![System.IO.Path]::GetExtension($_).ToLower().Equals('.url')))
                 {
                     $PSCmdlet.ThrowTerminatingError((& $Script:CommandTable.'New-ADTValidateScriptErrorRecord' -ParameterName Path -ProvidedValue $_ -ExceptionMessage 'The specified path does not exist or does not have the correct extension.'))
                 }
@@ -9428,9 +9529,9 @@ function Get-ADTShortcut
             try
             {
                 # Build out remainder of object.
-                if ($Path -match '\.url$')
+                if ([System.IO.Path]::GetExtension($Output.Path) -eq '.url')
                 {
-                    [System.IO.File]::ReadAllLines($Path) | & {
+                    [System.IO.File]::ReadAllLines($Output.Path) | & {
                         process
                         {
                             switch ($_)
@@ -9450,7 +9551,7 @@ function Get-ADTShortcut
                 }
                 else
                 {
-                    $shortcut = [System.Activator]::CreateInstance([System.Type]::GetTypeFromProgID('WScript.Shell')).CreateShortcut($FullPath)
+                    $shortcut = [System.Activator]::CreateInstance([System.Type]::GetTypeFromProgID('WScript.Shell')).CreateShortcut($Output.Path)
                     $Output.IconLocation, $Output.IconIndex = $shortcut.IconLocation.Split(',')
                     return [PSADT.Types.ShortcutLnk]::new(
                         $Output.Path,
@@ -9468,7 +9569,7 @@ function Get-ADTShortcut
                                 default { 'Normal'; break }
                             }),
                         $shortcut.Hotkey,
-                        !!([Systen.IO.FIle]::ReadAllBytes($FullPath)[21] -band 32)
+                        !!([System.IO.File]::ReadAllBytes($Output.Path)[21] -band 32)
                     )
                 }
             }
@@ -9479,7 +9580,7 @@ function Get-ADTShortcut
         }
         catch
         {
-            & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorRecord $_ -LogMessage "Failed to read the shortcut [$Path]."
+            & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorRecord $_ -LogMessage "Failed to read the shortcut [$($Output.Path)]."
         }
     }
 
@@ -9525,13 +9626,13 @@ function Get-ADTStringTable
 
         Requires: The module should be initialized using Initialize-ADTModule
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTStringTable
     #>
 
     [CmdletBinding()]
@@ -9596,13 +9697,13 @@ function Get-ADTUniversalDate
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTUniversalDate
     #>
 
     [CmdletBinding()]
@@ -9610,7 +9711,7 @@ function Get-ADTUniversalDate
     (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$DateTime = [System.DateTime]::Now.ToString([System.Globalization.DateTimeFormatInfo]::CurrentInfo.UniversalSortableDateTimePattern)
+        [System.String]$DateTime = [System.DateTime]::Now.ToString([System.Globalization.DateTimeFormatInfo]::CurrentInfo.UniversalSortableDateTimePattern).TrimEnd('Z')
     )
 
     begin
@@ -9624,9 +9725,9 @@ function Get-ADTUniversalDate
         {
             try
             {
-                # Remove any tailing Z, otherwise it could get converted to a different time zone. Then, convert the date to a universal sortable date time pattern based on the current culture.
+                # Convert the date to a universal sortable date time pattern based on the current culture.
                 & $Script:CommandTable.'Write-ADTLogEntry' -Message "Converting the date [$DateTime] to a universal sortable date time pattern based on the current culture [$($Host.CurrentCulture.Name)]."
-                return [System.DateTime]::Parse($DateTime.TrimEnd('Z'), $Host.CurrentCulture).ToString([System.Globalization.DateTimeFormatInfo]::CurrentInfo.UniversalSortableDateTimePattern)
+                return [System.DateTime]::Parse($DateTime, $Host.CurrentCulture).ToUniversalTime().ToString([System.Globalization.DateTimeFormatInfo]::CurrentInfo.UniversalSortableDateTimePattern)
             }
             catch
             {
@@ -9660,6 +9761,7 @@ function Get-ADTUserProfiles
 
     .DESCRIPTION
         Get the User Profile Path, User Account SID, and the User Account Name for all users that log onto the machine and also the Default User (which does not log on).
+
         Please note that the NTAccount property may be empty for some user profiles but the SID and ProfilePath properties will always be populated.
 
     .PARAMETER ExcludeNTAccount
@@ -9711,13 +9813,13 @@ function Get-ADTUserProfiles
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTUserProfiles
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'ExcludeNTAccount', Justification = "This parameter is used within delegates that PSScriptAnalyzer has no visibility of. See https://github.com/PowerShell/PSScriptAnalyzer/issues/1472 for more details.")]
@@ -9894,6 +9996,7 @@ function Get-ADTWindowTitle
         Search for a window title. If window title searched for returns more than one result, then details for each window will be displayed.
 
         Returns the following properties for each window:
+
         - WindowTitle
         - WindowHandle
         - ParentProcess
@@ -9923,6 +10026,7 @@ function Get-ADTWindowTitle
         PSADT.Types.WindowInfo
 
         Returns a PSADT.Types.WindowInfo object with the following properties:
+
         - WindowTitle
         - WindowHandle
         - ParentProcess
@@ -9949,13 +10053,13 @@ function Get-ADTWindowTitle
 
         Function does not work in SYSTEM context unless launched with "psexec.exe -s -i" to run it as an interactive process under the SYSTEM account.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Get-ADTWindowTitle
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'WindowTitle', Justification = "This parameter is used within delegates that PSScriptAnalyzer has no visibility of. See https://github.com/PowerShell/PSScriptAnalyzer/issues/1472 for more details.")]
@@ -10137,13 +10241,13 @@ function Initialize-ADTFunction
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Initialize-ADTFunction
     #>
 
     [CmdletBinding()]
@@ -10258,13 +10362,13 @@ function Initialize-ADTModule
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Initialize-ADTModule
     #>
 
     [CmdletBinding()]
@@ -10339,6 +10443,9 @@ function Initialize-ADTModule
                     }
                 }
 
+                # De-init the classic dialog assets.
+                $Script:Dialogs.Classic.BannerHeight = $null
+
                 # Initialize the module's global state.
                 $Script:ADT.Environment = & $Script:CommandTable.'New-ADTEnvironmentTable'
                 $Script:ADT.Config = & $Script:CommandTable.'Import-ADTConfig' -BaseDirectory $Script:ADT.Directories.Config
@@ -10406,13 +10513,13 @@ function Install-ADTMSUpdates
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Install-ADTMSUpdates
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This function is appropriately named and we don't need PSScriptAnalyzer telling us otherwise.")]
@@ -10520,13 +10627,14 @@ function Install-ADTSCCMSoftwareUpdates
 
     .DESCRIPTION
         Scans for outstanding SCCM updates to be installed and installs the pending updates.
+
         Only compatible with SCCM 2012 Client or higher. This function can take several minutes to run.
 
     .PARAMETER SoftwareUpdatesScanWaitInSeconds
-        The amount of time to wait in seconds for the software updates scan to complete. Default is: 180 seconds.
+        The amount of time to wait in seconds for the software updates scan to complete.
 
     .PARAMETER WaitForPendingUpdatesTimeout
-        The amount of time to wait for missing and pending updates to install before exiting the function. Default is: 45 minutes.
+        The amount of time to wait for missing and pending updates to install before exiting the function.
 
     .INPUTS
         None
@@ -10546,13 +10654,13 @@ function Install-ADTSCCMSoftwareUpdates
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Install-ADTSCCMSoftwareUpdates
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This function is appropriately named and we don't need PSScriptAnalyzer telling us otherwise.")]
@@ -10717,13 +10825,13 @@ function Invoke-ADTAllUsersRegistryAction
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Invoke-ADTAllUsersRegistryAction
     #>
 
     [CmdletBinding()]
@@ -10889,13 +10997,13 @@ function Invoke-ADTCommandWithRetries
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Invoke-ADTCommandWithRetries
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This function is appropriately named and we don't need PSScriptAnalyzer telling us otherwise.")]
@@ -11015,6 +11123,12 @@ function Invoke-ADTFunctionErrorHandler
     .PARAMETER LogMessage
         The error message to write to the active ADTSession's log file.
 
+    .PARAMETER ResolveErrorProperties
+        If specified, the specific ErrorRecord properties to print during resolution.
+
+    .PARAMETER AdditionalResolveErrorProperties
+        If specified, a list of additional ErrorRecord properties to print during resolution.
+
     .PARAMETER DisableErrorResolving
         If specified, the function will not append the resolved error record to the log message.
 
@@ -11041,13 +11155,13 @@ function Invoke-ADTFunctionErrorHandler
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Invoke-ADTFunctionErrorHandler
     #>
 
     [CmdletBinding(DefaultParameterSetName = 'None')]
@@ -11066,11 +11180,20 @@ function Invoke-ADTFunctionErrorHandler
         [ValidateNotNullOrEmpty()]
         [System.Management.Automation.ErrorRecord]$ErrorRecord,
 
-        [Parameter(Mandatory = $true, ParameterSetName = 'LogMessage')]
+        [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
         [System.String]$LogMessage,
 
-        [Parameter(Mandatory = $false, ParameterSetName = 'LogMessage')]
+        [Parameter(Mandatory = $true, ParameterSetName = 'ResolveErrorProperties')]
+        [ValidateNotNullOrEmpty()]
+        [SupportsWildcards()]
+        [System.String[]]$ResolveErrorProperties,
+
+        [Parameter(Mandatory = $true, ParameterSetName = 'AdditionalResolveErrorProperties')]
+        [ValidateNotNullOrEmpty()]
+        [System.String[]]$AdditionalResolveErrorProperties,
+
+        [Parameter(Mandatory = $true, ParameterSetName = 'DisableErrorResolving')]
         [System.Management.Automation.SwitchParameter]$DisableErrorResolving
     )
 
@@ -11104,7 +11227,15 @@ function Invoke-ADTFunctionErrorHandler
     # Write out the error to the log file.
     if (!$DisableErrorResolving)
     {
-        $LogMessage += "`n$(& $Script:CommandTable.'Resolve-ADTErrorRecord' -ErrorRecord $ErrorRecord)"
+        $raerProps = @{ ErrorRecord = $ErrorRecord }; if ($PSCmdlet.ParameterSetName.Equals('AdditionalResolveErrorProperties'))
+        {
+            $raerProps.Add('Property', $($Script:CommandTable.'Resolve-ADTErrorRecord'.ScriptBlock.Ast.Body.ParamBlock.Parameters.Where({ $_.Name.VariablePath.UserPath.Equals('Property') }).DefaultValue.Pipeline.PipelineElements.Expression.Elements.Value; $AdditionalResolveErrorProperties))
+        }
+        elseif ($PSCmdlet.ParameterSetName.Equals('ResolveErrorProperties'))
+        {
+            $raerProps.Add('Property', $ResolveErrorProperties)
+        }
+        $LogMessage += "`n$(& $Script:CommandTable.'Resolve-ADTErrorRecord' @raerProps)"
     }
     & $Script:CommandTable.'Write-ADTLogEntry' -Message $LogMessage -Source $Cmdlet.MyInvocation.MyCommand.Name -Severity 3
 
@@ -11173,13 +11304,13 @@ function Invoke-ADTObjectMethod
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Invoke-ADTObjectMethod
     #>
 
     [CmdletBinding(DefaultParameterSetName = 'Positional')]
@@ -11289,13 +11420,13 @@ function Invoke-ADTRegSvr32
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Invoke-ADTRegSvr32
     #>
 
     [CmdletBinding()]
@@ -11480,13 +11611,13 @@ function Invoke-ADTSCCMTask
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Invoke-ADTSCCMTask
     #>
 
     [CmdletBinding()]
@@ -11643,13 +11774,13 @@ function Mount-ADTWimFile
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Mount-ADTWimFile
     #>
 
     [CmdletBinding()]
@@ -11855,13 +11986,13 @@ function New-ADTErrorRecord
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/New-ADTErrorRecord
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = "This function does not change system state.")]
@@ -11973,13 +12104,13 @@ function New-ADTFolder
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/New-ADTFolder
     #>
 
     [CmdletBinding(SupportsShouldProcess = $false)]
@@ -12053,14 +12184,10 @@ function New-ADTMsiTransform
     .PARAMETER NewTransformPath
         Specify the path where the new transform file with the desired properties will be created. If a transform file of the same name already exists, it will be deleted before a new one is created.
 
-        Default is:
-        a) If -ApplyTransformPath was specified but not -NewTransformPath, then <ApplyTransformPath>.new.mst
-        b) If only -MsiPath was specified, then <MsiPath>.mst
-
     .PARAMETER TransformProperties
-        Hashtable which contains calls to Set-ADTMsiProperty for configuring the desired properties which should be included in the new transform file.
+        Hashtable which contains calls to `Set-ADTMsiProperty` for configuring the desired properties which should be included in the new transform file.
 
-        Example hashtable: [Hashtable]$TransformProperties = @{ 'ALLUSERS' = '1' }
+        Example hashtable: @{ ALLUSERS = 1 }
 
     .INPUTS
         None
@@ -12074,11 +12201,11 @@ function New-ADTMsiTransform
 
     .EXAMPLE
         New-ADTMsiTransform -MsiPath 'C:\Temp\PSADTInstall.msi' -TransformProperties @{
-            'ALLUSERS' = '1'
-            'AgreeToLicense' = 'Yes'
-            'REBOOT' = 'ReallySuppress'
-            'RebootYesNo' = 'No'
-            'ROOTDRIVE' = 'C:'
+            ALLUSERS = 1
+            AgreeToLicense = 'Yes'
+            REBOOT = 'ReallySuppress'
+            RebootYesNo = 'No'
+            ROOTDRIVE = 'C:'
         }
 
         Creates a new transform file for the specified MSI with the given properties.
@@ -12086,13 +12213,13 @@ function New-ADTMsiTransform
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/New-ADTMsiTransform
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = "This function does not change system state.")]
@@ -12121,6 +12248,7 @@ function New-ADTMsiTransform
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
+        [PSDefaultValue(Help = 'If `-ApplyTransformPath` was specified: `<ApplyTransformPath>.new.mst`; If only `-MsiPath` was specified: `<MsiPath>.mst`')]
         [System.String]$NewTransformPath,
 
         [Parameter(Mandatory = $true)]
@@ -12298,7 +12426,7 @@ function New-ADTShortcut
         Working Directory to be used for the target path.
 
     .PARAMETER WindowStyle
-        Windows style of the application. Options: Normal, Maximized, Minimized. Default is: Normal.
+        Windows style of the application. Options: Normal, Maximized, Minimized.
 
     .PARAMETER RunAsAdmin
         Set shortcut to run program as administrator. This option will prompt user to elevate when executing shortcut.
@@ -12317,7 +12445,7 @@ function New-ADTShortcut
         This function does not return any output.
 
     .EXAMPLE
-        New-ADTShortcut -Path "$env:ProgramData\Microsoft\Windows\Start Menu\My Shortcut.lnk" -TargetPath "$env:WinDir\System32\notepad.exe" -IconLocation "$env:WinDir\System32\notepad.exe" -Description 'Notepad' -WorkingDirectory "$env:HomeDrive\$env:HomePath"
+        New-ADTShortcut -Path "$envCommonStartMenuPrograms\My Shortcut.lnk" -TargetPath "$envWinDir\notepad.exe" -IconLocation "$envWinDir\notepad.exe" -Description 'Notepad' -WorkingDirectory '%HOMEDRIVE%\%HOMEPATH%'
 
         Creates a new shortcut for Notepad with the specified parameters.
 
@@ -12326,13 +12454,13 @@ function New-ADTShortcut
 
         Url shortcuts only support TargetPath, IconLocation and IconIndex. Other parameters are ignored.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/New-ADTShortcut
     #>
 
     [CmdletBinding()]
@@ -12362,7 +12490,7 @@ function New-ADTShortcut
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$IconIndex,
+        [System.UInt32]$IconIndex,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -12374,7 +12502,7 @@ function New-ADTShortcut
 
         [Parameter(Mandatory = $false)]
         [ValidateSet('Normal', 'Maximized', 'Minimized')]
-        [System.String]$WindowStyle,
+        [System.String]$WindowStyle = 'Normal',
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$RunAsAdmin,
@@ -12437,7 +12565,7 @@ function New-ADTShortcut
                     try
                     {
                         & $Script:CommandTable.'Write-ADTLogEntry' -Message "Creating shortcut directory [$PathDirectory]."
-                        $null = & $Script:CommandTable.'New-Item' -LiteralPath $PathDirectory -ItemType Directory -Force
+                        $null = & $Script:CommandTable.'New-Item' -Path $PathDirectory -ItemType Directory -Force
                     }
                     catch
                     {
@@ -12455,10 +12583,10 @@ function New-ADTShortcut
 
                 # Build out the shortcut.
                 & $Script:CommandTable.'Write-ADTLogEntry' -Message "Creating shortcut [$FullPath]."
-                if ($Path -match '\.url$')
+                if ([System.IO.Path]::GetExtension($Path) -eq '.url')
                 {
                     [String[]]$URLFile = '[InternetShortcut]', "URL=$TargetPath"
-                    if ($null -ne $IconIndex)
+                    if ($PSBoundParameters.ContainsKey('IconIndex'))
                     {
                         $URLFile += "IconIndex=$IconIndex"
                     }
@@ -12497,7 +12625,6 @@ function New-ADTShortcut
                         Normal { 1; break }
                         Maximized { 3; break }
                         Minimized { 7; break }
-                        default { 1; break }
                     }
 
                     # Save the changes.
@@ -12587,13 +12714,13 @@ function New-ADTTemplate
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/New-ADTTemplate
     #>
 
     [CmdletBinding(SupportsShouldProcess = $false)]
@@ -12605,6 +12732,7 @@ function New-ADTTemplate
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
+        [PSDefaultValue(Help = "PSAppDeployToolkit_<ModuleVersion>")]
         [System.String]$Name = "$($MyInvocation.MyCommand.Module.Name)_$($MyInvocation.MyCommand.Module.Version)",
 
         [Parameter(Mandatory = $false)]
@@ -12721,9 +12849,11 @@ function New-ADTTemplate
                 # Process the generated script to ensure the Import-Module is correct.
                 if ($Version.Equals(4))
                 {
-                    $scriptText = [System.IO.File]::ReadAllText(($scriptFile = "$templatePath\Invoke-AppDeployToolkit.ps1"))
-                    $scriptText = $scriptText.Replace("`$PSScriptRoot\..\..\..\$moduleName", "`$PSScriptRoot\$moduleName")
-                    [System.IO.File]::WriteAllText($scriptFile, $scriptText, [System.Text.UTF8Encoding]::new($true))
+                    $params = @{
+                        LiteralPath = "$templatePath\Invoke-AppDeployToolkit.ps1"
+                        Encoding = if ($PSVersionTable.PSEdition.Equals('Core')) { 'utf8BOM' } else { 'utf8' }
+                    }
+                    & $Script:CommandTable.'Out-File' -InputObject (& $Script:CommandTable.'Get-Content' @params -Raw).Replace('..\..\..\', $null) @params -Width ([System.Int32]::MaxValue) -Force
                 }
 
                 # Display the newly created folder in Windows Explorer.
@@ -12804,13 +12934,13 @@ function New-ADTValidateScriptErrorRecord
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/New-ADTValidateScriptErrorRecord
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = "This function does not change system state.")]
@@ -12907,13 +13037,13 @@ function New-ADTZipFile
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/New-ADTZipFile
     #>
 
     [CmdletBinding()]
@@ -13184,13 +13314,13 @@ function Open-ADTSession
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Open-ADTSession
     #>
 
     [CmdletBinding()]
@@ -13377,7 +13507,7 @@ function Open-ADTSession
         [System.Management.Automation.SwitchParameter]$PassThru,
 
         [Parameter(Mandatory = $false, ValueFromRemainingArguments = $true, DontShow = $true)]
-        [ValidateNotNullOrEmpty()]
+        [AllowNull()][AllowEmptyCollection()]
         [System.Collections.Generic.List[System.Object]]$UnboundArguments
     )
 
@@ -13412,6 +13542,17 @@ function Open-ADTSession
                 $ExecutionContext.SessionState.Path.CurrentLocation.Path
             }
         }
+
+        # Add any unbound arguments into $PSBoundParameters when using a derived class.
+        if ($PSBoundParameters.ContainsKey('UnboundArguments') -and !$SessionClass.Equals([PSADT.Module.DeploymentSession]))
+        {
+            $null = (& $Script:CommandTable.'Convert-ADTValuesFromRemainingArguments' -RemainingArguments $UnboundArguments).GetEnumerator().ForEach({
+                    $PSBoundParameters.Add($_.Key, $_.Value)
+                })
+        }
+
+        # Remove any values from $PSBoundParameters that are null (empty strings, mostly).
+        $null = ($PSBoundParameters.GetEnumerator().Where({ [System.String]::IsNullOrWhiteSpace((& $Script:CommandTable.'Out-String' -InputObject $_.Value)) })).ForEach({ $PSBoundParameters.Remove($_.Key) })
     }
 
     process
@@ -13436,7 +13577,7 @@ function Open-ADTSession
                 }
 
                 # Instantiate the new session. The constructor will handle adding the session to the module's list.
-                $adtSession = $SessionClass::new($PSBoundParameters, $noExitOnClose, $(if ($compatibilityMode) { $SessionState }))
+                $Script:ADT.Sessions.Add(($adtSession = $SessionClass::new($PSBoundParameters, $noExitOnClose, $(if ($compatibilityMode) { $SessionState }))))
 
                 # Invoke all callbacks.
                 foreach ($callback in $(if ($firstSession) { $Script:ADT.Callbacks.Starting }; $Script:ADT.Callbacks.Opening))
@@ -13445,7 +13586,7 @@ function Open-ADTSession
                 }
 
                 # Add any unbound arguments into the $adtSession object as PSNoteProperty objects.
-                if ($PSBoundParameters.ContainsKey('UnboundArguments'))
+                if ($PSBoundParameters.ContainsKey('UnboundArguments') -and $SessionClass.Equals([PSADT.Module.DeploymentSession]))
                 {
                     (& $Script:CommandTable.'Convert-ADTValuesFromRemainingArguments' -RemainingArguments $UnboundArguments).GetEnumerator() | & {
                         begin
@@ -13486,7 +13627,7 @@ function Open-ADTSession
             {
                 if (!$adtSession)
                 {
-                    & $Script:CommandTable.'Exit-ADTInvocation' -ExitCode $(if (!$noExitOnClose) { 60008 })
+                    & $Script:CommandTable.'Exit-ADTInvocation' -ExitCode 60008 -NoShellExit:$noExitOnClose
                 }
                 else
                 {
@@ -13546,13 +13687,13 @@ function Out-ADTPowerShellEncodedCommand
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Out-ADTPowerShellEncodedCommand
     #>
 
     [CmdletBinding()]
@@ -13604,13 +13745,13 @@ function Register-ADTDll
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Register-ADTDll
     #>
 
     [CmdletBinding()]
@@ -13687,13 +13828,13 @@ function Remove-ADTContentFromCache
     .NOTES
         An active ADT session is required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Remove-ADTContentFromCache
     #>
 
     [CmdletBinding()]
@@ -13701,7 +13842,7 @@ function Remove-ADTContentFromCache
     (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Path = "$((& $Script:CommandTable.'Get-ADTConfig').Toolkit.CachePath)\$((& $Script:CommandTable.'Get-ADTSession').installName)"
+        [System.String]$Path = "$((& $Script:CommandTable.'Get-ADTConfig').Toolkit.CachePath)\$((& $Script:CommandTable.'Get-ADTSession').InstallName)"
     )
 
     begin
@@ -13709,7 +13850,7 @@ function Remove-ADTContentFromCache
         try
         {
             $adtSession = & $Script:CommandTable.'Get-ADTSession'
-            $parentPath = $adtSession.ScriptDirectory
+            $scriptDir = & $Script:CommandTable.'Get-ADTSessionCacheScriptDirectory'
         }
         catch
         {
@@ -13731,9 +13872,9 @@ function Remove-ADTContentFromCache
         {
             try
             {
-                & $Script:CommandTable.'Remove-Item' -Path $Path -Recurse
-                $adtSession.DirFiles = (& $Script:CommandTable.'Join-Path' -Path $parentPath -ChildPath Files)
-                $adtSession.DirSupportFiles = (& $Script:CommandTable.'Join-Path' -Path $parentPath -ChildPath SupportFiles)
+                & $Script:CommandTable.'Remove-Item' -Path $Path -Recurse -Force
+                $adtSession.DirFiles = [System.IO.Path]::Combine($scriptDir, 'Files')
+                $adtSession.DirSupportFiles = [System.IO.Path]::Combine($scriptDir, 'SupportFiles')
             }
             catch
             {
@@ -13795,13 +13936,13 @@ function Remove-ADTEdgeExtension
 
         This function is provided as a template to remove an extension for Microsoft Edge. This should not be used in conjunction with Edge Management Service which leverages the same registry key to configure Edge extensions.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Remove-ADTEdgeExtension
     #>
 
     [CmdletBinding()]
@@ -13902,13 +14043,13 @@ function Remove-ADTFile
 
         This function continues on received errors by default. To have the function stop on an error, please provide `-ErrorAction Stop` on the end of your call.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Remove-ADTFile
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'LiteralPath', Justification = "This parameter is used within delegates that PSScriptAnalyzer has no visibility of. See https://github.com/PowerShell/PSScriptAnalyzer/issues/1472 for more details.")]
@@ -14040,13 +14181,13 @@ function Remove-ADTFileFromUserProfiles
         Specify NT account names in Domain\Username format to exclude from the list of user profiles.
 
     .PARAMETER ExcludeDefaultUser
-        Exclude the Default User. Default is: $false.
+        Exclude the Default User.
 
     .PARAMETER IncludeSystemProfiles
-        Include system profiles: SYSTEM, LOCAL SERVICE, NETWORK SERVICE. Default is: $false.
+        Include system profiles: SYSTEM, LOCAL SERVICE, NETWORK SERVICE.
 
     .PARAMETER IncludeServiceProfiles
-        Include service profiles where NTAccount begins with NT SERVICE. Default is: $false.
+        Include service profiles where NTAccount begins with NT SERVICE.
 
     .INPUTS
         None
@@ -14071,13 +14212,13 @@ function Remove-ADTFileFromUserProfiles
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Remove-ADTFileFromUserProfiles
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'LiteralPath', Justification = "This parameter is accessed programmatically via the ParameterSet it's within, which PSScriptAnalyzer doesn't understand.")]
@@ -14206,13 +14347,13 @@ function Remove-ADTFolder
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Remove-ADTFolder
     #>
 
     [CmdletBinding()]
@@ -14353,13 +14494,13 @@ function Remove-ADTInvalidFileNameChars
 
         This function always returns a string; however, it can be empty if the name only contains invalid characters. Do not use this command for an entire path as '\' is not a valid filename character.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Remove-ADTInvalidFileNameChars
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This function is appropriately named and we don't need PSScriptAnalyzer telling us otherwise.")]
@@ -14435,13 +14576,13 @@ function Remove-ADTRegistryKey
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Remove-ADTRegistryKey
     #>
 
     [CmdletBinding()]
@@ -14593,13 +14734,13 @@ function Remove-ADTSessionClosingCallback
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Remove-ADTSessionClosingCallback
     #>
 
     [CmdletBinding()]
@@ -14658,13 +14799,13 @@ function Remove-ADTSessionFinishingCallback
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Remove-ADTSessionFinishingCallback
     #>
 
     [CmdletBinding()]
@@ -14723,13 +14864,13 @@ function Remove-ADTSessionOpeningCallback
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Remove-ADTSessionOpeningCallback
     #>
 
     [CmdletBinding()]
@@ -14788,13 +14929,13 @@ function Remove-ADTSessionStartingCallback
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Remove-ADTSessionStartingCallback
     #>
 
     [CmdletBinding()]
@@ -14848,13 +14989,13 @@ function Reset-ADTDeferHistory
     .NOTES
         An active ADT session is required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Reset-ADTDeferHistory
 
     #>
 
@@ -14942,13 +15083,13 @@ function Resolve-ADTErrorRecord
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Resolve-ADTErrorRecord
     #>
 
     [CmdletBinding()]
@@ -14960,8 +15101,8 @@ function Resolve-ADTErrorRecord
         [System.Management.Automation.ErrorRecord]$ErrorRecord,
 
         [Parameter(Mandatory = $false)]
-        [SupportsWildcards()]
         [ValidateNotNullOrEmpty()]
+        [SupportsWildcards()]
         [System.String[]]$Property = ('Message', 'InnerException', 'FullyQualifiedErrorId', 'ScriptStackTrace', 'PositionMessage'),
 
         [Parameter(Mandatory = $false)]
@@ -15122,7 +15263,10 @@ function Send-ADTKeys
         The sequence of keys to send. Info on Key input at: http://msdn.microsoft.com/en-us/library/System.Windows.Forms.SendKeys(v=vs.100).aspx
 
     .PARAMETER WaitSeconds
-        An optional number of seconds to wait after the sending of the keys.
+        This parameter is obsolete and will be removed in PSAppDeployToolkit 4.2.0. Please use `-WaitDuration` instead.
+
+    .PARAMETER WaitDuration
+        An optional amount of time to wait after the sending of the keys.
 
     .INPUTS
         None
@@ -15140,7 +15284,7 @@ function Send-ADTKeys
         Send the sequence of keys "Hello world" to the application titled "foobar - Notepad".
 
     .EXAMPLE
-        Send-ADTKeys -WindowTitle 'foobar - Notepad' -Keys 'Hello world' -WaitSeconds 5
+        Send-ADTKeys -WindowTitle 'foobar - Notepad' -Keys 'Hello world' WaitDuration (New-TimeSpan -Seconds 5)
 
         Send the sequence of keys "Hello world" to the application titled "foobar - Notepad" and wait 5 seconds.
 
@@ -15152,16 +15296,16 @@ function Send-ADTKeys
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
         http://msdn.microsoft.com/en-us/library/System.Windows.Forms.SendKeys(v=vs.100).aspx
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Send-ADTKeys
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This function is appropriately named and we don't need PSScriptAnalyzer telling us otherwise.")]
@@ -15173,7 +15317,7 @@ function Send-ADTKeys
         [ValidateNotNull()]
         [System.String]$WindowTitle,
 
-        [Parameter(Mandatory = $true, Position = 1, ParameterSetName = 'AllWindowTitles')]
+        [Parameter(Mandatory = $true, Position = 1, ParameterSetName = 'GetAllWindowTitles')]
         [System.Management.Automation.SwitchParameter]$GetAllWindowTitles,
 
         [Parameter(Mandatory = $true, Position = 2, ParameterSetName = 'WindowHandle')]
@@ -15181,77 +15325,96 @@ function Send-ADTKeys
         [System.IntPtr]$WindowHandle,
 
         [Parameter(Mandatory = $true, Position = 3, ParameterSetName = 'WindowTitle')]
-        [Parameter(Mandatory = $true, Position = 3, ParameterSetName = 'AllWindowTitles')]
+        [Parameter(Mandatory = $true, Position = 3, ParameterSetName = 'GetAllWindowTitles')]
         [Parameter(Mandatory = $true, Position = 3, ParameterSetName = 'WindowHandle')]
         [ValidateNotNullOrEmpty()]
         [System.String]$Keys,
 
         [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'WindowTitle')]
-        [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'AllWindowTitles')]
+        [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'GetAllWindowTitles')]
+        [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'WindowHandle')]
+        [System.Obsolete("Please use 'WaitDuration' instead as this will be removed in PSAppDeployToolkit 4.2.0.")]
+        [ValidateNotNullOrEmpty()]
+        [System.Int32]$WaitSeconds,
+
+        [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'WindowTitle')]
+        [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'GetAllWindowTitles')]
         [Parameter(Mandatory = $false, Position = 4, ParameterSetName = 'WindowHandle')]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$WaitSeconds
+        [System.TimeSpan]$WaitDuration
     )
 
     begin
     {
         # Make this function continue on error.
         & $Script:CommandTable.'Initialize-ADTFunction' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorAction SilentlyContinue
+        $gawtParams = @{ $PSCmdlet.ParameterSetName = & $Script:CommandTable.'Get-Variable' -Name $PSCmdlet.ParameterSetName -ValueOnly }
 
-        # Internal worker filter.
-        filter Send-ADTKeysToWindow
+        # Log the deprecation of -WaitSeconds to the log.
+        if ($PSBoundParameters.ContainsKey('WaitSeconds'))
         {
-            [CmdletBinding()]
-            param
-            (
-                [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
-                [ValidateNotNullOrEmpty()]
-                [System.IntPtr]$WindowHandle,
+            & $Script:CommandTable.'Write-ADTLogEntry' -Message "The parameter [-WaitSeconds] is obsolete and will be removed in PSAppDeployToolkit 4.2.0. Please use [-WaitDuration] instead." -Severity 2
+            if (!$PSBoundParameters.ContainsKey('WaitDuration'))
+            {
+                $WaitDuration = [System.TimeSpan]::FromSeconds($WaitSeconds)
+            }
+        }
+    }
 
-                [Parameter(Mandatory = $true)]
-                [ValidateNotNullOrEmpty()]
-                [System.String]$Keys,
+    process
+    {
+        # Get the specified windows.
+        try
+        {
+            if (!($Windows = & $Script:CommandTable.'Get-ADTWindowTitle' @gawtParams))
+            {
+                & $Script:CommandTable.'Write-ADTLogEntry' -Message "No windows matching the specified input were discovered." -Severity 2
+                return
+            }
+        }
+        catch
+        {
+            $PSCmdlet.ThrowTerminatingError($_)
+        }
 
-                [Parameter(Mandatory = $false)]
-                [ValidateNotNullOrEmpty()]
-                [System.Int32]$WaitSeconds
-            )
-
+        # Process each found window.
+        foreach ($window in $Windows)
+        {
             try
             {
                 try
                 {
                     # Bring the window to the foreground and make sure it's enabled.
-                    if (![PSADT.GUI.UiAutomation]::BringWindowToFront($WindowHandle))
+                    if (![PSADT.GUI.UiAutomation]::BringWindowToFront($window.WindowHandle))
                     {
                         $naerParams = @{
                             Exception = [System.ApplicationException]::new('Failed to bring window to foreground.')
                             Category = [System.Management.Automation.ErrorCategory]::InvalidResult
                             ErrorId = 'WindowHandleForegroundError'
-                            TargetObject = $WindowHandle
+                            TargetObject = $window
                             RecommendedAction = "Please check the status of this window and try again."
                         }
                         throw (& $Script:CommandTable.'New-ADTErrorRecord' @naerParams)
                     }
-                    if (![PSADT.LibraryInterfaces.User32]::IsWindowEnabled($WindowHandle))
+                    if (![PSADT.LibraryInterfaces.User32]::IsWindowEnabled($window.WindowHandle))
                     {
                         $naerParams = @{
                             Exception = [System.ApplicationException]::new('Unable to send keys to window because it may be disabled due to a modal dialog being shown.')
                             Category = [System.Management.Automation.ErrorCategory]::InvalidResult
                             ErrorId = 'WindowHandleDisabledError'
-                            TargetObject = $WindowHandle
+                            TargetObject = $window
                             RecommendedAction = "Please check the status of this window and try again."
                         }
                         throw (& $Script:CommandTable.'New-ADTErrorRecord' @naerParams)
                     }
 
                     # Send the Key sequence.
-                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Sending key(s) [$Keys] to window title [$($Window.WindowTitle)] with window handle [$WindowHandle]."
+                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Sending key(s) [$Keys] to window title [$($window.WindowTitle)] with window handle [$($window.WindowHandle)]."
                     [System.Windows.Forms.SendKeys]::SendWait($Keys)
-                    if ($WaitSeconds)
+                    if ($WaitDuration)
                     {
-                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Sleeping for [$WaitSeconds] seconds."
-                        & $Script:CommandTable.'Start-Sleep' -Seconds $WaitSeconds
+                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Sleeping for [$($WaitDuration.TotalSeconds)] seconds."
+                        [System.Threading.Thread]::Sleep($WaitDuration)
                     }
                 }
                 catch
@@ -15261,48 +15424,8 @@ function Send-ADTKeys
             }
             catch
             {
-                & $Script:CommandTable.'Write-ADTLogEntry' -Message "Failed to send keys to window title [$($Window.WindowTitle)] with window handle [$WindowHandle].`n$(& $Script:CommandTable.'Resolve-ADTErrorRecord' -ErrorRecord $_)" -Severity 3
+                & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorRecord $_ -LogMessage "Failed to send keys to window title [$($window.WindowTitle)] with window handle [$($window.WindowHandle)]." -ErrorAction SilentlyContinue
             }
-        }
-
-        # Set up parameter splat for worker filter.
-        $sktwParams = @{ Keys = $Keys }; if ($PSBoundParameters.ContainsKey('Keys')) { $sktwParams.Add('WaitSeconds', $WaitSeconds) }
-    }
-
-    process
-    {
-        try
-        {
-            try
-            {
-                # Process the specified input.
-                if ($WindowHandle)
-                {
-                    if (!($Window = & $Script:CommandTable.'Get-ADTWindowTitle' -GetAllWindowTitles | & { process { if ($_.WindowHandle -eq $WindowHandle) { return $_ } } } | & $Script:CommandTable.'Select-Object' -First 1))
-                    {
-                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "No windows with Window Handle [$WindowHandle] were discovered." -Severity 2
-                        return
-                    }
-                    Send-ADTKeysToWindow -WindowHandle $Window.WindowHandle @sktwParams
-                }
-                else
-                {
-                    if (!($AllWindows = if ($GetAllWindowTitles) { & $Script:CommandTable.'Get-ADTWindowTitle' -GetAllWindowTitles $GetAllWindowTitles } else { & $Script:CommandTable.'Get-ADTWindowTitle' -WindowTitle $WindowTitle } ))
-                    {
-                        & $Script:CommandTable.'Write-ADTLogEntry' -Message 'No windows with the specified details were discovered.' -Severity 2
-                        return
-                    }
-                    $AllWindows | Send-ADTKeysToWindow @sktwParams
-                }
-            }
-            catch
-            {
-                & $Script:CommandTable.'Write-Error' -ErrorRecord $_
-            }
-        }
-        catch
-        {
-            & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorRecord $_ -LogMessage "Failed to send keys to specified window."
         }
     }
 
@@ -15333,11 +15456,12 @@ function Set-ADTActiveSetup
         If the "Version" value of the Active Setup entry in HKLM is higher than the version value in HKCU, the file referenced in "StubPath" is executed.
 
         This Function:
-            - Creates the registry entries in "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\$($adtSession.InstallName)".
-            - Creates StubPath value depending on the file extension of the $StubExePath parameter.
-            - Handles Version value with YYYYMMDDHHMMSS granularity to permit re-installs on the same day and still trigger Active Setup after Version increase.
-            - Copies/overwrites the StubPath file to $StubExePath destination path if file exists in 'Files' subdirectory of script directory.
-            - Executes the StubPath file for the current user based on $NoExecuteForCurrentUser (no need to logout/login to trigger Active Setup).
+
+        - Creates the registry entries in "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\$($adtSession.InstallName)".
+        - Creates StubPath value depending on the file extension of the $StubExePath parameter.
+        - Handles Version value with YYYYMMDDHHMMSS granularity to permit re-installs on the same day and still trigger Active Setup after Version increase.
+        - Copies/overwrites the StubPath file to $StubExePath destination path if file exists in 'Files' subdirectory of script directory.
+        - Executes the StubPath file for the current user based on $NoExecuteForCurrentUser (no need to logout/login to trigger Active Setup).
 
     .PARAMETER StubExePath
         Use this parameter to specify the destination path of the file that will be executed upon user login.
@@ -15348,10 +15472,10 @@ function Set-ADTActiveSetup
         Arguments to pass to the file being executed.
 
     .PARAMETER Wow6432Node
-        Specify this switch to use Active Setup entry under Wow6432Node on a 64-bit OS. Default is: $false.
+        Specify this switch to use Active Setup entry under Wow6432Node on a 64-bit OS.
 
     .PARAMETER ExecutionPolicy
-        Specifies the ExecutionPolicy to set when StubExePath is a PowerShell script. Default is: system's ExecutionPolicy.
+        Specifies the ExecutionPolicy to set when StubExePath is a PowerShell script..
 
     .PARAMETER Version
         Optional. Specify version for Active setup entry. Active Setup is not triggered if Version value has more than 8 consecutive digits. Use commas to get around this limitation. Default: YYYYMMDDHHMMSS
@@ -15398,13 +15522,13 @@ function Set-ADTActiveSetup
 
         Original code borrowed from: Denis St-Pierre (Ottawa, Canada), Todd MacNaught (Ottawa, Canada)
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Set-ADTActiveSetup
     #>
 
     [CmdletBinding(DefaultParameterSetName = 'Create')]
@@ -15429,11 +15553,12 @@ function Set-ADTActiveSetup
 
         [Parameter(Mandatory = $false, ParameterSetName = 'Create')]
         [ValidateNotNullOrEmpty()]
+        [PSDefaultValue(Help = '(Get-ExecutionPolicy)')]
         [Microsoft.PowerShell.ExecutionPolicy]$ExecutionPolicy,
 
         [Parameter(Mandatory = $false, ParameterSetName = 'Create')]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Version = ((& $Script:CommandTable.'Get-Date' -Format 'yyMM,ddHH,mmss').ToString()), # Ex: 1405,1515,0522
+        [System.String]$Version = [System.DateTime]::Now.ToString('yyMM,ddHH,mmss'), # Ex: 1405,1515,0522
 
         [Parameter(Mandatory = $false, ParameterSetName = 'Create')]
         [ValidateNotNullOrEmpty()]
@@ -15505,6 +15630,7 @@ function Set-ADTActiveSetup
         }
 
         # Define initial variables.
+        $ActiveSetupFileName = [System.IO.Path]::GetFileName($StubExePath)
         $runAsActiveUser = & $Script:CommandTable.'Get-ADTRunAsActiveUser'
         $CUStubExePath = $null
         $CUArguments = $null
@@ -15581,82 +15707,31 @@ function Set-ADTActiveSetup
             }
 
             # After cleanup, the HKLM Version property is empty. Considering it missing. HKCU is present so nothing to run.
-            if (!($HKLMValidVer = [System.String]::Join($null, ($HKLMVer.GetEnumerator() | & { process { if ([System.Char]::IsDigit($_) -or ($_ -eq ',')) { return $_ } } } | & $Script:CommandTable.'Select-Object' -First 1))))
+            if (!([System.Object]$HKLMValidVer = [System.String]::Join($null, ($HKLMVer.GetEnumerator() | & { process { if ([System.Char]::IsDigit($_)) { return $_ } elseif ($_ -eq ',') { return '.' } } }))) -or ![System.Version]::TryParse($HKLMValidVer, [ref]$HKLMValidVer))
             {
                 & $Script:CommandTable.'Write-ADTLogEntry' 'HKLM and HKCU active setup entries are present. HKLM Version property is invalid.'
                 return $false
             }
 
             # After cleanup, the HKCU Version property is empty while HKLM Version property is not. Run the StubPath.
-            if (!($HKCUValidVer = [System.String]::Join($null, ($HKCUVer.GetEnumerator() | & { process { if ([System.Char]::IsDigit($_) -or ($_ -eq ',')) { return $_ } } } | & $Script:CommandTable.'Select-Object' -First 1))))
+            if (!([System.Object]$HKCUValidVer = [System.String]::Join($null, ($HKCUVer.GetEnumerator() | & { process { if ([System.Char]::IsDigit($_)) { return $_ } elseif ($_ -eq ',') { return '.' } } }))) -or ![System.Version]::TryParse($HKCUValidVer, [ref]$HKCUValidVer))
             {
                 & $Script:CommandTable.'Write-ADTLogEntry' 'HKLM and HKCU active setup entries are present. HKCU Version property is invalid.'
                 return $true
             }
 
             # Both entries present, with a Version property. Compare the Versions.
-            try
+            if ($HKLMValidVer -gt $HKCUValidVer)
             {
-                # Convert the version property to Version type and compare.
-                if (([System.Version]$HKLMValidVer.Replace(',', '.')) -gt ([System.Version]$HKCUValidVer.Replace(',', '.')))
-                {
-                    # HKLM is greater, run the StubPath.
-                    & $Script:CommandTable.'Write-ADTLogEntry' "HKLM and HKCU active setup entries are present. Both contain Version properties, and the HKLM Version is greater."
-                    return $true
-                }
-                else
-                {
-                    # The HKCU version is equal or higher than HKLM version, Nothing to run.
-                    & $Script:CommandTable.'Write-ADTLogEntry' 'HKLM and HKCU active setup entries are present. Both contain Version properties. However, they are either the same or the HKCU Version property is higher.'
-                    return $false
-                }
-            }
-            catch
-            {
-                # Failed to convert version property to Version type.
-                $null = $null
-            }
-
-            # Check whether the Versions were split into the same number of strings. Split the version by commas.
-            if (($SplitHKLMValidVer = $HKLMValidVer.Split(',')).Count -ne ($SplitHKCUValidVer = $HKCUValidVer.Split(',')).Count)
-            {
-                # The versions are different length - more commas
-                if ($SplitHKLMValidVer.Count -gt $SplitHKCUValidVer.Count)
-                {
-                    # HKLM is longer, Run the StubPath.
-                    & $Script:CommandTable.'Write-ADTLogEntry' "HKLM and HKCU active setup entries are present. Both contain Version properties. However, the HKLM Version has more version fields."
-                    return $true
-                }
-                else
-                {
-                    # HKCU is longer, Nothing to run.
-                    & $Script:CommandTable.'Write-ADTLogEntry' "HKLM and HKCU active setup entries are present. Both contain Version properties. However, the HKCU Version has more version fields."
-                    return $false
-                }
-            }
-
-            # The Versions have the same number of strings. Compare them
-            try
-            {
-                for ($i = 0; $i -lt $SplitHKLMValidVer.Count; $i++)
-                {
-                    # Parse the version is UINT64.
-                    if ([UInt64]::Parse($SplitHKCUValidVer[$i]) -lt [UInt64]::Parse($SplitHKLMValidVer[$i]))
-                    {
-                        # The HKCU ver is lower, Run the StubPath.
-                        & $Script:CommandTable.'Write-ADTLogEntry' 'HKLM and HKCU active setup entries are present. Both Version properties are present and valid. However, HKCU Version property is lower.'
-                        return $true
-                    }
-                }
-                # The HKCU version is equal or higher than HKLM version, Nothing to run.
-                & $Script:CommandTable.'Write-ADTLogEntry' 'HKLM and HKCU active setup entries are present. Both Version properties are present and valid. However, they are either the same or HKCU Version property is higher.'
-                return $false
-            }
-            catch
-            {
-                # Failed to parse strings as UInt64, Run the StubPath.
-                & $Script:CommandTable.'Write-ADTLogEntry' 'HKLM and HKCU active setup entries are present. Both Version properties are present and valid. However, parsing string numerics to 64-bit integers failed.' -Severity 2
+                # HKLM is greater, run the StubPath.
+                & $Script:CommandTable.'Write-ADTLogEntry' "HKLM and HKCU active setup entries are present. Both contain Version properties, and the HKLM Version is greater."
                 return $true
+            }
+            else
+            {
+                # The HKCU version is equal or higher than HKLM version, Nothing to run.
+                & $Script:CommandTable.'Write-ADTLogEntry' 'HKLM and HKCU active setup entries are present. Both contain Version properties. However, they are either the same or the HKCU Version property is higher.'
+                return $false
             }
         }
 
@@ -15725,17 +15800,16 @@ function Set-ADTActiveSetup
                 # Delete Active Setup registry entry from the HKLM hive and for all logon user registry hives on the system.
                 if ($PurgeActiveSetupKey)
                 {
+                    # HLKM first.
                     & $Script:CommandTable.'Write-ADTLogEntry' -Message "Removing Active Setup entry [$HKLMRegKey]."
                     & $Script:CommandTable.'Remove-ADTRegistryKey' -Key $HKLMRegKey -Recurse
 
-                    if ($runAsActiveUser)
-                    {
-                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Removing Active Setup entry [$HKCURegKey] for all logged on user registry hives on the system."
-                        & $Script:CommandTable.'Invoke-ADTAllUsersRegistryAction' -UserProfiles (& $Script:CommandTable.'Get-ADTUserProfiles' -ExcludeDefaultUser | & { process { if ($_.SID -eq $runAsActiveUser.SID) { return $_ } } } | & $Script:CommandTable.'Select-Object' -First 1) -ScriptBlock {
-                            if (& $Script:CommandTable.'Get-ADTRegistryKey' -Key $HKCURegKey -SID $_.SID)
-                            {
-                                & $Script:CommandTable.'Remove-ADTRegistryKey' -Key $HKCURegKey -SID $_.SID -Recurse
-                            }
+                    # All remaining users thereafter.
+                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Removing Active Setup entry [$HKCURegKey] for all logged on user registry hives on the system."
+                    & $Script:CommandTable.'Invoke-ADTAllUsersRegistryAction' -UserProfiles (& $Script:CommandTable.'Get-ADTUserProfiles' -ExcludeDefaultUser | & { process { if ($_.SID -eq $runAsActiveUser.SID) { return $_ } } } | & $Script:CommandTable.'Select-Object' -First 1) -ScriptBlock {
+                        if (& $Script:CommandTable.'Get-ADTRegistryKey' -Key $HKCURegKey -SID $_.SID)
+                        {
+                            & $Script:CommandTable.'Remove-ADTRegistryKey' -Key $HKCURegKey -SID $_.SID -Recurse
                         }
                     }
                     return
@@ -15745,7 +15819,7 @@ function Set-ADTActiveSetup
                 $StubExePath = [System.Environment]::ExpandEnvironmentVariables($StubExePath)
                 if ($adtSession -and $adtSession.DirFiles)
                 {
-                    $StubExeFile = & $Script:CommandTable.'Join-Path' -Path $adtSession.DirFiles -ChildPath ($ActiveSetupFileName = [System.IO.Path]::GetFileName($StubExePath))
+                    $StubExeFile = & $Script:CommandTable.'Join-Path' -Path $adtSession.DirFiles -ChildPath $ActiveSetupFileName
                     if (& $Script:CommandTable.'Test-Path' -LiteralPath $StubExeFile -PathType Leaf)
                     {
                         # This will overwrite the StubPath file if $StubExePath already exists on target.
@@ -15825,11 +15899,11 @@ function Set-ADTActiveSetup
                         $CUStubExePath = & $Script:CommandTable.'Get-ADTPowerShellProcessPath'
                         $CUArguments = if ([System.String]::IsNullOrWhiteSpace($Arguments))
                         {
-                            "$(if ($PSBoundParameters.ContainsKey('ExecutionPolicy')) { "-ExecutionPolicy $ExecutionPolicy" })-NoProfile -NoLogo -WindowStyle Hidden -File `"$StubExePath`""
+                            "$(if ($PSBoundParameters.ContainsKey('ExecutionPolicy')) { "-ExecutionPolicy $ExecutionPolicy " })-NoProfile -NoLogo -WindowStyle Hidden -File `"$StubExePath`""
                         }
                         else
                         {
-                            "$(if ($PSBoundParameters.ContainsKey('ExecutionPolicy')) { "-ExecutionPolicy $ExecutionPolicy" })-NoProfile -NoLogo -WindowStyle Hidden -File `"$StubExePath`" $Arguments"
+                            "$(if ($PSBoundParameters.ContainsKey('ExecutionPolicy')) { "-ExecutionPolicy $ExecutionPolicy " })-NoProfile -NoLogo -WindowStyle Hidden -File `"$StubExePath`" $Arguments"
                         }
                         $StubPath = "`"$CUStubExePath`" $CUArguments"
                         break
@@ -15853,7 +15927,7 @@ function Set-ADTActiveSetup
                     return
                 }
 
-                if (![System.Diagnostics.Process]::GetCurrentProcess().SessionId)
+                if ([System.Security.Principal.WindowsIdentity]::GetCurrent().User.IsWellKnown([System.Security.Principal.WellKnownSidType]::LocalSystemSid))
                 {
                     if (!$runAsActiveUser)
                     {
@@ -15893,6 +15967,10 @@ function Set-ADTActiveSetup
                     & $Script:CommandTable.'Write-ADTLogEntry' -Message 'Executing Active Setup StubPath file for the current user.'
                     if ($CUArguments)
                     {
+                        if ($StubExeExt -eq '.ps1')
+                        {
+                            $CUArguments = $CUArguments.Replace("-WindowStyle Hidden ", $null)
+                        }
                         & $Script:CommandTable.'Start-ADTProcess' -FilePath $CUStubExePath -ArgumentList $CUArguments
                     }
                     else
@@ -15959,13 +16037,13 @@ function Set-ADTDeferHistory
     .NOTES
         An active ADT session is required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Set-ADTDeferHistory
 
     #>
 
@@ -16037,13 +16115,13 @@ function Set-ADTIniValue
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Set-ADTIniValue
     #>
 
     [CmdletBinding()]
@@ -16126,27 +16204,34 @@ function Set-ADTItemPermission
         One or more user names (ex: BUILTIN\Users, DOMAIN\Admin) to give the permissions to. If you want to use SID, prefix it with an asterisk * (ex: *S-1-5-18)
 
     .PARAMETER Permission
-        Permission or list of permissions to be set/added/removed/replaced. To see all the possible permissions go to 'http://technet.microsoft.com/fr-fr/library/ff730951.aspx'.
-
-        Permission DeleteSubdirectoriesAndFiles does not apply to files.
+        Permission or list of permissions to be set/added/removed/replaced. Permission DeleteSubdirectoriesAndFiles does not apply to files.
 
     .PARAMETER PermissionType
-        Sets Access Control Type of the permissions. Allowed options: Allow, Deny
+        Sets Access Control Type of the permissions.
 
     .PARAMETER Inheritance
-        Sets permission inheritance. Does not apply to files. Multiple options can be specified. Allowed options: ObjectInherit, ContainerInherit, None
+        Sets permission inheritance. Does not apply to files. Multiple options can be specified.
 
-        None - The permission entry is not inherited by child objects, ObjectInherit - The permission entry is inherited by child leaf objects. ContainerInherit - The permission entry is inherited by child container objects.
+        * None - The permission entry is not inherited by child objects.
+        * ObjectInherit - The permission entry is inherited by child leaf objects.
+        * ContainerInherit - The permission entry is inherited by child container objects.
 
     .PARAMETER Propagation
-        Sets how to propagate inheritance. Does not apply to files. Allowed options: None, InheritOnly, NoPropagateInherit
+        Sets how to propagate inheritance. Does not apply to files.
 
-        None - Specifies that no inheritance flags are set. NoPropagateInherit - Specifies that the permission entry is not propagated to child objects. InheritOnly - Specifies that the permission entry is propagated only to child objects. This includes both container and leaf child objects.
+        * None - Specifies that no inheritance flags are set.
+        * NoPropagateInherit - Specifies that the permission entry is not propagated to child objects.
+        * InheritOnly - Specifies that the permission entry is propagated only to child objects. This includes both container and leaf child objects.
 
     .PARAMETER Method
-        Specifies which method will be used to apply the permissions. Allowed options: Add, Set, Reset.
+        Specifies which method will be used to apply the permissions.
 
-        Add - adds permissions rules but it does not remove previous permissions, Set - overwrites matching permission rules with new ones, Reset - removes matching permissions rules and then adds permission rules, Remove - Removes matching permission rules, RemoveSpecific - Removes specific permissions, RemoveAll - Removes all permission rules for specified user/s
+        * AddAccessRule - Adds permissions rules but it does not remove previous permissions.
+        * SetAccessRule - Overwrites matching permission rules with new ones.
+        * ResetAccessRule - Removes matching permissions rules and then adds permission rules.
+        * RemoveAccessRule - Removes matching permission rules.
+        * RemoveAccessRuleAll - Removes all permission rules for specified user/s.
+        * RemoveAccessRuleSpecific - Removes specific permissions.
 
     .PARAMETER EnableInheritance
         Enables inheritance on the files/folders.
@@ -16181,17 +16266,15 @@ function Set-ADTItemPermission
 
         Original Author: Julian DA CUNHA - dacunha.julian@gmail.com, used with permission.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Set-ADTItemPermission
     #>
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'PermissionType', Justification = "This parameter is used within delegates that PSScriptAnalyzer has no visibility of. See https://github.com/PowerShell/PSScriptAnalyzer/issues/1472 for more details.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'Method', Justification = "This parameter is used within delegates that PSScriptAnalyzer has no visibility of. See https://github.com/PowerShell/PSScriptAnalyzer/issues/1472 for more details.")]
     [CmdletBinding()]
     param
     (
@@ -16231,7 +16314,7 @@ function Set-ADTItemPermission
         [System.Security.AccessControl.PropagationFlags]$Propagation = [System.Security.AccessControl.PropagationFlags]::None,
 
         [Parameter(Mandatory = $false, Position = 6, HelpMessage = 'Specifies which method will be used to add/remove/replace permissions.', ParameterSetName = 'DisableInheritance')]
-        [ValidateSet('AddAccessRule', 'SetAccessRule', 'ResetAccessRule', 'RemoveAccessRule', 'RemoveAccessRuleSpecific', 'RemoveAccessRuleAll')]
+        [ValidateSet('AddAccessRule', 'SetAccessRule', 'ResetAccessRule', 'RemoveAccessRule', 'RemoveAccessRuleAll', 'RemoveAccessRuleSpecific')]
         [Alias('ApplyMethod', 'ApplicationMethod')]
         [System.String]$Method = 'AddAccessRule',
 
@@ -16275,38 +16358,23 @@ function Set-ADTItemPermission
                 $Acl = & $Script:CommandTable.'Get-Acl' -Path $Path
 
                 # Apply permissions on each user.
-                $User.Trim() | & {
-                    process
+                foreach ($Username in $User.Trim())
+                {
+                    # Return early if the string is empty.
+                    if ([System.String]::IsNullOrWhiteSpace($Username))
                     {
-                        # Return early if the string is empty.
-                        if (!$_.Length)
-                        {
-                            return
-                        }
-
-                        # Set Username.
-                        [System.Security.Principal.NTAccount]$Username = if ($_.StartsWith('*'))
-                        {
-                            try
-                            {
-                                # Translate the SID.
-                                & $Script:CommandTable.'ConvertTo-ADTNTAccountOrSID' -SID ($sid = $_.Remove(0, 1))
-                            }
-                            catch
-                            {
-                                & $Script:CommandTable.'Write-ADTLogEntry' "Failed to translate SID [$sid]. Skipping..." -Severity 2
-                                continue
-                            }
-                        }
-                        else
-                        {
-                            $_
-                        }
-
-                        # Set/Add/Remove/Replace permissions and log the changes.
-                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Changing permissions [Permissions:$Permission, InheritanceFlags:$Inheritance, PropagationFlags:$Propagation, AccessControlType:$PermissionType, Method:$Method] on path [$Path] for user [$Username]."
-                        $Acl.$Method([System.Security.AccessControl.FileSystemAccessRule]::new($Username, $Permission, $Inheritance, $Propagation, $PermissionType))
+                        continue
                     }
+
+                    # Translate a SID to NTAccount.
+                    if ($Username.StartsWith('*') -and !($Username = & $Script:CommandTable.'ConvertTo-ADTNTAccountOrSID' -SID $Username.Remove(0, 1)))
+                    {
+                        continue
+                    }
+
+                    # Set/Add/Remove/Replace permissions and log the changes.
+                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Changing permissions [Permissions:$Permission, InheritanceFlags:$Inheritance, PropagationFlags:$Propagation, AccessControlType:$PermissionType, Method:$Method] on path [$Path] for user [$Username]."
+                    $Acl.$Method([System.Security.AccessControl.FileSystemAccessRule]::new($Username, $Permission, $Inheritance, $Propagation, $PermissionType))
                 }
 
                 # Use the prepared ACL.
@@ -16372,13 +16440,13 @@ function Set-ADTMsiProperty
 
         Original Author: Julian DA CUNHA - dacunha.julian@gmail.com, used with permission.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Set-ADTMsiProperty
     #>
 
     [CmdletBinding()]
@@ -16500,13 +16568,13 @@ function Set-ADTPowerShellCulture
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Set-ADTPowerShellCulture
     #>
 
     [CmdletBinding()]
@@ -16646,13 +16714,13 @@ function Set-ADTRegistryKey
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Set-ADTRegistryKey
     #>
 
     [CmdletBinding()]
@@ -16808,13 +16876,13 @@ function Set-ADTServiceStartMode
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Set-ADTServiceStartMode
     #>
 
     [CmdletBinding()]
@@ -16957,10 +17025,13 @@ function Set-ADTShortcut
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
+
+    .LINK
+        https://psappdeploytoolkit.com/docs/reference/functions/Set-ADTShortcut
     #>
 
     [CmdletBinding()]
@@ -16968,7 +17039,7 @@ function Set-ADTShortcut
     (
         [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, Position = 0)]
         [ValidateScript({
-                if (![System.IO.File]::Exists($_) -or (![System.IO.Path]::GetExtension($Path).ToLower().Equals('.lnk') -and ![System.IO.Path]::GetExtension($Path).ToLower().Equals('.url')))
+                if (![System.IO.File]::Exists($_) -or (![System.IO.Path]::GetExtension($_).ToLower().Equals('.lnk') -and ![System.IO.Path]::GetExtension($_).ToLower().Equals('.url')))
                 {
                     $PSCmdlet.ThrowTerminatingError((& $Script:CommandTable.'New-ADTValidateScriptErrorRecord' -ParameterName Path -ProvidedValue $_ -ExceptionMessage 'The specified path does not exist or does not have the correct extension.'))
                 }
@@ -16990,7 +17061,7 @@ function Set-ADTShortcut
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$IconIndex,
+        [System.UInt32]$IconIndex,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -17027,7 +17098,7 @@ function Set-ADTShortcut
             {
                 # Make sure .NET's current directory is synced with PowerShell's.
                 [System.IO.Directory]::SetCurrentDirectory((& $Script:CommandTable.'Get-Location' -PSProvider FileSystem).ProviderPath)
-                if ($extension -eq '.url')
+                if ([System.IO.Path]::GetExtension($Path) -eq '.url')
                 {
                     $URLFile = [System.IO.File]::ReadAllLines($Path) | & {
                         process
@@ -17082,10 +17153,10 @@ function Set-ADTShortcut
 
                     # Handle icon, starting with retrieval previous value and split the path from the index.
                     $TempIconLocation, $TempIconIndex = $shortcut.IconLocation.Split(',')
-                    $IconLocation = if ($IconLocation)
+                    $newIconLocation = if ($IconLocation)
                     {
                         # New icon path was specified. Check whether new icon index was also specified.
-                        if ($null -ne $IconIndex)
+                        if ($PSBoundParameters.ContainsKey('IconIndex'))
                         {
                             # Create new icon path from new icon path and new icon index.
                             $IconLocation + ",$IconIndex"
@@ -17096,14 +17167,14 @@ function Set-ADTShortcut
                             $IconLocation + ",$TempIconIndex"
                         }
                     }
-                    elseif ($null -ne $IconIndex)
+                    elseif ($PSBoundParameters.ContainsKey('IconIndex'))
                     {
                         # New icon index was specified, but not the icon location. Append it to the icon path from the shortcut.
                         $IconLocation = $TempIconLocation + ",$IconIndex"
                     }
-                    if ($IconLocation)
+                    if ($newIconLocation)
                     {
-                        $shortcut.IconLocation = $IconLocation
+                        $shortcut.IconLocation = $newIconLocation
                     }
 
                     # Save the changes.
@@ -17166,7 +17237,7 @@ function Show-ADTBalloonTip
         Text of the balloon tip.
 
     .PARAMETER BalloonTipIcon
-        Icon to be used. Options: 'Error', 'Info', 'None', 'Warning'. Default is: Info.
+        Icon to be used. Options: 'Error', 'Info', 'None', 'Warning'.
 
     .PARAMETER BalloonTipTime
         Time in milliseconds to display the balloon tip. Default: 10000.
@@ -17194,13 +17265,13 @@ function Show-ADTBalloonTip
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Show-ADTBalloonTip
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'BalloonTipIcon', Justification = "This parameter is used via the function's PSBoundParameters dictionary, which is not something PSScriptAnalyzer understands. See https://github.com/PowerShell/PSScriptAnalyzer/issues/1472 for more details.")]
@@ -17224,7 +17295,6 @@ function Show-ADTBalloonTip
     {
         # Initialize the module first if needed.
         $adtSession = & $Script:CommandTable.'Initialize-ADTModuleIfUnitialized' -Cmdlet $PSCmdlet
-        $adtConfig = & $Script:CommandTable.'Get-ADTConfig'
 
         # Define parameter dictionary for returning at the end.
         $paramDictionary = [System.Management.Automation.RuntimeDefinedParameterDictionary]::new()
@@ -17245,6 +17315,10 @@ function Show-ADTBalloonTip
     {
         # Initialize function.
         & $Script:CommandTable.'Initialize-ADTFunction' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState
+        $adtConfig = & $Script:CommandTable.'Get-ADTConfig'
+
+        # Initalise the classic assets.
+        & $Script:CommandTable.'Initialize-ADTClassicAssets'
 
         # Set up defaults if not specified.
         if (!$PSBoundParameters.ContainsKey('BalloonTipTitle'))
@@ -17282,11 +17356,15 @@ function Show-ADTBalloonTip
                     return
                 }
 
-                # Display the balloon tip to the user. As all assets are in memory, there's nothing to dispose.
+                # Set up the balloon tip.
                 & $Script:CommandTable.'Write-ADTLogEntry' -Message "Displaying balloon tip notification with message [$BalloonTipText]."
                 $nabtParams = & $Script:CommandTable.'Get-ADTBoundParametersAndDefaultValues' -Invocation $MyInvocation -Exclude BalloonTipTime
                 $nabtParams.Add('Icon', $Script:Dialogs.Classic.Assets.Icon); $nabtParams.Add('Visible', $true)
-                ([System.Windows.Forms.NotifyIcon]$nabtParams).ShowBalloonTip($BalloonTipTime)
+                $notifyIcon = [System.Windows.Forms.NotifyIcon]$nabtParams
+
+                # Add an event to manage disposal of the object before displaying.
+                $null = & $Script:CommandTable.'Register-ObjectEvent' -InputObject $notifyIcon -EventName BalloonTipShown -Action { $Sender.Dispose() }
+                $notifyIcon.ShowBalloonTip($BalloonTipTime)
             }
             catch
             {
@@ -17354,13 +17432,13 @@ function Show-ADTDialogBox
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Show-ADTDialogBox
     #>
 
     [CmdletBinding()]
@@ -17526,13 +17604,13 @@ function Show-ADTHelpConsole
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Show-ADTHelpConsole
     #>
 
     # Run this via a new PowerShell window so it doesn't stall the main thread.
@@ -17602,13 +17680,13 @@ function Show-ADTInstallationProgress
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Show-ADTInstallationProgress
     #>
 
     [CmdletBinding()]
@@ -17682,7 +17760,7 @@ function Show-ADTInstallationProgress
         }
         if (!$PSBoundParameters.ContainsKey('WindowSubtitle'))
         {
-            $PSBoundParameters.Add('WindowSubtitle', [System.String]::Format($adtStrings.WelcomePrompt.Fluent.Subtitle, $adtSession.DeploymentType))
+            $PSBoundParameters.Add('WindowSubtitle', [System.String]::Format($adtStrings.WelcomePrompt.Fluent.Subtitle, $adtSession.GetDeploymentTypeName()))
         }
         if (!$PSBoundParameters.ContainsKey('StatusMessage'))
         {
@@ -17806,7 +17884,7 @@ function Show-ADTInstallationPrompt
         Presents the dialog in a separate, independent thread so that the main process isn't stalled waiting for a response.
 
     .PARAMETER PersistPrompt
-        Specify whether to make the prompt persist in the center of the screen every couple of seconds, specified in the AppDeployToolkitConfig.xml. The user will have no option but to respond to the prompt - resistance is futile!
+        Specify whether to make the prompt persist in the center of the screen every couple of seconds, specified in the config.psd1 file. The user will have no option but to respond to the prompt.
 
     .PARAMETER MinimizeWindows
         Specifies whether to minimize other windows when displaying prompt.
@@ -17839,13 +17917,13 @@ function Show-ADTInstallationPrompt
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Show-ADTInstallationPrompt
     #>
 
     [CmdletBinding()]
@@ -17955,7 +18033,7 @@ function Show-ADTInstallationPrompt
         }
         if (!$PSBoundParameters.ContainsKey('Subtitle'))
         {
-            $PSBoundParameters.Add('Subtitle', [System.String]::Format((& $Script:CommandTable.'Get-ADTStringTable').WelcomePrompt.Fluent.Subtitle, $adtSession.DeploymentType))
+            $PSBoundParameters.Add('Subtitle', [System.String]::Format((& $Script:CommandTable.'Get-ADTStringTable').WelcomePrompt.Fluent.Subtitle, $adtSession.GetDeploymentTypeName()))
         }
         if (!$PSBoundParameters.ContainsKey('Timeout'))
         {
@@ -17983,7 +18061,7 @@ function Show-ADTInstallationPrompt
                 if ($NoWait)
                 {
                     & $Script:CommandTable.'Write-ADTLogEntry' -Message "Displaying custom installation prompt asynchronously with the parameters: [$($paramsString.Replace("''", "'"))]."
-                    & $Script:CommandTable.'Start-Process' -FilePath (& $Script:CommandTable.'Get-ADTPowerShellProcessPath') -ArgumentList "$(if (!(& $Script:CommandTable.'Test-ADTModuleIsReleaseBuild')) { "-ExecutionPolicy Bypass " })-NonInteractive -NoProfile -NoLogo -WindowStyle Hidden -Command & (Import-Module -FullyQualifiedName @{ ModuleName = '$("$($Script:PSScriptRoot)\$($MyInvocation.MyCommand.Module.Name).psd1".Replace("'", "''"))'; Guid = '$($MyInvocation.MyCommand.Module.Guid)'; ModuleVersion = '$($MyInvocation.MyCommand.Module.Version)' } -PassThru) { & `$CommandTable.'Initialize-ADTModule' -ScriptDirectory '$($Script:ADT.Directories.Script.Replace("'", "''"))'; `$null = & `$CommandTable.'$($MyInvocation.MyCommand.Name)$($adtConfig.UI.DialogStyle)' $($paramsString.Replace('"', '\"')) }" -WindowStyle Hidden -ErrorAction Ignore
+                    & $Script:CommandTable.'Start-Process' -FilePath (& $Script:CommandTable.'Get-ADTPowerShellProcessPath') -ArgumentList "$(if (!(& $Script:CommandTable.'Test-ADTModuleIsReleaseBuild')) { "-ExecutionPolicy Bypass " })-NonInteractive -NoProfile -NoLogo -WindowStyle Hidden -Command & (Import-Module -FullyQualifiedName @{ ModuleName = '$("$($Script:PSScriptRoot)\$($MyInvocation.MyCommand.Module.Name).psd1".Replace("'", "''"))'; Guid = '$($MyInvocation.MyCommand.Module.Guid)'; ModuleVersion = '$($MyInvocation.MyCommand.Module.Version)' } -PassThru) { & `$CommandTable.'Initialize-ADTModule' -ScriptDirectory '$([System.String]::Join("', '", $Script:ADT.Directories.Script.Replace("'", "''")))'; `$null = & `$CommandTable.'$($MyInvocation.MyCommand.Name)$($adtConfig.UI.DialogStyle)' $($paramsString.Replace('"', '\"')) }" -WindowStyle Hidden -ErrorAction Ignore
                     return
                 }
 
@@ -18037,10 +18115,10 @@ function Show-ADTInstallationRestartPrompt
         Specifies the number of seconds to display the restart prompt without allowing the window to be hidden. Default: 30
 
     .PARAMETER SilentCountdownSeconds
-        Specifies number of seconds to countdown for the restart when the toolkit is running in silent mode and NoSilentRestart is $false. Default: 5
+        Specifies number of seconds to countdown for the restart when the toolkit is running in silent mode and `-SilentRestart` isn't specified. Default: 5
 
     .PARAMETER SilentRestart
-        Specifies whether the restart should be triggered when Deploy mode is silent or very silent.
+        Specifies whether the restart should be triggered when DeployMode is silent or very silent.
 
     .PARAMETER NoCountdown
         Specifies whether the user should receive a prompt to immediately restart their workstation.
@@ -18064,7 +18142,7 @@ function Show-ADTInstallationRestartPrompt
         Displays a restart prompt without a countdown.
 
     .EXAMPLE
-        Show-ADTInstallationRestartPrompt -Countdownseconds 300
+        Show-ADTInstallationRestartPrompt -CountdownSeconds 300
 
         Displays a restart prompt with a 300-second countdown.
 
@@ -18076,35 +18154,35 @@ function Show-ADTInstallationRestartPrompt
     .NOTES
         Be mindful of the countdown you specify for the reboot as code directly after this function might NOT be able to execute - that includes logging.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Show-ADTInstallationRestartPrompt
     #>
 
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'Countdown')]
     param
     (
-        [Parameter(Mandatory = $false)]
+        [Parameter(Mandatory = $true, ParameterSetName = 'NoCountdown')]
+        [System.Management.Automation.SwitchParameter]$NoCountdown,
+
+        [Parameter(Mandatory = $false, ParameterSetName = 'Countdown')]
         [ValidateNotNullOrEmpty()]
         [System.UInt32]$CountdownSeconds = 60,
 
-        [Parameter(Mandatory = $false)]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Countdown')]
         [ValidateNotNullOrEmpty()]
         [System.UInt32]$CountdownNoHideSeconds = 30,
 
-        [Parameter(Mandatory = $false)]
-        [ValidateNotNullOrEmpty()]
-        [System.UInt32]$SilentCountdownSeconds = 5,
-
-        [Parameter(Mandatory = $false)]
+        [Parameter(Mandatory = $true, ParameterSetName = 'SilentRestart')]
         [System.Management.Automation.SwitchParameter]$SilentRestart,
 
-        [Parameter(Mandatory = $false)]
-        [System.Management.Automation.SwitchParameter]$NoCountdown,
+        [Parameter(Mandatory = $false, ParameterSetName = 'SilentRestart')]
+        [ValidateNotNullOrEmpty()]
+        [System.UInt32]$SilentCountdownSeconds = 5,
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$NotTopMost
@@ -18150,7 +18228,7 @@ function Show-ADTInstallationRestartPrompt
         }
         if (!$PSBoundParameters.ContainsKey('Subtitle'))
         {
-            $PSBoundParameters.Add('Subtitle', [System.String]::Format($adtStrings.WelcomePrompt.Fluent.Subtitle, $adtSession.DeploymentType))
+            $PSBoundParameters.Add('Subtitle', [System.String]::Format($adtStrings.WelcomePrompt.Fluent.Subtitle, $adtSession.GetDeploymentTypeName()))
         }
         if (!$PSBoundParameters.ContainsKey('CountdownSeconds'))
         {
@@ -18173,12 +18251,12 @@ function Show-ADTInstallationRestartPrompt
                 {
                     if ($SilentRestart)
                     {
-                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Triggering restart silently, because the deploy mode is set to [$($adtSession.DeployMode)] and [NoSilentRestart] is disabled. Timeout is set to [$SilentCountdownSeconds] seconds."
+                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Triggering restart silently, because the deploy mode is set to [$($adtSession.DeployMode)] and [-SilentRestart] has been specified. Timeout is set to [$SilentCountdownSeconds] seconds."
                         & $Script:CommandTable.'Start-Process' -FilePath (& $Script:CommandTable.'Get-ADTPowerShellProcessPath') -ArgumentList "-NonInteractive -NoProfile -NoLogo -WindowStyle Hidden -Command Start-Sleep -Seconds $SilentCountdownSeconds; Restart-Computer -Force" -WindowStyle Hidden -ErrorAction Ignore
                     }
                     else
                     {
-                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Skipping restart, because the deploy mode is set to [$($adtSession.DeployMode)] and [SilentRestart] is false."
+                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Skipping restart, because the deploy mode is set to [$($adtSession.DeployMode)] and [-SilentRestart] was not specified."
                     }
                     return
                 }
@@ -18203,7 +18281,7 @@ function Show-ADTInstallationRestartPrompt
                     }
 
                     # Start another powershell instance silently with function parameters from this function.
-                    & $Script:CommandTable.'Start-Process' -FilePath (& $Script:CommandTable.'Get-ADTPowerShellProcessPath') -ArgumentList "$(if (!(& $Script:CommandTable.'Test-ADTModuleIsReleaseBuild')) { "-ExecutionPolicy Bypass " })-NonInteractive -NoProfile -NoLogo -WindowStyle Hidden -Command & (Import-Module -FullyQualifiedName @{ ModuleName = '$("$($Script:PSScriptRoot)\$($MyInvocation.MyCommand.Module.Name).psd1".Replace("'", "''"))'; Guid = '$($MyInvocation.MyCommand.Module.Guid)'; ModuleVersion = '$($MyInvocation.MyCommand.Module.Version)' } -PassThru) { & `$CommandTable.'Initialize-ADTModule' -ScriptDirectory '$($Script:ADT.Directories.Script.Replace("'", "''"))'; `$null = & `$CommandTable.'$($MyInvocation.MyCommand.Name)$($adtConfig.UI.DialogStyle)' $([PSADT.Shared.Utility]::ConvertDictToPowerShellArgs($PSBoundParameters, ('SilentRestart', 'SilentCountdownSeconds')).Replace('"', '\"')) }" -WindowStyle Hidden -ErrorAction Ignore
+                    & $Script:CommandTable.'Start-Process' -FilePath (& $Script:CommandTable.'Get-ADTPowerShellProcessPath') -ArgumentList "$(if (!(& $Script:CommandTable.'Test-ADTModuleIsReleaseBuild')) { "-ExecutionPolicy Bypass " })-NonInteractive -NoProfile -NoLogo -WindowStyle Hidden -Command & (Import-Module -FullyQualifiedName @{ ModuleName = '$("$($Script:PSScriptRoot)\$($MyInvocation.MyCommand.Module.Name).psd1".Replace("'", "''"))'; Guid = '$($MyInvocation.MyCommand.Module.Guid)'; ModuleVersion = '$($MyInvocation.MyCommand.Module.Version)' } -PassThru) { & `$CommandTable.'Initialize-ADTModule' -ScriptDirectory '$([System.String]::Join("', '", $Script:ADT.Directories.Script.Replace("'", "''")))'; `$null = & `$CommandTable.'$($MyInvocation.MyCommand.Name)$($adtConfig.UI.DialogStyle)' $([PSADT.Shared.Utility]::ConvertDictToPowerShellArgs($PSBoundParameters, ('SilentRestart', 'SilentCountdownSeconds')).Replace('"', '\"')) }" -WindowStyle Hidden -ErrorAction Ignore
                     return
                 }
 
@@ -18238,14 +18316,15 @@ function Show-ADTInstallationWelcome
 {
     <#
     .SYNOPSIS
-        Show a welcome dialog prompting the user with information about the installation and actions to be performed before the installation can begin.
+        Show a welcome dialog prompting the user with information about the deployment and actions to be performed before the deployment can begin.
 
     .DESCRIPTION
         The following prompts can be included in the welcome dialog:
-            a) Close the specified running applications, or optionally close the applications without showing a prompt (using the -Silent switch).
-            b) Defer the installation a certain number of times, for a certain number of days or until a deadline is reached.
-            c) Countdown until applications are automatically closed.
-            d) Prevent users from launching the specified applications while the installation is in progress.
+
+        * Close the specified running applications, or optionally close the applications without showing a prompt (using the `-Silent` switch).
+        * Defer the deployment a certain number of times, for a certain number of days or until a deadline is reached.
+        * Countdown until applications are automatically closed.
+        * Prevent users from launching the specified applications while the deployment is in progress.
 
     .PARAMETER CloseProcesses
         Name of the process to stop (do not include the .exe). Specify multiple processes separated by a comma. Specify custom descriptions like this: @{ Name = 'winword'; Description = 'Microsoft Office Word'},@{ Name = 'excel'; Description = 'Microsoft Office Excel'}
@@ -18263,25 +18342,25 @@ function Show-ADTInstallationWelcome
         Specify whether to prompt to save working documents when the user chooses to close applications by selecting the "Close Programs" button. Option does not work in SYSTEM context unless toolkit launched with "psexec.exe -s -i" to run it as an interactive process under the SYSTEM account.
 
     .PARAMETER PersistPrompt
-        Specify whether to make the Show-ADTInstallationWelcome prompt persist in the center of the screen every couple of seconds, specified in the AppDeployToolkitConfig.xml. The user will have no option but to respond to the prompt. This only takes effect if deferral is not allowed or has expired.
+        Specify whether to make the Show-ADTInstallationWelcome prompt persist in the center of the screen every couple of seconds, specified in the config.psd1. The user will have no option but to respond to the prompt. This only takes effect if deferral is not allowed or has expired.
 
     .PARAMETER BlockExecution
-        Option to prevent the user from launching processes/applications, specified in -CloseProcesses, during the installation.
+        Option to prevent the user from launching processes/applications, specified in -CloseProcesses, during the deployment.
 
     .PARAMETER AllowDefer
-        Enables an optional defer button to allow the user to defer the installation.
+        Enables an optional defer button to allow the user to defer the deployment.
 
     .PARAMETER AllowDeferCloseProcesses
-        Enables an optional defer button to allow the user to defer the installation only if there are running applications that need to be closed. This parameter automatically enables -AllowDefer
+        Enables an optional defer button to allow the user to defer the deployment only if there are running applications that need to be closed. This parameter automatically enables -AllowDefer
 
     .PARAMETER DeferTimes
-        Specify the number of times the installation can be deferred.
+        Specify the number of times the deployment can be deferred.
 
     .PARAMETER DeferDays
-        Specify the number of days since first run that the installation can be deferred. This is converted to a deadline.
+        Specify the number of days since first run that the deployment can be deferred. This is converted to a deadline.
 
     .PARAMETER DeferDeadline
-        Specify the deadline date until which the installation can be deferred.
+        Specify the deadline date until which the deployment can be deferred.
 
         Specify the date in the local culture if the script is intended for that same culture.
 
@@ -18292,7 +18371,7 @@ function Show-ADTInstallationWelcome
         The deadline date will be displayed to the user in the format of their culture.
 
     .PARAMETER CheckDiskSpace
-        Specify whether to check if there is enough disk space for the installation to proceed.
+        Specify whether to check if there is enough disk space for the deployment to proceed.
 
         If this parameter is specified without the RequiredDiskSpace parameter, the required disk space is calculated automatically based on the size of the script source and associated files.
 
@@ -18306,7 +18385,7 @@ function Show-ADTInstallationWelcome
         Specifies whether the windows is the topmost window. Default: $true.
 
     .PARAMETER ForceCountdown
-        Specify a countdown to display before automatically proceeding with the installation when a deferral is enabled.
+        Specify a countdown to display before automatically proceeding with the deployment when a deferral is enabled.
 
     .PARAMETER CustomText
         Specify whether to display a custom message specified in the string.psd1 file. Custom message must be populated for each language section in the string.psd1 file.
@@ -18334,7 +18413,7 @@ function Show-ADTInstallationWelcome
     .EXAMPLE
         Show-ADTInstallationWelcome -CloseProcesses @{ Name = 'winword' }, @{ Name = 'excel' } -BlockExecution
 
-        Close Word and Excel and prevent the user from launching the applications while the installation is in progress.
+        Close Word and Excel and prevent the user from launching the applications while the deployment is in progress.
 
     .EXAMPLE
         Show-ADTInstallationWelcome -CloseProcesses @{ Name = 'winword'; Description = 'Microsoft Office Word' }, @{ Name = 'excel'; Description = 'Microsoft Office Excel' } -CloseProcessesCountdown 600
@@ -18344,19 +18423,19 @@ function Show-ADTInstallationWelcome
     .EXAMPLE
         Show-ADTInstallationWelcome -CloseProcesses @{ Name = 'winword' }, @{ Name = 'msaccess' }, @{ Name = 'excel' } -PersistPrompt
 
-        Prompt the user to close Word, MSAccess and Excel. By using the PersistPrompt switch, the dialog will return to the center of the screen every couple of seconds, specified in the AppDeployToolkitConfig.xml, so the user cannot ignore it by dragging it aside.
+        Prompt the user to close Word, MSAccess and Excel. By using the PersistPrompt switch, the dialog will return to the center of the screen every couple of seconds, specified in the config.psd1, so the user cannot ignore it by dragging it aside.
 
     .EXAMPLE
         Show-ADTInstallationWelcome -AllowDefer -DeferDeadline '25/08/2013'
 
-        Allow the user to defer the installation until the deadline is reached.
+        Allow the user to defer the deployment until the deadline is reached.
 
     .EXAMPLE
         Show-ADTInstallationWelcome -CloseProcesses @{ Name = 'winword' }, @{ Name = 'excel' } -BlockExecution -AllowDefer -DeferTimes 10 -DeferDeadline '25/08/2013' -CloseProcessesCountdown 600
 
-        Close Word and Excel and prevent the user from launching the applications while the installation is in progress.
+        Close Word and Excel and prevent the user from launching the applications while the deployment is in progress.
 
-        Allow the user to defer the installation a maximum of 10 times or until the deadline is reached, whichever happens first.
+        Allow the user to defer the deployment a maximum of 10 times or until the deadline is reached, whichever happens first.
 
         When deferral expires, prompt the user to close the applications and automatically close them after 10 minutes.
 
@@ -18365,15 +18444,15 @@ function Show-ADTInstallationWelcome
 
         The process descriptions are retrieved via Get-Process, with a fall back on the process name if no description is available. Alternatively, you can specify the description yourself with a '=' symbol - see examples.
 
-        The dialog box will timeout after the timeout specified in the config.psd1 file (default 55 minutes) to prevent Intune/SCCM installations from timing out and returning a failure code. When the dialog times out, the script will exit and return a 1618 code (SCCM fast retry code).
+        The dialog box will timeout after the timeout specified in the config.psd1 file (default 55 minutes) to prevent Intune/SCCM deployments from timing out and returning a failure code. When the dialog times out, the script will exit and return a 1618 code (SCCM fast retry code).
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Show-ADTInstallationWelcome
     #>
 
     [CmdletBinding(DefaultParameterSetName = 'None')]
@@ -18388,7 +18467,7 @@ function Show-ADTInstallationWelcome
 
         [Parameter(Mandatory = $false, HelpMessage = 'Specify a countdown to display before automatically closing applications where deferral is not allowed or has expired.')]
         [ValidateNotNullOrEmpty()]
-        [System.Double]$CloseProcessesCountdown,
+        [System.UInt32]$CloseProcessesCountdown,
 
         [Parameter(Mandatory = $false, HelpMessage = 'Specify a countdown to display before automatically closing applications whether or not deferral is allowed.')]
         [ValidateNotNullOrEmpty()]
@@ -18397,10 +18476,10 @@ function Show-ADTInstallationWelcome
         [Parameter(Mandatory = $false, HelpMessage = 'Specify whether to prompt to save working documents when the user chooses to close applications by selecting the "Close Programs" button.')]
         [System.Management.Automation.SwitchParameter]$PromptToSave,
 
-        [Parameter(Mandatory = $false, HelpMessage = ' Specify whether to make the prompt persist in the center of the screen every couple of seconds, specified in the AppDeployToolkitConfig.xml.')]
+        [Parameter(Mandatory = $false, HelpMessage = ' Specify whether to make the prompt persist in the center of the screen every couple of seconds, specified in the config.psd1 file.')]
         [System.Management.Automation.SwitchParameter]$PersistPrompt,
 
-        [Parameter(Mandatory = $false, HelpMessage = ' Specify whether to block execution of the processes during installation.')]
+        [Parameter(Mandatory = $false, HelpMessage = ' Specify whether to block execution of the processes during deployment.')]
         [System.Management.Automation.SwitchParameter]$BlockExecution,
 
         [Parameter(Mandatory = $false, HelpMessage = ' Specify whether to enable the optional defer button on the dialog box.')]
@@ -18411,7 +18490,7 @@ function Show-ADTInstallationWelcome
 
         [Parameter(Mandatory = $false, HelpMessage = 'Specify the number of times the deferral is allowed.')]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$DeferTimes,
+        [System.UInt32]$DeferTimes,
 
         [Parameter(Mandatory = $false, HelpMessage = 'Specify the number of days since first run that the deferral is allowed.')]
         [ValidateNotNullOrEmpty()]
@@ -18421,7 +18500,7 @@ function Show-ADTInstallationWelcome
         [ValidateNotNullOrEmpty()]
         [System.String]$DeferDeadline,
 
-        [Parameter(Mandatory = $true, HelpMessage = 'Specify whether to check if there is enough disk space for the installation to proceed. If this parameter is specified without the RequiredDiskSpace parameter, the required disk space is calculated automatically based on the size of the script source and associated files.', ParameterSetName = 'CheckDiskSpace')]
+        [Parameter(Mandatory = $true, HelpMessage = 'Specify whether to check if there is enough disk space for the deployment to proceed. If this parameter is specified without the RequiredDiskSpace parameter, the required disk space is calculated automatically based on the size of the script source and associated files.', ParameterSetName = 'CheckDiskSpace')]
         [System.Management.Automation.SwitchParameter]$CheckDiskSpace,
 
         [Parameter(Mandatory = $false, HelpMessage = 'Specify required disk space in MB, used in combination with $CheckDiskSpace.', ParameterSetName = 'CheckDiskSpace')]
@@ -18434,7 +18513,7 @@ function Show-ADTInstallationWelcome
         [Parameter(Mandatory = $false, HelpMessage = 'Specifies whether the window is the topmost window.')]
         [System.Management.Automation.SwitchParameter]$NotTopMost,
 
-        [Parameter(Mandatory = $false, HelpMessage = 'Specify a countdown to display before automatically proceeding with the installation when a deferral is enabled.')]
+        [Parameter(Mandatory = $false, HelpMessage = 'Specify a countdown to display before automatically proceeding with the deployment when a deferral is enabled.')]
         [ValidateNotNullOrEmpty()]
         [System.UInt32]$ForceCountdown,
 
@@ -18455,7 +18534,7 @@ function Show-ADTInstallationWelcome
         # Add in parameters we need as mandatory when there's no active ADTSession.
         $paramDictionary.Add('Title', [System.Management.Automation.RuntimeDefinedParameter]::new(
                 'Title', [System.String], $(
-                    [System.Management.Automation.ParameterAttribute]@{ Mandatory = !$adtSession; HelpMessage = "Title of the prompt. Default: the application installation name." }
+                    [System.Management.Automation.ParameterAttribute]@{ Mandatory = !$adtSession; HelpMessage = "Title of the prompt. Default: the application deployment name." }
                     [System.Management.Automation.ValidateNotNullOrEmptyAttribute]::new()
                 )
             ))
@@ -18493,7 +18572,7 @@ function Show-ADTInstallationWelcome
         }
         if (!$PSBoundParameters.ContainsKey('Subtitle'))
         {
-            $PSBoundParameters.Add('Subtitle', [System.String]::Format($adtStrings.WelcomePrompt.Fluent.Subtitle, $PSBoundParameters.DeploymentType))
+            $PSBoundParameters.Add('Subtitle', [System.String]::Format($adtStrings.WelcomePrompt.Fluent.Subtitle, $adtSession.GetDeploymentTypeName()))
         }
 
         # Instantiate new object to hold all data needed within this call.
@@ -18509,7 +18588,7 @@ function Show-ADTInstallationWelcome
             try
             {
                 # If running in NonInteractive mode, force the processes to close silently.
-                if ($adtSession -and $adtSession.IsNonInteractive())
+                if (!$PSBoundParameters.ContainsKey('Silent') -and $adtSession -and ($adtSession.IsNonInteractive() -or $adtSession.IsSilent()))
                 {
                     $Silent = $true
                 }
@@ -18521,7 +18600,7 @@ function Show-ADTInstallationWelcome
                 }
 
                 # Check disk space requirements if specified
-                if ($adtSession -and $CheckDiskSpace)
+                if ($adtSession -and $CheckDiskSpace -and ($scriptDir = try { & $Script:CommandTable.'Get-ADTSessionCacheScriptDirectory' } catch { $null = $null }))
                 {
                     & $Script:CommandTable.'Write-ADTLogEntry' -Message 'Evaluating disk space requirements.'
                     if (!$RequiredDiskSpace)
@@ -18530,7 +18609,7 @@ function Show-ADTInstallationWelcome
                         {
                             # Determine the size of the Files folder
                             $fso = & $Script:CommandTable.'New-Object' -ComObject Scripting.FileSystemObject
-                            $RequiredDiskSpace = [System.Math]::Round($fso.GetFolder($adtSession.ScriptDirectory).Size / 1MB)
+                            $RequiredDiskSpace = [System.Math]::Round($fso.GetFolder($scriptDir).Size / 1MB)
                         }
                         catch
                         {
@@ -18577,7 +18656,7 @@ function Show-ADTInstallationWelcome
 
                     if ($DeferTimes -ne 0)
                     {
-                        $DeferTimes = if ($deferHistoryTimes -ge 0)
+                        [System.Int32]$DeferTimes = if ($deferHistoryTimes -ge 0)
                         {
                             & $Script:CommandTable.'Write-ADTLogEntry' -Message "Defer history shows [$($deferHistory.DeferTimesRemaining)] deferrals remaining."
                             $deferHistory.DeferTimesRemaining - 1
@@ -18653,7 +18732,6 @@ function Show-ADTInstallationWelcome
                     {
                         $CloseProcessesCountdown = $ForceCountdown
                     }
-                    $welcomeState.CloseProcessesCountdown = $CloseProcessesCountdown
 
                     while (($welcomeState.RunningProcesses = & $Script:CommandTable.'Get-ADTRunningProcesses' -ProcessObjects $CloseProcesses) -or (($promptResult -ne 'Defer') -and ($promptResult -ne 'Close')))
                     {
@@ -18662,11 +18740,10 @@ function Show-ADTInstallationWelcome
 
                         # Define parameters for welcome prompt.
                         $promptParams = @{
-                            WelcomeState = $welcomeState
                             Title = $PSBoundParameters.Title
                             Subtitle = $PSBoundParameters.Subtitle
                             DeploymentType = $PSBoundParameters.DeploymentType
-                            CloseProcessesCountdown = $welcomeState.CloseProcessesCountdown
+                            CloseProcessesCountdown = [System.TimeSpan]::FromSeconds($CloseProcessesCountdown)
                             ForceCloseProcessesCountdown = !!$ForceCloseProcessesCountdown
                             ForceCountdown = !!$ForceCountdown
                             PersistPrompt = $PersistPrompt
@@ -18800,7 +18877,7 @@ function Show-ADTInstallationWelcome
                         elseif ($promptResult -eq 'Timeout')
                         {
                             # Stop the script (if not actioned before the timeout value).
-                            & $Script:CommandTable.'Write-ADTLogEntry' -Message 'Installation not actioned before the timeout value.'
+                            & $Script:CommandTable.'Write-ADTLogEntry' -Message 'Deployment not actioned before the timeout value.'
                             $BlockExecution = $false
                             if ($adtSession -and (($DeferTimes -ge 0) -or $deferDeadlineUniversal))
                             {
@@ -18827,7 +18904,7 @@ function Show-ADTInstallationWelcome
                         elseif ($promptResult -eq 'Defer')
                         {
                             #  Stop the script (user chose to defer)
-                            & $Script:CommandTable.'Write-ADTLogEntry' -Message 'Installation deferred by the user.'
+                            & $Script:CommandTable.'Write-ADTLogEntry' -Message 'Deployment deferred by the user.'
                             $BlockExecution = $false
                             & $Script:CommandTable.'Set-ADTDeferHistory' -DeferTimesRemaining $DeferTimes -DeferDeadline $deferDeadlineUniversal
 
@@ -18845,10 +18922,10 @@ function Show-ADTInstallationWelcome
                 }
 
                 # Force the processes to close silently, without prompting the user.
-                if (($Silent -or ($adtSession -and $adtSession.IsSilent())) -and ($runningProcesses = & $Script:CommandTable.'Get-ADTRunningProcesses' -ProcessObjects $CloseProcesses -InformationAction SilentlyContinue))
+                if ($Silent -and ($runningProcesses = & $Script:CommandTable.'Get-ADTRunningProcesses' -ProcessObjects $CloseProcesses -InformationAction SilentlyContinue))
                 {
                     & $Script:CommandTable.'Write-ADTLogEntry' -Message "Force closing application(s) [$(($runningProcesses.ProcessDescription | & $Script:CommandTable.'Sort-Object' -Unique) -join ',')] without prompting user."
-                    $runningProcesses | & $Script:CommandTable.'Stop-Process' -Force -ErrorAction Ignore
+                    & $Script:CommandTable.'Stop-Process' -InputObject $runningProcesses -Force -ErrorAction Ignore
                     [System.Threading.Thread]::Sleep(2000)
                 }
 
@@ -18917,10 +18994,10 @@ function Start-ADTMsiProcess
         The name(s) of the patch (MSP) file(s) to be applied to the MSI for the "Install" action. The patch files should be in the same directory as the MSI file.
 
     .PARAMETER ArgumentList
-        Overrides the default parameters specified in the config.psd1 file. The install default is: "REBOOT=ReallySuppress /QB!". The uninstall default is: "REBOOT=ReallySuppress /QN".
+        Overrides the default parameters specified in the config.psd1 file.
 
     .PARAMETER AdditionalArgumentList
-        Adds additional parameters to the default set specified in the config.psd1 file. The install default is: "REBOOT=ReallySuppress /QB!". The uninstall default is: "REBOOT=ReallySuppress /QN".
+        Adds additional parameters to the default set specified in the config.psd1 file.
 
     .PARAMETER SecureArgumentList
         Hides all parameters passed to the MSI or MSP file from the toolkit log file.
@@ -18937,7 +19014,7 @@ function Start-ADTMsiProcess
         Overrides the working directory. The working directory is set to the location of the MSI file.
 
     .PARAMETER SkipMSIAlreadyInstalledCheck
-        Skips the check to determine if the MSI is already installed on the system. Default is: $false.
+        Skips the check to determine if the MSI is already installed on the system.
 
     .PARAMETER IncludeUpdatesAndHotfixes
         Include matches against updates and hotfixes in results.
@@ -19004,13 +19081,13 @@ function Start-ADTMsiProcess
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Start-ADTMsiProcess
     #>
 
     [CmdletBinding()]
@@ -19045,6 +19122,7 @@ function Start-ADTMsiProcess
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
+        [PSDefaultValue(Help = 'Install (Normal): (Get-ADTConfig).MSI.InstallParams; Install (Silent): (Get-ADTConfig).MSI.SilentParams; Uninstall (Normal): (Get-ADTConfig).MSI.UninstallParams; Uninstall (Silent): (Get-ADTConfig).MSI.SilentParams')]
         [System.String[]]$ArgumentList,
 
         [Parameter(Mandatory = $false)]
@@ -19063,7 +19141,17 @@ function Start-ADTMsiProcess
         [System.String]$LoggingOptions,
 
         [Parameter(Mandatory = $false)]
-        [ValidateNotNullOrEmpty()]
+        [ValidateScript({
+                if ([System.String]::IsNullOrWhiteSpace($_))
+                {
+                    $PSCmdlet.ThrowTerminatingError((& $Script:CommandTable.'New-ADTValidateScriptErrorRecord' -ParameterName LogFileName -ProvidedValue $_ -ExceptionMessage 'The specified input is null or white space.'))
+                }
+                if ([System.IO.Path]::GetExtension($_) -match '^\.(log|txt)$')
+                {
+                    $PSCmdlet.ThrowTerminatingError((& $Script:CommandTable.'New-ADTValidateScriptErrorRecord' -ParameterName LogFileName -ProvidedValue $_ -ExceptionMessage 'The specified input cannot have an extension.'))
+                }
+                return $true
+            })]
         [System.String]$LogFileName,
 
         [Parameter(Mandatory = $false)]
@@ -19201,7 +19289,7 @@ function Start-ADTMsiProcess
                 # If the provided MSI was a file path, get the Property table and store it.
                 $msiPropertyTable = if ([System.IO.Path]::GetExtension($msiProduct) -eq '.msi')
                 {
-                    $gmtpParams = @{ Path = $msiProduct; Table = 'Property' }; if ($Transforms) { $gmtpParams.Add('TransformPath', $transforms) }
+                    $gmtpParams = @{ Path = $msiProduct; Table = 'Property' }; if ($Transforms) { $gmtpParams.Add('TransformPath', $Transforms) }
                     & $Script:CommandTable.'Get-ADTMsiTableProperty' @gmtpParams
                 }
 
@@ -19222,7 +19310,7 @@ function Start-ADTMsiProcess
                 # Check if the MSI is already installed. If no valid ProductCode to check or SkipMSIAlreadyInstalledCheck supplied, then continue with requested MSI action.
                 $msiInstalled = if ($msiProductCode -and !$SkipMSIAlreadyInstalledCheck)
                 {
-                    if (!$InstalledApplication -and ($installedApps = & $Script:CommandTable.'Get-ADTApplication' -FilterScript { $_.ProductCode -eq $msiProductCode } -IncludeUpdatesAndHotfixes:$IncludeUpdatesAndHotfixes))
+                    if (!$InstalledApplication -and ($installedApps = & $Script:CommandTable.'Get-ADTApplication' -ProductCode $msiProductCode -IncludeUpdatesAndHotfixes:$IncludeUpdatesAndHotfixes))
                     {
                         $InstalledApplication = $installedApps
                     }
@@ -19248,7 +19336,7 @@ function Start-ADTMsiProcess
                 # Set up the log file to use.
                 $logFile = if ($PSBoundParameters.ContainsKey('LogFileName'))
                 {
-                    [System.IO.Path]::GetFileNameWithoutExtension($LogFileName)
+                    $LogFileName.Trim()
                 }
                 elseif ($InstalledApplication)
                 {
@@ -19530,13 +19618,13 @@ function Start-ADTMspProcess
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Start-ADTMspProcess
     #>
 
     [CmdletBinding()]
@@ -19741,13 +19829,13 @@ function Start-ADTProcess
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Start-ADTProcess
     #>
 
     [CmdletBinding()]
@@ -19799,8 +19887,8 @@ function Start-ADTProcess
         [System.Int32[]]$RebootExitCodes,
 
         [Parameter(Mandatory = $false)]
-        [SupportsWildcards()]
         [ValidateNotNullOrEmpty()]
+        [SupportsWildcards()]
         [System.String[]]$IgnoreExitCodes,
 
         [Parameter(Mandatory = $false)]
@@ -20112,7 +20200,7 @@ function Start-ADTProcess
                     $errorMessage = $null
 
                     # Check to see whether we should ignore exit codes.
-                    if ($IgnoreExitCodes -and ($($IgnoreExitCodes).Equals('*') -or ([System.Int32[]]$IgnoreExitCodes).Contains($returnCode)))
+                    if (($ignoreExitCode = $IgnoreExitCodes -and ($($IgnoreExitCodes).Equals('*') -or ([System.Int32[]]$IgnoreExitCodes).Contains($returnCode))))
                     {
                         & $Script:CommandTable.'Write-ADTLogEntry' -Message "Execution completed and the exit code [$returnCode] is being ignored."
                     }
@@ -20169,7 +20257,7 @@ function Start-ADTProcess
                     }
 
                     # Update the session's last exit code with the value if externally called.
-                    if ($adtSession -and $extInvoker)
+                    if ($adtSession -and $extInvoker -and !$ignoreExitCode)
                     {
                         $adtSession.SetExitCode($returnCode)
                     }
@@ -20317,13 +20405,13 @@ function Start-ADTProcessAsUser
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Start-ADTProcessAsUser
     #>
 
     [CmdletBinding(DefaultParameterSetName = 'PrimaryActiveUserSession')]
@@ -20604,11 +20692,11 @@ function Start-ADTServiceAndDependencies
     .DESCRIPTION
         This function starts a specified Windows service and its dependencies. It provides options to skip starting dependent services, wait for a service to get out of a pending state, and return the service object.
 
-    .PARAMETER Service
+    .PARAMETER Name
         Specify the name of the service.
 
     .PARAMETER SkipDependentServices
-        Choose to skip checking for and starting dependent services. Default is: $false.
+        Choose to skip checking for and starting dependent services.
 
     .PARAMETER PendingStatusWait
         The amount of time to wait for a service to get out of a pending state before continuing. Default is 60 seconds.
@@ -20627,20 +20715,20 @@ function Start-ADTServiceAndDependencies
         Returns the service object.
 
     .EXAMPLE
-        Start-ADTServiceAndDependencies -Service 'wuauserv'
+        Start-ADTServiceAndDependencies -Name 'wuauserv'
 
         Starts the Windows Update service and its dependencies.
 
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Start-ADTServiceAndDependencies
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This function is appropriately named and we don't need PSScriptAnalyzer telling us otherwise.")]
@@ -20648,14 +20736,9 @@ function Start-ADTServiceAndDependencies
     param
     (
         [Parameter(Mandatory = $true)]
-        [ValidateScript({
-                if (!$_.Name)
-                {
-                    $PSCmdlet.ThrowTerminatingError((& $Script:CommandTable.'New-ADTValidateScriptErrorRecord' -ParameterName Service -ProvidedValue $_ -ExceptionMessage 'The specified service does not exist.'))
-                }
-                return !!$_
-            })]
-        [System.ServiceProcess.ServiceController]$Service,
+        [ValidateNotNullOrEmpty()]
+        [Alias('Service')]
+        [System.String]$Name,
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$SkipDependentServices,
@@ -20714,11 +20797,11 @@ function Stop-ADTServiceAndDependencies
     .DESCRIPTION
         This function stops a specified Windows service and its dependencies. It provides options to skip stopping dependent services, wait for a service to get out of a pending state, and return the service object.
 
-    .PARAMETER Service
+    .PARAMETER Name
         Specify the name of the service.
 
     .PARAMETER SkipDependentServices
-        Choose to skip checking for and stopping dependent services. Default is: $false.
+        Choose to skip checking for and stopping dependent services.
 
     .PARAMETER PendingStatusWait
         The amount of time to wait for a service to get out of a pending state before continuing. Default is 60 seconds.
@@ -20737,20 +20820,20 @@ function Stop-ADTServiceAndDependencies
         Returns the service object.
 
     .EXAMPLE
-        Stop-ADTServiceAndDependencies -Service 'wuauserv'
+        Stop-ADTServiceAndDependencies -Name 'wuauserv'
 
         Stops the Windows Update service and its dependencies.
 
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Stop-ADTServiceAndDependencies
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This function is appropriately named and we don't need PSScriptAnalyzer telling us otherwise.")]
@@ -20758,14 +20841,9 @@ function Stop-ADTServiceAndDependencies
     param
     (
         [Parameter(Mandatory = $true)]
-        [ValidateScript({
-                if (!$_.Name)
-                {
-                    $PSCmdlet.ThrowTerminatingError((& $Script:CommandTable.'New-ADTValidateScriptErrorRecord' -ParameterName Service -ProvidedValue $_ -ExceptionMessage 'The specified service does not exist.'))
-                }
-                return !!$_
-            })]
-        [System.ServiceProcess.ServiceController]$Service,
+        [ValidateNotNullOrEmpty()]
+        [Alias('Service')]
+        [System.String]$Name,
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$SkipDependentServices,
@@ -20825,7 +20903,8 @@ function Test-ADTBattery
         Tests whether the local machine is running on AC power and returns true/false. For detailed information, use the -PassThru option to get a hashtable containing various battery and power status properties.
 
     .PARAMETER PassThru
-        Outputs a hashtable containing the following properties:
+        Outputs an object containing the following properties:
+
         - IsLaptop
         - IsUsingACPower
         - ACPowerLineStatus
@@ -20842,7 +20921,8 @@ function Test-ADTBattery
     .OUTPUTS
         PSADT.Types.BatteryInfo
 
-        Returns a hashtable containing the following properties:
+        Returns an object containing the following properties:
+
         - IsLaptop
         - IsUsingACPower
         - ACPowerLineStatus
@@ -20864,13 +20944,13 @@ function Test-ADTBattery
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Test-ADTBattery
     #>
 
     [CmdletBinding()]
@@ -21016,13 +21096,13 @@ function Test-ADTCallerIsAdmin
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Test-ADTCallerIsAdmin
     #>
 
     return [System.Security.Principal.WindowsPrincipal]::new([System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([System.Security.Principal.WindowsBuiltinRole]::Administrator)
@@ -21062,13 +21142,13 @@ function Test-ADTMicrophoneInUse
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Test-ADTMicrophoneInUse
     #>
 
     [CmdletBinding()]
@@ -21150,13 +21230,13 @@ function Test-ADTModuleInitialized
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Test-ADTModuleInitialized
     #>
 
     return $Script:ADT.Initialized
@@ -21199,13 +21279,13 @@ function Test-ADTMSUpdates
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Test-ADTMSUpdates
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This function is appropriately named and we don't need PSScriptAnalyzer telling us otherwise.")]
@@ -21297,7 +21377,7 @@ function Test-ADTMutexAvailability
         The name of the system mutex.
 
     .PARAMETER MutexWaitTime
-        The number of milliseconds the current thread should wait to acquire an exclusive lock of a named mutex. Default is: 1 millisecond.
+        The number of milliseconds the current thread should wait to acquire an exclusive lock of a named mutex.
 
         A wait time of -1 milliseconds means to wait indefinitely. A wait time of zero does not acquire an exclusive lock but instead tests the state of the wait handle and returns immediately.
 
@@ -21319,16 +21399,16 @@ function Test-ADTMutexAvailability
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
         http://msdn.microsoft.com/en-us/library/aa372909(VS.85).asp
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Test-ADTMutexAvailability
     #>
 
     [CmdletBinding()]
@@ -21371,7 +21451,7 @@ function Test-ADTMutexAvailability
         try
         {
             # Open the specified named mutex, if it already exists, without acquiring an exclusive lock on it. If the system mutex does not exist, this method throws an exception instead of creating the system object.
-            $OpenExistingMutex = [Threading.Mutex]::OpenExisting($MutexName)
+            $OpenExistingMutex = [System.Threading.Mutex]::OpenExisting($MutexName)
 
             # Attempt to acquire an exclusive lock on the mutex. Use a Timespan to specify a timeout value after which no further attempt is made to acquire a lock on the mutex.
             $IsMutexFree = $OpenExistingMutex.WaitOne($MutexWaitTime, $false)
@@ -21412,9 +21492,9 @@ function Test-ADTMutexAvailability
                     & $Script:CommandTable.'Write-ADTLogEntry' -Message "Mutex [$MutexName] is available for an exclusive lock."
                 }
             }
-            elseif (($MutexName -eq 'Global\_MSIExecute') -and ($msiInProgressCmdLine = & $Script:CommandTable.'Get-Process' -Name msiexec -ErrorAction Ignore | & { process { if ($_.CommandLine -match '\.msi') { $_.CommandLine.Trim() } } }))
+            elseif (($MutexName -eq 'Global\_MSIExecute') -and ($msiInProgressCmdLine = & $Script:CommandTable.'Get-CimInstance' -ClassName Win32_Process -Filter "(Name = 'msiexec.exe') AND (CommandLine like '*.msi*')" | & $Script:CommandTable.'Select-Object' -ExpandProperty CommandLine))
             {
-                & $Script:CommandTable.'Write-ADTLogEntry' -Message "Mutex [$MutexName] is not available for an exclusive lock because the following MSI installation is in progress [$msiInProgressCmdLine]." -Severity 2
+                & $Script:CommandTable.'Write-ADTLogEntry' -Message "Mutex [$MutexName] is not available for an exclusive lock because the following MSI installation is in progress [$($msiInProgressCmdLine.Trim())]." -Severity 2
             }
             else
             {
@@ -21471,13 +21551,13 @@ function Test-ADTNetworkConnection
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Test-ADTNetworkConnection
     #>
 
     [CmdletBinding()]
@@ -21557,13 +21637,13 @@ function Test-ADTOobeCompleted
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Test-ADTOobeCompleted
     #>
 
     [CmdletBinding()]
@@ -21645,13 +21725,13 @@ function Test-ADTPowerPoint
 
         There is a possibility of a false positive if the PowerPoint filename starts with "PowerPoint Slide Show".
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Test-ADTPowerPoint
     #>
 
     [CmdletBinding()]
@@ -21786,13 +21866,13 @@ function Test-ADTRegistryValue
 
         To test if a registry key exists, use the Test-Path function like so: Test-Path -LiteralPath $Key -PathType 'Container'
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Test-ADTRegistryValue
     #>
 
     [CmdletBinding()]
@@ -21905,20 +21985,20 @@ function Test-ADTServiceExists
         Checks if the service 'wuauserv' exists.
 
     .EXAMPLE
-        Test-ADTServiceExists -Name 'testservice' -PassThru | Where-Object { $_ } | ForEach-Object { $_.Delete() }
+        Test-ADTServiceExists -Name testservice -UseCIM -PassThru | Invoke-CimMethod -MethodName Delete
 
         Checks if a service exists and then deletes it by using the -PassThru parameter.
 
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Test-ADTServiceExists
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This function is appropriately named and we don't need PSScriptAnalyzer telling us otherwise.")]
@@ -22030,13 +22110,13 @@ function Test-ADTSessionActive
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Test-ADTSessionActive
     #>
 
     return !!$Script:ADT.Sessions.Count
@@ -22076,13 +22156,13 @@ function Test-ADTUserIsBusy
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Test-ADTUserIsBusy
     #>
 
     [CmdletBinding()]
@@ -22115,7 +22195,7 @@ function Unblock-ADTAppExecution
         Unblocks the execution of applications performed by the Block-ADTAppExecution function.
 
     .DESCRIPTION
-        This function is called by the Close-ADTSession function or when the script itself is called with the parameters -CleanupBlockedApps. It undoes the actions performed by Block-ADTAppExecution, allowing previously blocked applications to execute.
+        This function is called by the Close-ADTSession function. It undoes the actions performed by Block-ADTAppExecution, allowing previously blocked applications to execute.
 
     .PARAMETER Tasks
         Specify the scheduled tasks to unblock.
@@ -22140,13 +22220,13 @@ function Unblock-ADTAppExecution
 
         It is used when the -BlockExecution parameter is specified with the Show-ADTInstallationWelcome function to undo the actions performed by Block-ADTAppExecution.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Unblock-ADTAppExecution
     #>
 
     [CmdletBinding()]
@@ -22154,6 +22234,7 @@ function Unblock-ADTAppExecution
     (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
+        [PSDefaultValue(Help = "All scheduled tasks wildcard matching [PSAppDeployToolkit_*_BlockedApps].")]
         [Microsoft.Management.Infrastructure.CimInstance[]]$Tasks = (& $Script:CommandTable.'Get-ScheduledTask' -TaskName "$($MyInvocation.MyCommand.Module.Name)_*_BlockedApps" -ErrorAction Ignore)
     )
 
@@ -22254,12 +22335,12 @@ function Uninstall-ADTApplication
         For uninstallations, by default the product code is resolved to the DisplayName and version of the application.
 
     .PARAMETER PassThru
-        Returns ExitCode, STDOut, and STDErr output from the process.
+        Returns a PSADT.Types.ProcessResult object, providing the ExitCode, StdOut, and StdErr output from the uninstallation.
 
     .INPUTS
-        None
+        PSADT.Types.InstalledApplication
 
-        You cannot pipe objects to this function.
+        This function can receive one or more InstalledApplication objects for uninstallation.
 
     .OUTPUTS
         PSADT.Types.ProcessResult
@@ -22289,13 +22370,13 @@ function Uninstall-ADTApplication
 
         More reading on how to create filterscripts https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/where-object?view=powershell-5.1#description
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Uninstall-ADTApplication
     #>
 
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'NameMatch', Justification = "This parameter is used within delegates that PSScriptAnalyzer has no visibility of. See https://github.com/PowerShell/PSScriptAnalyzer/issues/1472 for more details.")]
@@ -22378,7 +22459,7 @@ function Uninstall-ADTApplication
             }
 
             # Build the hashtable with the options that will be passed to Get-ADTApplication using splatting
-            $gaiaParams = & $Script:CommandTable.'Get-ADTBoundParametersAndDefaultValues' -Invocation $MyInvocation -ParameterSetName $PSCmdlet.ParameterSetName -Exclude ArgumentList, AdditionalArgumentList, LoggingOptions, LogFileName, PassThru, SecureArgumentList
+            $gaiaParams = & $Script:CommandTable.'Get-ADTBoundParametersAndDefaultValues' -Invocation $MyInvocation -Exclude ArgumentList, AdditionalArgumentList, LoggingOptions, LogFileName, PassThru, SecureArgumentList
             if (($installedApps = & $Script:CommandTable.'Get-ADTApplication' @gaiaParams))
             {
                 $InstalledApplication = $installedApps
@@ -22386,7 +22467,7 @@ function Uninstall-ADTApplication
         }
 
         # Build the hashtable with the options that will be passed to Start-ADTMsiProcess using splatting
-        $sampParams = & $Script:CommandTable.'Get-ADTBoundParametersAndDefaultValues' -Invocation $MyInvocation -ParameterSetName $PSCmdlet.ParameterSetName -Exclude InstalledApplication, Name, NameMatch, ProductCode, FilterScript, ApplicationType
+        $sampParams = & $Script:CommandTable.'Get-ADTBoundParametersAndDefaultValues' -Invocation $MyInvocation -Exclude InstalledApplication, Name, NameMatch, ProductCode, FilterScript, ApplicationType
         $sampParams.Action = 'Uninstall'
 
         # Build the hashtable with the options that will be passed to Start-ADTProcess using splatting.
@@ -22396,6 +22477,11 @@ function Uninstall-ADTApplication
             CreateNoWindow = $true
             PassThru = $PassThru
         }
+
+        # Build out regex for determining valid exe uninstall strings.
+        $invalidFileNameChars = [System.Text.RegularExpressions.Regex]::Escape([System.String]::Join($null, [System.IO.Path]::GetInvalidFileNameChars()))
+        $invalidPathChars = [System.Text.RegularExpressions.Regex]::Escape([System.String]::Join($null, [System.IO.Path]::GetInvalidPathChars()))
+        $validUninstallString = "^`"?([^$invalidFileNameChars\s]+(?=\s|$)|[^$invalidPathChars]+?\.(?:exe|cmd|bat|vbs))`"?(?:\s(.*))?$"
     }
 
     process
@@ -22447,10 +22533,7 @@ function Uninstall-ADTApplication
                         continue
                     }
 
-                    $invalidFileNameChars = [System.Text.RegularExpressions.Regex]::Escape([System.String]::Join($null, [System.IO.Path]::GetInvalidFileNameChars()))
-                    $invalidPathChars = [System.Text.RegularExpressions.Regex]::Escape([System.String]::Join($null, [System.IO.Path]::GetInvalidPathChars()))
-
-                    if ($uninstallString -match "^`"?([^$invalidFileNameChars\s]+(?=\s|$)|[^$invalidPathChars]+?\.(?:exe|cmd|bat|vbs))`"?(?:\s(.*))?$")
+                    if ($uninstallString -match $validUninstallString)
                     {
                         $sapParams.FilePath = [System.Environment]::ExpandEnvironmentVariables($matches[1])
                         if (![System.IO.File]::Exists($sapParams.FilePath) -and ($commandPath = & $Script:CommandTable.'Get-Command' -Name $sapParams.FilePath -ErrorAction Ignore))
@@ -22553,13 +22636,13 @@ function Unregister-ADTDll
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Unregister-ADTDll
     #>
 
     [CmdletBinding()]
@@ -22633,13 +22716,13 @@ function Update-ADTDesktop
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Update-ADTDesktop
     #>
 
     [CmdletBinding()]
@@ -22693,6 +22776,7 @@ function Update-ADTEnvironmentPsProvider
 
     .DESCRIPTION
         Environment variable changes that take place during script execution are not visible to the current PowerShell session.
+
         Use this function to refresh the current PowerShell session with all environment variable settings.
 
     .PARAMETER LoadLoggedOnUserEnvironmentVariables
@@ -22716,13 +22800,13 @@ function Update-ADTEnvironmentPsProvider
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Update-ADTEnvironmentPsProvider
     #>
 
     [CmdletBinding()]
@@ -22825,13 +22909,13 @@ function Update-ADTGroupPolicy
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Update-ADTGroupPolicy
     #>
 
     [CmdletBinding()]
@@ -22859,7 +22943,7 @@ function Update-ADTGroupPolicy
                     $gpUpdateResult = & "$([System.Environment]::SystemDirectory)\cmd.exe" /c "echo N | gpupdate.exe /Target:$target /Force" 2>&1
                     if (!$Global:LASTEXITCODE)
                     {
-                        return
+                        continue
                     }
 
                     # If we're here, we had a bad exit code.
@@ -22918,7 +23002,7 @@ function Write-ADTLogEntry
         The source of the message being logged.
 
     .PARAMETER ScriptSection
-        The heading for the portion of the script that is being executed. Default is: "$($adtSession.InstallPhase)".
+        The heading for the portion of the script that is being executed.
 
     .PARAMETER LogType
         Choose whether to write a CMTrace.exe compatible log file or a Legacy text log file.
@@ -22958,13 +23042,13 @@ function Write-ADTLogEntry
     .NOTES
         An active ADT session is NOT required to use this function.
 
-        Tags: psadt
-        Website: https://psappdeploytoolkit.com
-        Copyright: (C) 2024 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+        Tags: psadt<br />
+        Website: https://psappdeploytoolkit.com<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
-        https://psappdeploytoolkit.com
+        https://psappdeploytoolkit.com/docs/reference/functions/Write-ADTLogEntry
     #>
 
     [CmdletBinding()]
@@ -23072,127 +23156,158 @@ function Write-ADTLogEntry
 #
 #-----------------------------------------------------------------------------
 
-# Set all functions as read-only, export all public definitions and finalise the CommandTable.
-& $Script:CommandTable.'Set-Item' -LiteralPath $FunctionPaths -Options ReadOnly
-& $Script:CommandTable.'Get-Item' -LiteralPath $FunctionPaths | & { process { $CommandTable.Add($_.Name, $_) } }
-& $Script:CommandTable.'New-Variable' -Name CommandTable -Value ([System.Collections.ObjectModel.ReadOnlyDictionary[System.String, System.Management.Automation.CommandInfo]]::new($CommandTable)) -Option Constant -Force -Confirm:$false
-& $Script:CommandTable.'Export-ModuleMember' -Function $Module.Manifest.FunctionsToExport
+# Rethrowing caught exceptions makes the error output from Import-Module look better.
+try
+{
+    # Set all functions as read-only, export all public definitions and finalise the CommandTable.
+    & $Script:CommandTable.'Set-Item' -LiteralPath $FunctionPaths -Options ReadOnly
+    & $Script:CommandTable.'Get-Item' -LiteralPath $FunctionPaths | & { process { $CommandTable.Add($_.Name, $_) } }
+    & $Script:CommandTable.'New-Variable' -Name CommandTable -Value ([System.Collections.ObjectModel.ReadOnlyDictionary[System.String, System.Management.Automation.CommandInfo]]::new($CommandTable)) -Option Constant -Force -Confirm:$false
+    if (!$MinimumStartup)
+    {
+        & $Script:CommandTable.'Export-ModuleMember' -Function $Module.Manifest.FunctionsToExport
+    }
+    else
+    {
+        & $Script:CommandTable.'Export-ModuleMember' -Function New-ADTTemplate
+    }
 
-# Define object for holding all PSADT variables.
-& $Script:CommandTable.'New-Variable' -Name ADT -Option Constant -Value ([pscustomobject]@{
-        Callbacks = [pscustomobject]@{
-            Starting = [System.Collections.Generic.List[System.Management.Automation.CommandInfo]]::new()
-            Opening = [System.Collections.Generic.List[System.Management.Automation.CommandInfo]]::new()
-            Closing = [System.Collections.Generic.List[System.Management.Automation.CommandInfo]]::new()
-            Finishing = [System.Collections.Generic.List[System.Management.Automation.CommandInfo]]::new()
-        }
-        Directories = [pscustomobject]@{
-            Defaults = ([ordered]@{
-                    Script = "$PSScriptRoot"
-                    Config = "$PSScriptRoot\Config"
-                    Strings = "$PSScriptRoot\Strings"
-                }).AsReadOnly()
-            Script = $null
+    # Define object for holding all PSADT variables.
+    & $Script:CommandTable.'New-Variable' -Name ADT -Option Constant -Value ([pscustomobject]@{
+            Callbacks = [pscustomobject]@{
+                Starting = [System.Collections.Generic.List[System.Management.Automation.CommandInfo]]::new()
+                Opening = [System.Collections.Generic.List[System.Management.Automation.CommandInfo]]::new()
+                Closing = [System.Collections.Generic.List[System.Management.Automation.CommandInfo]]::new()
+                Finishing = [System.Collections.Generic.List[System.Management.Automation.CommandInfo]]::new()
+            }
+            Directories = [pscustomobject]@{
+                Defaults = ([ordered]@{
+                        Script = $PSScriptRoot
+                        Config = [System.IO.Path]::Combine($PSScriptRoot, 'Config')
+                        Strings = [System.IO.Path]::Combine($PSScriptRoot, 'Strings')
+                    }).AsReadOnly()
+                Script = $null
+                Config = $null
+                Strings = $null
+            }
+            Durations = [pscustomobject]@{
+                ModuleImport = $null
+                ModuleInit = $null
+            }
+            Sessions = $null
+            SessionState = $ExecutionContext.SessionState
+            TerminalServerMode = $false
+            Environment = $null
+            Language = $null
             Config = $null
             Strings = $null
-        }
-        Durations = [pscustomobject]@{
-            ModuleImport = $null
-            ModuleInit = $null
-        }
-        Sessions = [System.Collections.Generic.List[PSADT.Module.DeploymentSession]]::new()
-        SessionState = $ExecutionContext.SessionState
-        TerminalServerMode = $false
-        Environment = $null
-        Language = $null
-        Config = $null
-        Strings = $null
-        LastExitCode = 0
-        Initialized = $false
-    })
+            LastExitCode = 0
+            Initialized = $false
+        })
 
-# Define object for holding all dialog window variables.
-& $Script:CommandTable.'New-Variable' -Name Dialogs -Option Constant -Value ([ordered]@{
-        Box = ([ordered]@{
-                Buttons = ([ordered]@{
-                        OK = 0
-                        OKCancel = 1
-                        AbortRetryIgnore = 2
-                        YesNoCancel = 3
-                        YesNo = 4
-                        RetryCancel = 5
-                        CancelTryAgainContinue = 6
-                    }).AsReadOnly()
-                Icons = ([ordered]@{
-                        None = 0
-                        Stop = 16
-                        Question = 32
-                        Exclamation = 48
-                        Information = 64
-                    }).AsReadOnly()
-                DefaultButtons = ([ordered]@{
-                        First = 0
-                        Second = 256
-                        Third = 512
-                    }).AsReadOnly()
-            }).AsReadOnly()
-        Classic = [pscustomobject]@{
-            ProgressWindow = [pscustomobject]@{
-                SyncHash = [System.Collections.Hashtable]::Synchronized(@{})
-                XamlCode = $null
-                PowerShell = $null
-                Invocation = $null
-                Running = $false
-            }
-            Assets = [pscustomobject]@{
-                Icon = $null
-                Logo = $null
-                Banner = $null
-            }
-            Font = [System.Drawing.SystemFonts]::MessageBoxFont
-            BannerHeight = 0
-            Width = 450
-        }
-        Fluent = [pscustomobject]@{
-            ProgressWindow = [pscustomobject]@{
-                Running = $false
-            }
-        }
-    }).AsReadOnly()
+    # Create empty list for sessions.
+    if (!$MinimumStartup)
+    {
+        $ADT.Sessions = [System.Collections.Generic.List[PSADT.Module.DeploymentSession]]::new()
+    }
+    else
+    {
+        $ADT.Sessions = @()
+    }
 
-# Registry path transformation constants used within Convert-ADTRegistryPath.
-& $Script:CommandTable.'New-Variable' -Name Registry -Option Constant -Value ([ordered]@{
-        PathMatches = [System.Collections.ObjectModel.ReadOnlyCollection[System.String]]$(
-            ':\\'
-            ':'
-            '\\'
-        )
-        PathReplacements = ([ordered]@{
-                '^HKLM' = 'HKEY_LOCAL_MACHINE\'
-                '^HKCR' = 'HKEY_CLASSES_ROOT\'
-                '^HKCU' = 'HKEY_CURRENT_USER\'
-                '^HKU' = 'HKEY_USERS\'
-                '^HKCC' = 'HKEY_CURRENT_CONFIG\'
-                '^HKPD' = 'HKEY_PERFORMANCE_DATA\'
-            }).AsReadOnly()
-        WOW64Replacements = ([ordered]@{
-                '^(HKEY_LOCAL_MACHINE\\SOFTWARE\\Classes\\|HKEY_CURRENT_USER\\SOFTWARE\\Classes\\|HKEY_CLASSES_ROOT\\)(AppID\\|CLSID\\|DirectShow\\|Interface\\|Media Type\\|MediaFoundation\\|PROTOCOLS\\|TypeLib\\)' = '$1Wow6432Node\$2'
-                '^HKEY_LOCAL_MACHINE\\SOFTWARE\\' = 'HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\'
-                '^HKEY_LOCAL_MACHINE\\SOFTWARE$' = 'HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node'
-                '^HKEY_CURRENT_USER\\Software\\Microsoft\\Active Setup\\Installed Components\\' = 'HKEY_CURRENT_USER\Software\Wow6432Node\Microsoft\Active Setup\Installed Components\'
-            }).AsReadOnly()
-    }).AsReadOnly()
+    # Define object for holding all dialog window variables.
+    & $Script:CommandTable.'New-Variable' -Name Dialogs -Option Constant -Value ([ordered]@{
+            Box = ([ordered]@{
+                    Buttons = ([ordered]@{
+                            OK = 0
+                            OKCancel = 1
+                            AbortRetryIgnore = 2
+                            YesNoCancel = 3
+                            YesNo = 4
+                            RetryCancel = 5
+                            CancelTryAgainContinue = 6
+                        }).AsReadOnly()
+                    Icons = ([ordered]@{
+                            None = 0
+                            Stop = 16
+                            Question = 32
+                            Exclamation = 48
+                            Information = 64
+                        }).AsReadOnly()
+                    DefaultButtons = ([ordered]@{
+                            First = 0
+                            Second = 256
+                            Third = 512
+                        }).AsReadOnly()
+                }).AsReadOnly()
+            Classic = [pscustomobject]@{
+                ProgressWindow = [pscustomobject]@{
+                    SyncHash = [System.Collections.Hashtable]::Synchronized(@{})
+                    XamlCode = $null
+                    PowerShell = $null
+                    Invocation = $null
+                    Running = $false
+                }
+                Assets = [pscustomobject]@{
+                    Icon = $null
+                    Logo = $null
+                    Banner = $null
+                }
+                Font = $(if (!$MinimumStartup) { [System.Drawing.SystemFonts]::MessageBoxFont })
+                BannerHeight = 0
+                Width = 450
+            }
+            Fluent = [pscustomobject]@{
+                ProgressWindow = [pscustomobject]@{
+                    Running = $false
+                }
+            }
+        }).AsReadOnly()
 
-# Lookup table for preference variables and their associated CommonParameter name.
-& $Script:CommandTable.'New-Variable' -Name PreferenceVariableTable -Option Constant -Value ([ordered]@{
-        'InformationAction' = 'InformationPreference'
-        'ProgressAction' = 'ProgressPreference'
-        'WarningAction' = 'WarningPreference'
-        'Confirm' = 'ConfirmPreference'
-        'Verbose' = 'VerbosePreference'
-        'WhatIf' = 'WhatIfPreference'
-        'Debug' = 'DebugPreference'
-    }).AsReadOnly()
+    # Registry path transformation constants used within Convert-ADTRegistryPath.
+    & $Script:CommandTable.'New-Variable' -Name Registry -Option Constant -Value ([ordered]@{
+            PathMatches = [System.Collections.ObjectModel.ReadOnlyCollection[System.String]]$(
+                ':\\'
+                ':'
+                '\\'
+            )
+            PathReplacements = ([ordered]@{
+                    '^HKLM' = 'HKEY_LOCAL_MACHINE\'
+                    '^HKCR' = 'HKEY_CLASSES_ROOT\'
+                    '^HKCU' = 'HKEY_CURRENT_USER\'
+                    '^HKU' = 'HKEY_USERS\'
+                    '^HKCC' = 'HKEY_CURRENT_CONFIG\'
+                    '^HKPD' = 'HKEY_PERFORMANCE_DATA\'
+                }).AsReadOnly()
+            WOW64Replacements = ([ordered]@{
+                    '^(HKEY_LOCAL_MACHINE\\SOFTWARE\\Classes\\|HKEY_CURRENT_USER\\SOFTWARE\\Classes\\|HKEY_CLASSES_ROOT\\)(AppID\\|CLSID\\|DirectShow\\|Interface\\|Media Type\\|MediaFoundation\\|PROTOCOLS\\|TypeLib\\)' = '$1Wow6432Node\$2'
+                    '^HKEY_LOCAL_MACHINE\\SOFTWARE\\' = 'HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\'
+                    '^HKEY_LOCAL_MACHINE\\SOFTWARE$' = 'HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node'
+                    '^HKEY_CURRENT_USER\\Software\\Microsoft\\Active Setup\\Installed Components\\' = 'HKEY_CURRENT_USER\Software\Wow6432Node\Microsoft\Active Setup\Installed Components\'
+                }).AsReadOnly()
+        }).AsReadOnly()
+
+    # Lookup table for preference variables and their associated CommonParameter name.
+    & $Script:CommandTable.'New-Variable' -Name PreferenceVariableTable -Option Constant -Value ([ordered]@{
+            'InformationAction' = 'InformationPreference'
+            'ProgressAction' = 'ProgressPreference'
+            'WarningAction' = 'WarningPreference'
+            'Confirm' = 'ConfirmPreference'
+            'Verbose' = 'VerbosePreference'
+            'WhatIf' = 'WhatIfPreference'
+            'Debug' = 'DebugPreference'
+        }).AsReadOnly()
+
+    # Send the module's database into the C# code for internal access.
+    if (!$MinimumStartup)
+    {
+        [PSADT.Module.InternalDatabase]::Init($ADT)
+    }
+}
+catch
+{
+    throw
+}
 
 # Import the XML code for the classic progress window.
 $Dialogs.Classic.ProgressWindow.XamlCode = [System.IO.StringReader]::new(@'
@@ -23239,9 +23354,6 @@ $Dialogs.Classic.ProgressWindow.XamlCode = [System.IO.StringReader]::new(@'
 </Window>
 '@)
 
-# Send the module's database into the C# code for internal access.
-[PSADT.Module.InternalDatabase]::Init($ADT)
-
 # Determine how long the import took.
 $ADT.Durations.ModuleImport = [System.DateTime]::Now - $ModuleImportStart
 & $Script:CommandTable.'Remove-Variable' -Name ModuleImportStart -Force -Confirm:$false
@@ -23249,10 +23361,10 @@ $ADT.Durations.ModuleImport = [System.DateTime]::Now - $ModuleImportStart
 
 
 # SIG # Begin signature block
-# MIIuKwYJKoZIhvcNAQcCoIIuHDCCLhgCAQExDzANBglghkgBZQMEAgEFADB5Bgor
+# MIIuLAYJKoZIhvcNAQcCoIIuHTCCLhkCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCB5OriaUd9lSSbq
-# YjTk01BYEBUMFy9/K4V112Bwv+KFUaCCE5UwggWQMIIDeKADAgECAhAFmxtXno4h
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCA+6quY4pLht5Bk
+# HSuKVseFCR4bwfjuKoos2vtkWr2zyaCCE5UwggWQMIIDeKADAgECAhAFmxtXno4h
 # MuI5B72nd3VcMA0GCSqGSIb3DQEBDAUAMGIxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xITAfBgNV
 # BAMTGERpZ2lDZXJ0IFRydXN0ZWQgUm9vdCBHNDAeFw0xMzA4MDExMjAwMDBaFw0z
@@ -23357,143 +23469,143 @@ $ADT.Durations.ModuleImport = [System.DateTime]::Now - $ModuleImportStart
 # z+pfEMPqeX/g5+mpb4ap6ZmNJuAYJFmU0LIkCLQN9mKXi1Il9WU6ifn3vYutGMSL
 # /BdeWP+7fM7MZLiO+1BIsBdSmV6pZVS3LRBAy3wIlbWL69mvyLCPIQ7z4dtfuzwC
 # 36E9k2vhzeiDQ+k1dFJDSdxTDetsck0FuD1ovhiu2caL4BdFsCWsXPLMyvu6OlYx
-# ghnsMIIZ6AIBATB9MGkxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwg
+# ghntMIIZ6QIBATB9MGkxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwg
 # SW5jLjFBMD8GA1UEAxM4RGlnaUNlcnQgVHJ1c3RlZCBHNCBDb2RlIFNpZ25pbmcg
 # UlNBNDA5NiBTSEEzODQgMjAyMSBDQTECEAr5W7a+ogyFDpjG+46sCPkwDQYJYIZI
 # AWUDBAIBBQCggYQwGAYKKwYBBAGCNwIBDDEKMAigAoAAoQKAADAZBgkqhkiG9w0B
 # CQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3AgELMQ4wDAYKKwYBBAGCNwIBFTAv
-# BgkqhkiG9w0BCQQxIgQgwFoJW6RBB2h1kT8yBYL49cPoydFGCpdrfaOsHkcC/EMw
-# DQYJKoZIhvcNAQEBBQAEggGASRMWgJ1MMK57WDztJbarAvTMvp2ake2ALbx7qeEJ
-# oLsn0sk0v0RZ8mZpg9Xxf9wGScf5KONBWSBdy9OsqhLB/7g7WBlt0TDu5D3E60D7
-# Bs/AJqkCg1av93NG2TsQzuBiE8S7BPaCJtfIiVDsow3x2Z5CaCHmklL4J2y7M16t
-# 2yRXNxm76zBDg6BGcrd53x1LKxhIJi1VYpqWoeF4VFzu+FWN+tD/qCVpZC4s1d0J
-# C5h1UDSYkne0JorWsZa/CsvHQpTKbNMbP24YE4+Hsc4ZyFGWbQokyDlooIekzP0x
-# ebnHsh2p/ZJdYELnMBwLsUNAygvVrOVQrplb7S2vjkOr610a1cBrUx4sEhaNURcx
-# zddMJUs+dSArH5xvQ75mX1tot6X2N+PTH4IoPXZrl/goCElo5GRuXG0U7l6ylQ6K
-# q+YyFZxmwFTSEwT1kxiS6QTakMDYzYeqWQb7uM+gP8CmdsK0efrIZ4w+ktllJwqv
-# d0LbbVnJu5n4VcKyGY13pzC8oYIXOTCCFzUGCisGAQQBgjcDAwExghclMIIXIQYJ
-# KoZIhvcNAQcCoIIXEjCCFw4CAQMxDzANBglghkgBZQMEAgEFADB3BgsqhkiG9w0B
-# CRABBKBoBGYwZAIBAQYJYIZIAYb9bAcBMDEwDQYJYIZIAWUDBAIBBQAEIFtMzW/y
-# smSZBe7YmDC+ZnEv7G+BZL21DKyNK1jj/Qy6AhBQ2ndrXpxjgON7PRPSuALNGA8y
-# MDI0MTIxOTIyNDYwMlqgghMDMIIGvDCCBKSgAwIBAgIQC65mvFq6f5WHxvnpBOMz
-# BDANBgkqhkiG9w0BAQsFADBjMQswCQYDVQQGEwJVUzEXMBUGA1UEChMORGlnaUNl
-# cnQsIEluYy4xOzA5BgNVBAMTMkRpZ2lDZXJ0IFRydXN0ZWQgRzQgUlNBNDA5NiBT
-# SEEyNTYgVGltZVN0YW1waW5nIENBMB4XDTI0MDkyNjAwMDAwMFoXDTM1MTEyNTIz
-# NTk1OVowQjELMAkGA1UEBhMCVVMxETAPBgNVBAoTCERpZ2lDZXJ0MSAwHgYDVQQD
-# ExdEaWdpQ2VydCBUaW1lc3RhbXAgMjAyNDCCAiIwDQYJKoZIhvcNAQEBBQADggIP
-# ADCCAgoCggIBAL5qc5/2lSGrljC6W23mWaO16P2RHxjEiDtqmeOlwf0KMCBDEr4I
-# xHRGd7+L660x5XltSVhhK64zi9CeC9B6lUdXM0s71EOcRe8+CEJp+3R2O8oo76EO
-# 7o5tLuslxdr9Qq82aKcpA9O//X6QE+AcaU/byaCagLD/GLoUb35SfWHh43rOH3bp
-# LEx7pZ7avVnpUVmPvkxT8c2a2yC0WMp8hMu60tZR0ChaV76Nhnj37DEYTX9ReNZ8
-# hIOYe4jl7/r419CvEYVIrH6sN00yx49boUuumF9i2T8UuKGn9966fR5X6kgXj3o5
-# WHhHVO+NBikDO0mlUh902wS/Eeh8F/UFaRp1z5SnROHwSJ+QQRZ1fisD8UTVDSup
-# WJNstVkiqLq+ISTdEjJKGjVfIcsgA4l9cbk8Smlzddh4EfvFrpVNnes4c16Jidj5
-# XiPVdsn5n10jxmGpxoMc6iPkoaDhi6JjHd5ibfdp5uzIXp4P0wXkgNs+CO/CacBq
-# U0R4k+8h6gYldp4FCMgrXdKWfM4N0u25OEAuEa3JyidxW48jwBqIJqImd93NRxvd
-# 1aepSeNeREXAu2xUDEW8aqzFQDYmr9ZONuc2MhTMizchNULpUEoA6Vva7b1XCB+1
-# rxvbKmLqfY/M/SdV6mwWTyeVy5Z/JkvMFpnQy5wR14GJcv6dQ4aEKOX5AgMBAAGj
-# ggGLMIIBhzAOBgNVHQ8BAf8EBAMCB4AwDAYDVR0TAQH/BAIwADAWBgNVHSUBAf8E
-# DDAKBggrBgEFBQcDCDAgBgNVHSAEGTAXMAgGBmeBDAEEAjALBglghkgBhv1sBwEw
-# HwYDVR0jBBgwFoAUuhbZbU2FL3MpdpovdYxqII+eyG8wHQYDVR0OBBYEFJ9XLAN3
-# DigVkGalY17uT5IfdqBbMFoGA1UdHwRTMFEwT6BNoEuGSWh0dHA6Ly9jcmwzLmRp
-# Z2ljZXJ0LmNvbS9EaWdpQ2VydFRydXN0ZWRHNFJTQTQwOTZTSEEyNTZUaW1lU3Rh
-# bXBpbmdDQS5jcmwwgZAGCCsGAQUFBwEBBIGDMIGAMCQGCCsGAQUFBzABhhhodHRw
-# Oi8vb2NzcC5kaWdpY2VydC5jb20wWAYIKwYBBQUHMAKGTGh0dHA6Ly9jYWNlcnRz
-# LmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydFRydXN0ZWRHNFJTQTQwOTZTSEEyNTZUaW1l
-# U3RhbXBpbmdDQS5jcnQwDQYJKoZIhvcNAQELBQADggIBAD2tHh92mVvjOIQSR9lD
-# kfYR25tOCB3RKE/P09x7gUsmXqt40ouRl3lj+8QioVYq3igpwrPvBmZdrlWBb0Hv
-# qT00nFSXgmUrDKNSQqGTdpjHsPy+LaalTW0qVjvUBhcHzBMutB6HzeledbDCzFzU
-# y34VarPnvIWrqVogK0qM8gJhh/+qDEAIdO/KkYesLyTVOoJ4eTq7gj9UFAL1UruJ
-# KlTnCVaM2UeUUW/8z3fvjxhN6hdT98Vr2FYlCS7Mbb4Hv5swO+aAXxWUm3WpByXt
-# gVQxiBlTVYzqfLDbe9PpBKDBfk+rabTFDZXoUke7zPgtd7/fvWTlCs30VAGEsshJ
-# mLbJ6ZbQ/xll/HjO9JbNVekBv2Tgem+mLptR7yIrpaidRJXrI+UzB6vAlk/8a1u7
-# cIqV0yef4uaZFORNekUgQHTqddmsPCEIYQP7xGxZBIhdmm4bhYsVA6G2WgNFYagL
-# DBzpmk9104WQzYuVNsxyoVLObhx3RugaEGru+SojW4dHPoWrUhftNpFC5H7QEY7M
-# hKRyrBe7ucykW7eaCuWBsBb4HOKRFVDcrZgdwaSIqMDiCLg4D+TPVgKx2EgEdeoH
-# NHT9l3ZDBD+XgbF+23/zBjeCtxz+dL/9NWR6P2eZRi7zcEO1xwcdcqJsyz/JceEN
-# c2Sg8h3KeFUCS7tpFk7CrDqkMIIGrjCCBJagAwIBAgIQBzY3tyRUfNhHrP0oZipe
-# WzANBgkqhkiG9w0BAQsFADBiMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNl
-# cnQgSW5jMRkwFwYDVQQLExB3d3cuZGlnaWNlcnQuY29tMSEwHwYDVQQDExhEaWdp
-# Q2VydCBUcnVzdGVkIFJvb3QgRzQwHhcNMjIwMzIzMDAwMDAwWhcNMzcwMzIyMjM1
-# OTU5WjBjMQswCQYDVQQGEwJVUzEXMBUGA1UEChMORGlnaUNlcnQsIEluYy4xOzA5
-# BgNVBAMTMkRpZ2lDZXJ0IFRydXN0ZWQgRzQgUlNBNDA5NiBTSEEyNTYgVGltZVN0
-# YW1waW5nIENBMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAxoY1Bkmz
-# wT1ySVFVxyUDxPKRN6mXUaHW0oPRnkyibaCwzIP5WvYRoUQVQl+kiPNo+n3znIkL
-# f50fng8zH1ATCyZzlm34V6gCff1DtITaEfFzsbPuK4CEiiIY3+vaPcQXf6sZKz5C
-# 3GeO6lE98NZW1OcoLevTsbV15x8GZY2UKdPZ7Gnf2ZCHRgB720RBidx8ald68Dd5
-# n12sy+iEZLRS8nZH92GDGd1ftFQLIWhuNyG7QKxfst5Kfc71ORJn7w6lY2zkpsUd
-# zTYNXNXmG6jBZHRAp8ByxbpOH7G1WE15/tePc5OsLDnipUjW8LAxE6lXKZYnLvWH
-# po9OdhVVJnCYJn+gGkcgQ+NDY4B7dW4nJZCYOjgRs/b2nuY7W+yB3iIU2YIqx5K/
-# oN7jPqJz+ucfWmyU8lKVEStYdEAoq3NDzt9KoRxrOMUp88qqlnNCaJ+2RrOdOqPV
-# A+C/8KI8ykLcGEh/FDTP0kyr75s9/g64ZCr6dSgkQe1CvwWcZklSUPRR8zZJTYsg
-# 0ixXNXkrqPNFYLwjjVj33GHek/45wPmyMKVM1+mYSlg+0wOI/rOP015LdhJRk8mM
-# DDtbiiKowSYI+RQQEgN9XyO7ZONj4KbhPvbCdLI/Hgl27KtdRnXiYKNYCQEoAA6E
-# VO7O6V3IXjASvUaetdN2udIOa5kM0jO0zbECAwEAAaOCAV0wggFZMBIGA1UdEwEB
-# /wQIMAYBAf8CAQAwHQYDVR0OBBYEFLoW2W1NhS9zKXaaL3WMaiCPnshvMB8GA1Ud
-# IwQYMBaAFOzX44LScV1kTN8uZz/nupiuHA9PMA4GA1UdDwEB/wQEAwIBhjATBgNV
-# HSUEDDAKBggrBgEFBQcDCDB3BggrBgEFBQcBAQRrMGkwJAYIKwYBBQUHMAGGGGh0
-# dHA6Ly9vY3NwLmRpZ2ljZXJ0LmNvbTBBBggrBgEFBQcwAoY1aHR0cDovL2NhY2Vy
-# dHMuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0VHJ1c3RlZFJvb3RHNC5jcnQwQwYDVR0f
-# BDwwOjA4oDagNIYyaHR0cDovL2NybDMuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0VHJ1
-# c3RlZFJvb3RHNC5jcmwwIAYDVR0gBBkwFzAIBgZngQwBBAIwCwYJYIZIAYb9bAcB
-# MA0GCSqGSIb3DQEBCwUAA4ICAQB9WY7Ak7ZvmKlEIgF+ZtbYIULhsBguEE0TzzBT
-# zr8Y+8dQXeJLKftwig2qKWn8acHPHQfpPmDI2AvlXFvXbYf6hCAlNDFnzbYSlm/E
-# UExiHQwIgqgWvalWzxVzjQEiJc6VaT9Hd/tydBTX/6tPiix6q4XNQ1/tYLaqT5Fm
-# niye4Iqs5f2MvGQmh2ySvZ180HAKfO+ovHVPulr3qRCyXen/KFSJ8NWKcXZl2szw
-# cqMj+sAngkSumScbqyQeJsG33irr9p6xeZmBo1aGqwpFyd/EjaDnmPv7pp1yr8TH
-# wcFqcdnGE4AJxLafzYeHJLtPo0m5d2aR8XKc6UsCUqc3fpNTrDsdCEkPlM05et3/
-# JWOZJyw9P2un8WbDQc1PtkCbISFA0LcTJM3cHXg65J6t5TRxktcma+Q4c6umAU+9
-# Pzt4rUyt+8SVe+0KXzM5h0F4ejjpnOHdI/0dKNPH+ejxmF/7K9h+8kaddSweJywm
-# 228Vex4Ziza4k9Tm8heZWcpw8De/mADfIBZPJ/tgZxahZrrdVcA6KYawmKAr7ZVB
-# tzrVFZgxtGIJDwq9gdkT/r+k0fNX2bwE+oLeMt8EifAAzV3C+dAjfwAL5HYCJtnw
-# ZXZCpimHCUcr5n8apIUP/JiW9lVUKx+A+sDyDivl1vupL0QVSucTDh3bNzgaoSv2
-# 7dZ8/DCCBY0wggR1oAMCAQICEA6bGI750C3n79tQ4ghAGFowDQYJKoZIhvcNAQEM
-# BQAwZTELMAkGA1UEBhMCVVMxFTATBgNVBAoTDERpZ2lDZXJ0IEluYzEZMBcGA1UE
-# CxMQd3d3LmRpZ2ljZXJ0LmNvbTEkMCIGA1UEAxMbRGlnaUNlcnQgQXNzdXJlZCBJ
-# RCBSb290IENBMB4XDTIyMDgwMTAwMDAwMFoXDTMxMTEwOTIzNTk1OVowYjELMAkG
-# A1UEBhMCVVMxFTATBgNVBAoTDERpZ2lDZXJ0IEluYzEZMBcGA1UECxMQd3d3LmRp
-# Z2ljZXJ0LmNvbTEhMB8GA1UEAxMYRGlnaUNlcnQgVHJ1c3RlZCBSb290IEc0MIIC
-# IjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAv+aQc2jeu+RdSjwwIjBpM+zC
-# pyUuySE98orYWcLhKac9WKt2ms2uexuEDcQwH/MbpDgW61bGl20dq7J58soR0uRf
-# 1gU8Ug9SH8aeFaV+vp+pVxZZVXKvaJNwwrK6dZlqczKU0RBEEC7fgvMHhOZ0O21x
-# 4i0MG+4g1ckgHWMpLc7sXk7Ik/ghYZs06wXGXuxbGrzryc/NrDRAX7F6Zu53yEio
-# ZldXn1RYjgwrt0+nMNlW7sp7XeOtyU9e5TXnMcvak17cjo+A2raRmECQecN4x7ax
-# xLVqGDgDEI3Y1DekLgV9iPWCPhCRcKtVgkEy19sEcypukQF8IUzUvK4bA3VdeGbZ
-# OjFEmjNAvwjXWkmkwuapoGfdpCe8oU85tRFYF/ckXEaPZPfBaYh2mHY9WV1CdoeJ
-# l2l6SPDgohIbZpp0yt5LHucOY67m1O+SkjqePdwA5EUlibaaRBkrfsCUtNJhbesz
-# 2cXfSwQAzH0clcOP9yGyshG3u3/y1YxwLEFgqrFjGESVGnZifvaAsPvoZKYz0YkH
-# 4b235kOkGLimdwHhD5QMIR2yVCkliWzlDlJRR3S+Jqy2QXXeeqxfjT/JvNNBERJb
-# 5RBQ6zHFynIWIgnffEx1P2PsIV/EIFFrb7GrhotPwtZFX50g/KEexcCPorF+CiaZ
-# 9eRpL5gdLfXZqbId5RsCAwEAAaOCATowggE2MA8GA1UdEwEB/wQFMAMBAf8wHQYD
-# VR0OBBYEFOzX44LScV1kTN8uZz/nupiuHA9PMB8GA1UdIwQYMBaAFEXroq/0ksuC
-# MS1Ri6enIZ3zbcgPMA4GA1UdDwEB/wQEAwIBhjB5BggrBgEFBQcBAQRtMGswJAYI
-# KwYBBQUHMAGGGGh0dHA6Ly9vY3NwLmRpZ2ljZXJ0LmNvbTBDBggrBgEFBQcwAoY3
-# aHR0cDovL2NhY2VydHMuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0QXNzdXJlZElEUm9v
-# dENBLmNydDBFBgNVHR8EPjA8MDqgOKA2hjRodHRwOi8vY3JsMy5kaWdpY2VydC5j
-# b20vRGlnaUNlcnRBc3N1cmVkSURSb290Q0EuY3JsMBEGA1UdIAQKMAgwBgYEVR0g
-# ADANBgkqhkiG9w0BAQwFAAOCAQEAcKC/Q1xV5zhfoKN0Gz22Ftf3v1cHvZqsoYcs
-# 7IVeqRq7IviHGmlUIu2kiHdtvRoU9BNKei8ttzjv9P+Aufih9/Jy3iS8UgPITtAq
-# 3votVs/59PesMHqai7Je1M/RQ0SbQyHrlnKhSLSZy51PpwYDE3cnRNTnf+hZqPC/
-# Lwum6fI0POz3A8eHqNJMQBk1RmppVLC4oVaO7KTVPeix3P0c2PR3WlxUjG/voVA9
-# /HYJaISfb8rbII01YBwCA8sgsKxYoA5AY8WYIsGyWfVVa88nq2x2zm8jLfR+cWoj
-# ayL/ErhULSd+2DrZ8LaHlv1b0VysGMNNn3O3AamfV6peKOK5lDGCA3YwggNyAgEB
-# MHcwYzELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYD
-# VQQDEzJEaWdpQ2VydCBUcnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFt
-# cGluZyBDQQIQC65mvFq6f5WHxvnpBOMzBDANBglghkgBZQMEAgEFAKCB0TAaBgkq
-# hkiG9w0BCQMxDQYLKoZIhvcNAQkQAQQwHAYJKoZIhvcNAQkFMQ8XDTI0MTIxOTIy
-# NDYwMlowKwYLKoZIhvcNAQkQAgwxHDAaMBgwFgQU29OF7mLb0j575PZxSFCHJNWG
-# W0UwLwYJKoZIhvcNAQkEMSIEID7jb/ahTrcR0Y62eRynk2x1Q2BfWsBSlGryOt0k
-# 8y27MDcGCyqGSIb3DQEJEAIvMSgwJjAkMCIEIHZ2n6jyYy8fQws6IzCu1lZ1/tdz
-# 2wXWZbkFk5hDj5rbMA0GCSqGSIb3DQEBAQUABIICAEJQwJR0l0EHCvqC6TSFhIiK
-# N4oECyPp1LtI1sFUvvN3R/BJdp5D7b41tFaeL9iY8VkmLU/eO9y8jXc73RhT+jEW
-# blMTUbzeGPx59vYVd9V790fl82MiXoommojbm3ya/oiRKbSbI7lsYkcfrA8WfO3p
-# IwJoU7xCoYISpKHE7DSwWFQKyn7H+l3lCNsA2U4IW50syFu9XvtLRWp56EQx7kKs
-# 6KYYZw+OSfe8I3eMZdbCBm/k0Ij4J+p8yDf5KcRyUelLnT6OOGTAYgi9UvTVo0ET
-# 13v2t6hCMCh3zHALaSbDprahficrXlY2Kc1vEyZV/M5gZuMQ3/xMktnAzMU0jI3m
-# 5wgCo5nf08YNu9/Kg5SnEiMNbIsVr/ZAPkK9hsCk5V08wIhrKVYmJ4yYPienrY5S
-# a0EGIv/OOzb3Gg4K3PdiGSgtbK+z8u2Lj4bFMLD88K4vNyt+yJQTVbfAr/BenpuR
-# J+g8RMs9Bxl3StEH5cJxaUSajzPksCBUi/c3UWF+UCoWyCCbieAmQpqQQYbDnpgK
-# HRep7cI3lgjuApU2uWUPMhO4YvGThKGGTz1Mtc05hEOkOWyKe66IQcvFhKtJMCtQ
-# M9NfLkZTwa9P6oJionEGlqSvQmH4Yoet7pFiH9YbRCl0Ut5uu17luPdCXuk73ruG
-# UpFVUYrfSkZc2eaal/sB
+# BgkqhkiG9w0BCQQxIgQgYQDU9UnOYjMif1i0fXrhRrkRQtUmrHTx3q4mAWI0Ik8w
+# DQYJKoZIhvcNAQEBBQAEggGABow9SjBNcP2of7hqFbHtGDeJ11teFhWqyc8cmWw7
+# MVwR06U2AbVYunv9cRpE9oYZ64lMLltoMJ3l+L/Q34sjRQ/CpeQGWPWbhO4pU/T9
+# TwPFgaueLYiEmCXKjSVVAhQVuxn7aMmNFAO95G03EJ4ayQ10U8SH81oNpLiNRppn
+# AFHwhIOWOei6OM0E+uQ9RSHAZvH3CEhvycuKSW6NqPVI//2eGrvYWX9mvV8mMXwx
+# p51gBCmXsGsmbzbg5F9d0LtjeSSANv62nvcJZkmFBlnJqPQH9IiWx7tS/cxR7BtF
+# +siJ1dPHfwYWN0CMD2MkgN+GhdTZvUbuO2cD3RYr1b1QQq4xTFnwZdWc6Z2dggDP
+# G+jOoOXdt8rMAU7xfi7rFGboBmxDXHouIZusQUxjlrN+ly4/+h51C08oWT1Sq8Zg
+# /tmK9oept6wd6gKAMtix6R1AYpJHep56/2VpinO2xJ+qQxGzh2KgoRSFLrZNkqIZ
+# mnSrGTArDVVNesmxgiCfY5RBoYIXOjCCFzYGCisGAQQBgjcDAwExghcmMIIXIgYJ
+# KoZIhvcNAQcCoIIXEzCCFw8CAQMxDzANBglghkgBZQMEAgEFADB4BgsqhkiG9w0B
+# CRABBKBpBGcwZQIBAQYJYIZIAYb9bAcBMDEwDQYJYIZIAWUDBAIBBQAEICMfO9VM
+# i3ZA+nG6OAC3uM00DToklU1ldBuctedBZUS/AhEAphU24g6jP7INqQEr4kOXvRgP
+# MjAyNTAyMjMyMzQ4NDBaoIITAzCCBrwwggSkoAMCAQICEAuuZrxaun+Vh8b56QTj
+# MwQwDQYJKoZIhvcNAQELBQAwYzELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lD
+# ZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdpQ2VydCBUcnVzdGVkIEc0IFJTQTQwOTYg
+# U0hBMjU2IFRpbWVTdGFtcGluZyBDQTAeFw0yNDA5MjYwMDAwMDBaFw0zNTExMjUy
+# MzU5NTlaMEIxCzAJBgNVBAYTAlVTMREwDwYDVQQKEwhEaWdpQ2VydDEgMB4GA1UE
+# AxMXRGlnaUNlcnQgVGltZXN0YW1wIDIwMjQwggIiMA0GCSqGSIb3DQEBAQUAA4IC
+# DwAwggIKAoICAQC+anOf9pUhq5Ywultt5lmjtej9kR8YxIg7apnjpcH9CjAgQxK+
+# CMR0Rne/i+utMeV5bUlYYSuuM4vQngvQepVHVzNLO9RDnEXvPghCaft0djvKKO+h
+# Du6ObS7rJcXa/UKvNminKQPTv/1+kBPgHGlP28mgmoCw/xi6FG9+Un1h4eN6zh92
+# 6SxMe6We2r1Z6VFZj75MU/HNmtsgtFjKfITLutLWUdAoWle+jYZ49+wxGE1/UXjW
+# fISDmHuI5e/6+NfQrxGFSKx+rDdNMsePW6FLrphfYtk/FLihp/feun0eV+pIF496
+# OVh4R1TvjQYpAztJpVIfdNsEvxHofBf1BWkadc+Up0Th8EifkEEWdX4rA/FE1Q0r
+# qViTbLVZIqi6viEk3RIySho1XyHLIAOJfXG5PEppc3XYeBH7xa6VTZ3rOHNeiYnY
+# +V4j1XbJ+Z9dI8ZhqcaDHOoj5KGg4YuiYx3eYm33aebsyF6eD9MF5IDbPgjvwmnA
+# alNEeJPvIeoGJXaeBQjIK13SlnzODdLtuThALhGtyconcVuPI8AaiCaiJnfdzUcb
+# 3dWnqUnjXkRFwLtsVAxFvGqsxUA2Jq/WTjbnNjIUzIs3ITVC6VBKAOlb2u29Vwgf
+# ta8b2ypi6n2PzP0nVepsFk8nlcuWfyZLzBaZ0MucEdeBiXL+nUOGhCjl+QIDAQAB
+# o4IBizCCAYcwDgYDVR0PAQH/BAQDAgeAMAwGA1UdEwEB/wQCMAAwFgYDVR0lAQH/
+# BAwwCgYIKwYBBQUHAwgwIAYDVR0gBBkwFzAIBgZngQwBBAIwCwYJYIZIAYb9bAcB
+# MB8GA1UdIwQYMBaAFLoW2W1NhS9zKXaaL3WMaiCPnshvMB0GA1UdDgQWBBSfVywD
+# dw4oFZBmpWNe7k+SH3agWzBaBgNVHR8EUzBRME+gTaBLhklodHRwOi8vY3JsMy5k
+# aWdpY2VydC5jb20vRGlnaUNlcnRUcnVzdGVkRzRSU0E0MDk2U0hBMjU2VGltZVN0
+# YW1waW5nQ0EuY3JsMIGQBggrBgEFBQcBAQSBgzCBgDAkBggrBgEFBQcwAYYYaHR0
+# cDovL29jc3AuZGlnaWNlcnQuY29tMFgGCCsGAQUFBzAChkxodHRwOi8vY2FjZXJ0
+# cy5kaWdpY2VydC5jb20vRGlnaUNlcnRUcnVzdGVkRzRSU0E0MDk2U0hBMjU2VGlt
+# ZVN0YW1waW5nQ0EuY3J0MA0GCSqGSIb3DQEBCwUAA4ICAQA9rR4fdplb4ziEEkfZ
+# Q5H2EdubTggd0ShPz9Pce4FLJl6reNKLkZd5Y/vEIqFWKt4oKcKz7wZmXa5VgW9B
+# 76k9NJxUl4JlKwyjUkKhk3aYx7D8vi2mpU1tKlY71AYXB8wTLrQeh83pXnWwwsxc
+# 1Mt+FWqz57yFq6laICtKjPICYYf/qgxACHTvypGHrC8k1TqCeHk6u4I/VBQC9VK7
+# iSpU5wlWjNlHlFFv/M93748YTeoXU/fFa9hWJQkuzG2+B7+bMDvmgF8VlJt1qQcl
+# 7YFUMYgZU1WM6nyw23vT6QSgwX5Pq2m0xQ2V6FJHu8z4LXe/371k5QrN9FQBhLLI
+# SZi2yemW0P8ZZfx4zvSWzVXpAb9k4Hpvpi6bUe8iK6WonUSV6yPlMwerwJZP/Gtb
+# u3CKldMnn+LmmRTkTXpFIEB06nXZrDwhCGED+8RsWQSIXZpuG4WLFQOhtloDRWGo
+# Cwwc6ZpPddOFkM2LlTbMcqFSzm4cd0boGhBq7vkqI1uHRz6Fq1IX7TaRQuR+0BGO
+# zISkcqwXu7nMpFu3mgrlgbAW+BzikRVQ3K2YHcGkiKjA4gi4OA/kz1YCsdhIBHXq
+# BzR0/Zd2QwQ/l4Gxftt/8wY3grcc/nS//TVkej9nmUYu83BDtccHHXKibMs/yXHh
+# DXNkoPIdynhVAku7aRZOwqw6pDCCBq4wggSWoAMCAQICEAc2N7ckVHzYR6z9KGYq
+# XlswDQYJKoZIhvcNAQELBQAwYjELMAkGA1UEBhMCVVMxFTATBgNVBAoTDERpZ2lD
+# ZXJ0IEluYzEZMBcGA1UECxMQd3d3LmRpZ2ljZXJ0LmNvbTEhMB8GA1UEAxMYRGln
+# aUNlcnQgVHJ1c3RlZCBSb290IEc0MB4XDTIyMDMyMzAwMDAwMFoXDTM3MDMyMjIz
+# NTk1OVowYzELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTsw
+# OQYDVQQDEzJEaWdpQ2VydCBUcnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVT
+# dGFtcGluZyBDQTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAMaGNQZJ
+# s8E9cklRVcclA8TykTepl1Gh1tKD0Z5Mom2gsMyD+Vr2EaFEFUJfpIjzaPp985yJ
+# C3+dH54PMx9QEwsmc5Zt+FeoAn39Q7SE2hHxc7Gz7iuAhIoiGN/r2j3EF3+rGSs+
+# QtxnjupRPfDWVtTnKC3r07G1decfBmWNlCnT2exp39mQh0YAe9tEQYncfGpXevA3
+# eZ9drMvohGS0UvJ2R/dhgxndX7RUCyFobjchu0CsX7LeSn3O9TkSZ+8OpWNs5KbF
+# Hc02DVzV5huowWR0QKfAcsW6Th+xtVhNef7Xj3OTrCw54qVI1vCwMROpVymWJy71
+# h6aPTnYVVSZwmCZ/oBpHIEPjQ2OAe3VuJyWQmDo4EbP29p7mO1vsgd4iFNmCKseS
+# v6De4z6ic/rnH1pslPJSlRErWHRAKKtzQ87fSqEcazjFKfPKqpZzQmiftkaznTqj
+# 1QPgv/CiPMpC3BhIfxQ0z9JMq++bPf4OuGQq+nUoJEHtQr8FnGZJUlD0UfM2SU2L
+# INIsVzV5K6jzRWC8I41Y99xh3pP+OcD5sjClTNfpmEpYPtMDiP6zj9NeS3YSUZPJ
+# jAw7W4oiqMEmCPkUEBIDfV8ju2TjY+Cm4T72wnSyPx4JduyrXUZ14mCjWAkBKAAO
+# hFTuzuldyF4wEr1GnrXTdrnSDmuZDNIztM2xAgMBAAGjggFdMIIBWTASBgNVHRMB
+# Af8ECDAGAQH/AgEAMB0GA1UdDgQWBBS6FtltTYUvcyl2mi91jGogj57IbzAfBgNV
+# HSMEGDAWgBTs1+OC0nFdZEzfLmc/57qYrhwPTzAOBgNVHQ8BAf8EBAMCAYYwEwYD
+# VR0lBAwwCgYIKwYBBQUHAwgwdwYIKwYBBQUHAQEEazBpMCQGCCsGAQUFBzABhhho
+# dHRwOi8vb2NzcC5kaWdpY2VydC5jb20wQQYIKwYBBQUHMAKGNWh0dHA6Ly9jYWNl
+# cnRzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydFRydXN0ZWRSb290RzQuY3J0MEMGA1Ud
+# HwQ8MDowOKA2oDSGMmh0dHA6Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydFRy
+# dXN0ZWRSb290RzQuY3JsMCAGA1UdIAQZMBcwCAYGZ4EMAQQCMAsGCWCGSAGG/WwH
+# ATANBgkqhkiG9w0BAQsFAAOCAgEAfVmOwJO2b5ipRCIBfmbW2CFC4bAYLhBNE88w
+# U86/GPvHUF3iSyn7cIoNqilp/GnBzx0H6T5gyNgL5Vxb122H+oQgJTQxZ822EpZv
+# xFBMYh0MCIKoFr2pVs8Vc40BIiXOlWk/R3f7cnQU1/+rT4osequFzUNf7WC2qk+R
+# Zp4snuCKrOX9jLxkJodskr2dfNBwCnzvqLx1T7pa96kQsl3p/yhUifDVinF2ZdrM
+# 8HKjI/rAJ4JErpknG6skHibBt94q6/aesXmZgaNWhqsKRcnfxI2g55j7+6adcq/E
+# x8HBanHZxhOACcS2n82HhyS7T6NJuXdmkfFynOlLAlKnN36TU6w7HQhJD5TNOXrd
+# /yVjmScsPT9rp/Fmw0HNT7ZAmyEhQNC3EyTN3B14OuSereU0cZLXJmvkOHOrpgFP
+# vT87eK1MrfvElXvtCl8zOYdBeHo46Zzh3SP9HSjTx/no8Zhf+yvYfvJGnXUsHics
+# JttvFXseGYs2uJPU5vIXmVnKcPA3v5gA3yAWTyf7YGcWoWa63VXAOimGsJigK+2V
+# Qbc61RWYMbRiCQ8KvYHZE/6/pNHzV9m8BPqC3jLfBInwAM1dwvnQI38AC+R2AibZ
+# 8GV2QqYphwlHK+Z/GqSFD/yYlvZVVCsfgPrA8g4r5db7qS9EFUrnEw4d2zc4GqEr
+# 9u3WfPwwggWNMIIEdaADAgECAhAOmxiO+dAt5+/bUOIIQBhaMA0GCSqGSIb3DQEB
+# DAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNV
+# BAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNVBAMTG0RpZ2lDZXJ0IEFzc3VyZWQg
+# SUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBaFw0zMTExMDkyMzU5NTlaMGIxCzAJ
+# BgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5k
+# aWdpY2VydC5jb20xITAfBgNVBAMTGERpZ2lDZXJ0IFRydXN0ZWQgUm9vdCBHNDCC
+# AiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAL/mkHNo3rvkXUo8MCIwaTPs
+# wqclLskhPfKK2FnC4SmnPVirdprNrnsbhA3EMB/zG6Q4FutWxpdtHauyefLKEdLk
+# X9YFPFIPUh/GnhWlfr6fqVcWWVVyr2iTcMKyunWZanMylNEQRBAu34LzB4TmdDtt
+# ceItDBvuINXJIB1jKS3O7F5OyJP4IWGbNOsFxl7sWxq868nPzaw0QF+xembud8hI
+# qGZXV59UWI4MK7dPpzDZVu7Ke13jrclPXuU15zHL2pNe3I6PgNq2kZhAkHnDeMe2
+# scS1ahg4AxCN2NQ3pC4FfYj1gj4QkXCrVYJBMtfbBHMqbpEBfCFM1LyuGwN1XXhm
+# 2ToxRJozQL8I11pJpMLmqaBn3aQnvKFPObURWBf3JFxGj2T3wWmIdph2PVldQnaH
+# iZdpekjw4KISG2aadMreSx7nDmOu5tTvkpI6nj3cAORFJYm2mkQZK37AlLTSYW3r
+# M9nF30sEAMx9HJXDj/chsrIRt7t/8tWMcCxBYKqxYxhElRp2Yn72gLD76GSmM9GJ
+# B+G9t+ZDpBi4pncB4Q+UDCEdslQpJYls5Q5SUUd0viastkF13nqsX40/ybzTQRES
+# W+UQUOsxxcpyFiIJ33xMdT9j7CFfxCBRa2+xq4aLT8LWRV+dIPyhHsXAj6Kxfgom
+# mfXkaS+YHS312amyHeUbAgMBAAGjggE6MIIBNjAPBgNVHRMBAf8EBTADAQH/MB0G
+# A1UdDgQWBBTs1+OC0nFdZEzfLmc/57qYrhwPTzAfBgNVHSMEGDAWgBRF66Kv9JLL
+# gjEtUYunpyGd823IDzAOBgNVHQ8BAf8EBAMCAYYweQYIKwYBBQUHAQEEbTBrMCQG
+# CCsGAQUFBzABhhhodHRwOi8vb2NzcC5kaWdpY2VydC5jb20wQwYIKwYBBQUHMAKG
+# N2h0dHA6Ly9jYWNlcnRzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEFzc3VyZWRJRFJv
+# b3RDQS5jcnQwRQYDVR0fBD4wPDA6oDigNoY0aHR0cDovL2NybDMuZGlnaWNlcnQu
+# Y29tL0RpZ2lDZXJ0QXNzdXJlZElEUm9vdENBLmNybDARBgNVHSAECjAIMAYGBFUd
+# IAAwDQYJKoZIhvcNAQEMBQADggEBAHCgv0NcVec4X6CjdBs9thbX979XB72arKGH
+# LOyFXqkauyL4hxppVCLtpIh3bb0aFPQTSnovLbc47/T/gLn4offyct4kvFIDyE7Q
+# Kt76LVbP+fT3rDB6mouyXtTP0UNEm0Mh65ZyoUi0mcudT6cGAxN3J0TU53/oWajw
+# vy8LpunyNDzs9wPHh6jSTEAZNUZqaVSwuKFWjuyk1T3osdz9HNj0d1pcVIxv76FQ
+# Pfx2CWiEn2/K2yCNNWAcAgPLILCsWKAOQGPFmCLBsln1VWvPJ6tsds5vIy30fnFq
+# I2si/xK4VC0nftg62fC2h5b9W9FcrBjDTZ9ztwGpn1eqXijiuZQxggN2MIIDcgIB
+# ATB3MGMxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwgSW5jLjE7MDkG
+# A1UEAxMyRGlnaUNlcnQgVHJ1c3RlZCBHNCBSU0E0MDk2IFNIQTI1NiBUaW1lU3Rh
+# bXBpbmcgQ0ECEAuuZrxaun+Vh8b56QTjMwQwDQYJYIZIAWUDBAIBBQCggdEwGgYJ
+# KoZIhvcNAQkDMQ0GCyqGSIb3DQEJEAEEMBwGCSqGSIb3DQEJBTEPFw0yNTAyMjMy
+# MzQ4NDBaMCsGCyqGSIb3DQEJEAIMMRwwGjAYMBYEFNvThe5i29I+e+T2cUhQhyTV
+# hltFMC8GCSqGSIb3DQEJBDEiBCBilQIzWUtFMa0goT6GLhSHgbj5UzhQFkMvs59X
+# wGuDjDA3BgsqhkiG9w0BCRACLzEoMCYwJDAiBCB2dp+o8mMvH0MLOiMwrtZWdf7X
+# c9sF1mW5BZOYQ4+a2zANBgkqhkiG9w0BAQEFAASCAgAvJNpe0Wpwn42lQsa6682c
+# oVhTvu9BJFygXVI4+6/XsCAWrbKqZomp4mFa8dDXdQWUkO6Uqx2L+xQEkyc3Y5XE
+# v+rXKbKeUHpy3Zi0Ox7Ocs/N0G7zGX8lJe3UnVKWJ5cdmOXvtbDR4ukfSVkJbj7+
+# l0VaR2jth9EdoW8/rK8Te+Z7Bv2VoHMCfTno2FMC3ZJLRDWLQUkQqPv5JIjbldSp
+# SCjYY4Lsm8F84Jo+w757hOcS71+DRtCEHwcHDl2fqvAibHz+RyKWnM5YrgEi21II
+# UQf8vXeskaP8y9yuU5j+9IwzmignDdTK++xRd1aLH1bB6aOhlBtBtT5K4KQtc1L7
+# mWJW8PCoiw3C7jDcLQCm5vrRMkV4j4EfqeKeOaORNIZCRhrMLd8EbO9f9Nlj/fEI
+# 6mBKKdywezGffh8VR/yPsd7qQlkQsLxbBICY+qeh29U73nSYeeDPjc+10loXGWN5
+# ZCelsNyynCuggD2OUWJ1dkx3k9uWNil2kvEtSOWiruHrylj2AHXt8coAynNG/QTq
+# gkagmMhxQuJK+MAe9CQ0Ap7l4L9jNbW9L9CEWUvnwdY0YtZeYmX85GAH5xxylAsY
+# 66SR285l4LH7Q5hgEA3WW+k//J0ismZSAUC8oq9EgOfbc+nF7L/IcmCbOCyrnifw
+# rkwoqFUN+NLpdUQfkO4S+g==
 # SIG # End signature block
