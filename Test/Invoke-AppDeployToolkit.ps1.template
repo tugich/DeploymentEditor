@@ -93,17 +93,17 @@ param
 
 $adtSession = @{
     # App variables.
-    AppVendor = 'Igor Pavlov'
-    AppName = '7-Zip'
-    AppVersion = '24.09'
-    AppArch = 'x64'
-    AppLang = 'EN'
+    AppVendor = '<ProductPublisher>'
+    AppName = '<ProductName>'
+    AppVersion = '<ProductVersion>'
+    AppArch = '<ProductArchitecture>'
+    AppLang = '<ProductLanguage>'
     AppRevision = '01'
     AppSuccessExitCodes = @(0)
     AppRebootExitCodes = @(1641, 3010)
     AppScriptVersion = '1.0.0'
-    AppScriptDate = '2025-04-23'
-    AppScriptAuthor = 'Tugay'
+    AppScriptDate = '<ScriptDate>'
+    AppScriptAuthor = '<ScriptAuthor>'
 
     # Install Titles (Only set here to override defaults set by the toolkit).
     InstallName = ''
@@ -135,11 +135,7 @@ function Install-ADTDeployment
     ## MARK: Install
     ##================================================
     $adtSession.InstallPhase = $adtSession.DeploymentType
-
-    # Install 7-Zip with defaults
-    Start-ADTProcess -ArgumentList "/S" -FilePath "7-Zip.exe"
-    New-ADTShortcut -Description "7-Zip File Manager" -Path "$envCommonDesktop\Archive File Manager.lnk" -TargetPath "$envProgramFiles\7-Zip\7zFM.exe" -WorkingDirectory "$envProgramFiles\7-Zip"
-    Show-ADTBalloonTip -BalloonTipText "Installed 7-Zip successfully!"
+<InstallationPart>
 
 
     ##================================================
@@ -170,9 +166,7 @@ function Uninstall-ADTDeployment
     ## MARK: Uninstall
     ##================================================
     $adtSession.InstallPhase = $adtSession.DeploymentType
-
-    Remove-ADTFile -Path "$envCommonDesktop\Archive File Manager.lnk"
-    Uninstall-ADTApplication -Name "7-Zip 24.09 (x64)"
+<UninstallPart>
 
 
     ##================================================
@@ -203,7 +197,7 @@ function Repair-ADTDeployment
     ## MARK: Repair
     ##================================================
     $adtSession.InstallPhase = $adtSession.DeploymentType
-
+<RepairPart>
 
 
     ##================================================

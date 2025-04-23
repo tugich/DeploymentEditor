@@ -18,7 +18,6 @@
 ;------------------------------------------------------------------------------------
 EnableExplicit
 UsePNGImageDecoder()
-;UseGIFImageDecoder()
 UseSQLiteDatabase()
 
 ;------------------------------------------------------------------------------------
@@ -384,7 +383,7 @@ Procedure CloseAboutWindow(EventType)
 EndProcedure
 
 Procedure ShowLicensing(EventType)
-  RunProgram(GetCurrentDirectory() + "LICENSE.txt", "", "")
+  RunProgram("notepad.exe", GetCurrentDirectory() + "LICENSE", GetCurrentDirectory())
 EndProcedure
 
 Procedure OpenDonationUrl(EventType)
@@ -976,7 +975,7 @@ Procedure RenderActionEditor(ID.i = -1)
   
   ; Default values
   Protected SelectedItem.i = GetGadgetState(Tree_Sequence)
-  Protected Command.s = "", Name.s = "", Description.s = "", VariableName.s = ""
+  Protected Command.s = "", Name.s = "", Description.s = "", VariableName.s = "", Conditions.s = ""
   Protected Disabled.i = 0, ContinueOnError.i = 0
   Protected ActionScrollAreaGadget = 0
   
@@ -1005,12 +1004,14 @@ Procedure RenderActionEditor(ID.i = -1)
     SetGadgetText(String_ActionName, "")
     SetGadgetText(String_ActionVariable, "")
     SetGadgetText(Editor_ActionDescription, "")
+    SetGadgetText(Editor_ActionConditions, "")
     SetGadgetState(Checkbox_ContinueOnError, #PB_Checkbox_Unchecked)
     SetGadgetState(Checkbox_DisabledAction, #PB_Checkbox_Unchecked)
     
     ; Disable gadgets
     DisableGadget(String_ActionName, #True)
     DisableGadget(Editor_ActionDescription, #True)
+    DisableGadget(Editor_ActionConditions, #True)
     DisableGadget(String_ActionVariable, #True)
     DisableGadget(Checkbox_ContinueOnError, #True)
     DisableGadget(Checkbox_DisabledAction, #True)
@@ -1029,6 +1030,7 @@ Procedure RenderActionEditor(ID.i = -1)
   Else
     DisableGadget(String_ActionName, #False)
     DisableGadget(Editor_ActionDescription, #False)
+    DisableGadget(Editor_ActionConditions, #False)
     DisableGadget(String_ActionVariable, #False)
     DisableGadget(Checkbox_ContinueOnError, #False)
     DisableGadget(Checkbox_DisabledAction, #False)
@@ -1050,10 +1052,11 @@ Procedure RenderActionEditor(ID.i = -1)
   BindGadgetEvent(String_ActionCommand, @EditorInputHandler(), #PB_EventType_Change)
   BindGadgetEvent(String_ActionName, @EditorInputHandler(), #PB_EventType_Change)
   BindGadgetEvent(Editor_ActionDescription, @EditorInputHandler(), #PB_EventType_Change)
+  BindGadgetEvent(Editor_ActionConditions, @EditorInputHandler(), #PB_EventType_Change)
   BindGadgetEvent(String_ActionVariable, @EditorInputHandler(), #PB_EventType_Change)
   
   ; Tab - Options
-  If DatabaseQuery(1, "SELECT Command, Name, Description, Disabled, ContinueOnError, VariableName FROM Actions WHERE ID="+ID+" LIMIT 1")
+  If DatabaseQuery(1, "SELECT Command, Name, Description, Disabled, ContinueOnError, VariableName, Conditions FROM Actions WHERE ID="+ID+" LIMIT 1")
     While NextDatabaseRow(1)
       Command = GetDatabaseString(1, 0)
       Name = GetDatabaseString(1, 1)
@@ -1061,11 +1064,13 @@ Procedure RenderActionEditor(ID.i = -1)
       Disabled = GetDatabaseLong(1, 3)
       ContinueOnError = GetDatabaseLong(1, 4)
       VariableName = GetDatabaseString(1, 5)
+      Conditions = GetDatabaseString(1, 6)
     Wend
     
     SetGadgetText(String_ActionCommand, Command)
     SetGadgetText(String_ActionName, Name)
     SetGadgetText(Editor_ActionDescription, Description)
+    SetGadgetText(Editor_ActionConditions, Conditions)
     SetGadgetText(String_ActionVariable, VariableName)
     
     If ContinueOnError = 1
@@ -1174,6 +1179,7 @@ EndProcedure
 Procedure SaveAction(EventType)
   Protected ActionName.s = GetGadgetText(String_ActionName)
   Protected ActionDescription.s = GetGadgetText(Editor_ActionDescription)
+  Protected ActionConditions.s = GetGadgetText(Editor_ActionConditions)
   Protected ActionVariable.s = GetGadgetText(String_ActionVariable)
   Protected ActionContinueOnError.i = GetGadgetState(Checkbox_ContinueOnError)
   Protected ActionDisabled.i = GetGadgetState(Checkbox_DisabledAction)
@@ -1223,7 +1229,7 @@ Procedure SaveAction(EventType)
   
   ; Save the options
   If IsDatabase(1) And SelectedActionID <> 0
-    CheckDatabaseUpdate(1, "UPDATE Actions SET Name='"+ActionName+"',Description='"+ActionDescription+"',VariableName='"+ActionVariable+"',Disabled="+ActionDisabled+",ContinueOnError="+ActionContinueOnError+" WHERE ID="+SelectedActionID)
+    CheckDatabaseUpdate(1, "UPDATE Actions SET Name='"+ActionName+"',Description='"+ActionDescription+"',Conditions='"+ActionConditions+"',VariableName='"+ActionVariable+"',Disabled="+ActionDisabled+",ContinueOnError="+ActionContinueOnError+" WHERE ID="+SelectedActionID)
   EndIf
   
   ; Finish
@@ -1471,10 +1477,11 @@ Procedure.s BuildScript(DeploymentType.s = "Installation")
   
   Protected ScriptBuilder.s = ""
   Protected PSADT_Spacing.s = Space(4)
+  Protected BlockOpened.i = 0 ; <- NEU
   
   ; Read database
   If OpenDatabase(1, Project_Database, "", "")
-    If DatabaseQuery(1, "SELECT Action,Command,Parameter,Value,Description,ContinueOnError,VariableName FROM View_Sequence WHERE Disabled=0 AND DeploymentType='"+DeploymentType+"' ORDER BY Step ASC")
+    If DatabaseQuery(1, "SELECT Action,Command,Parameter,Value,Description,ContinueOnError,VariableName,Conditions FROM View_Sequence WHERE Disabled=0 AND DeploymentType='"+DeploymentType+"' ORDER BY Step ASC")
       Protected LastAction.i = 0
       
       While NextDatabaseRow(1)
@@ -1485,38 +1492,46 @@ Procedure.s BuildScript(DeploymentType.s = "Installation")
         Protected Description.s = GetDatabaseString(1, 4)
         Protected ContinueOnError.i = GetDatabaseLong(1, 5)
         Protected VariableName.s = GetDatabaseString(1, 6)
+        Protected Conditions.s = GetDatabaseString(1, 7)
         Protected EnclosingCharacter.s = Chr(34)
         Protected Prefix_Variable.s = ""
         Protected ParameterType.s = ""
         
         ; Enclosing character by type
         ParameterType = ParameterTypeByCommand(Command, Parameter)
-        Debug Command+": "+ParameterType+" ("+Value+")"
         If Not FindString(ParameterType, "String")
           EnclosingCharacter = ""
-        Else
-          Debug "It's a string!"
         EndIf
         
-        ; Fix Description if any new lines are defined
         Description = RemoveString(Description, #CRLF$)
         
-        ; Special commands handling
         Select Command
-            
           Case "#CustomScript"
             Debug "Found custom script in the action list!"
             Value = ReplaceString(Value, #CRLF$, #CRLF$ + PSADT_Spacing)
             ScriptBuilder = ScriptBuilder + #CRLF$ + PSADT_Spacing + "# " + Description + #CRLF$ + PSADT_Spacing + Value
             LastAction = GetDatabaseLong(1, 0)
             Continue
-            
         EndSelect
         
-        ; Build PowerShell script (Command > Parameter > Value and special options)
         If CurrentAction <> LastAction Or (CurrentAction = 0 And Parameter = "")
           If Description <> ""
             ScriptBuilder = ScriptBuilder + #CRLF$ + PSADT_Spacing + "# " + Description
+          EndIf
+          
+          If Conditions <> ""
+            If BlockOpened
+              ScriptBuilder = ScriptBuilder + #CRLF$ + PSADT_Spacing + "}"
+            EndIf
+            ScriptBuilder = ScriptBuilder + #CRLF$ + PSADT_Spacing + "if ("+Conditions+") { "
+            PSADT_Spacing = Space(6)
+            BlockOpened = 1
+          Else
+            If BlockOpened
+              ScriptBuilder = ScriptBuilder + #CRLF$ + PSADT_Spacing + "}"
+              BlockOpened = 0
+            EndIf
+            PSADT_Spacing = Space(4)
           EndIf
           
           If Trim(VariableName) <> ""
@@ -1529,21 +1544,27 @@ Procedure.s BuildScript(DeploymentType.s = "Installation")
             ScriptBuilder = ScriptBuilder+" -ErrorAction SilentlyContinue"
           EndIf
         EndIf
-
+        
+        ; Parameters
         If Value <> ""
           Select ParameterType
             Case "SwitchParameter"
               If Value = "1"
                 ScriptBuilder = ScriptBuilder+" -"+Parameter
               EndIf
-              
             Default
-              ScriptBuilder = ScriptBuilder+" -"+Parameter+" "+EnclosingCharacter+Value+EnclosingCharacter+""
+              ScriptBuilder = ScriptBuilder+" -"+Parameter+" "+EnclosingCharacter+Value+EnclosingCharacter
           EndSelect
         EndIf
         
         LastAction = GetDatabaseLong(1, 0)
       Wend
+      
+      ; Schliessenden Block am Ende ergänzen
+      If BlockOpened
+        ScriptBuilder = ScriptBuilder + #CRLF$ + Space(4) + "}"
+        BlockOpened = 0
+      EndIf
       
       FinishDatabaseQuery(1) 
     Else
@@ -1556,6 +1577,13 @@ Procedure.s BuildScript(DeploymentType.s = "Installation")
   ProcedureReturn ScriptBuilder
 EndProcedure
 
+Procedure GenerateDeploymentTemplateFile()
+  If FileSize(Project_DeploymentFile + ".template") = -1
+    Debug "Template file is missing!"
+    CopyFile(PSADT_TemplateFile, Project_DeploymentFile + ".template")
+  EndIf
+EndProcedure
+
 Procedure GenerateDeploymentFile()
 
   ; Create parts
@@ -1563,6 +1591,12 @@ Procedure GenerateDeploymentFile()
   Protected InstallationPart.s = BuildScript("Installation")
   Protected UninstallPart.s = BuildScript("Uninstall")
   Protected RepairPart.s = BuildScript("Repair")
+  
+  ; Check if project deployment file template exists and create if needed
+  GenerateDeploymentTemplateFile()
+  
+  ; Set the project template file as base
+  PSADT_TemplateFile = Project_DeploymentFile + ".template"
   
   ; Create empty deployment file
   StatusBarText(0, 0, "Reset deployment file...")
@@ -1993,8 +2027,8 @@ Repeat
   
 Until Quit = #True
 ; IDE Options = PureBasic 6.20 (Windows - x64)
-; CursorPosition = 1540
-; FirstLine = 331
-; Folding = AAAAAAAAAAQAA+
+; CursorPosition = 1577
+; FirstLine = 347
+; Folding = AAAAAAAAAAQAA9
 ; EnableXP
 ; DPIAware

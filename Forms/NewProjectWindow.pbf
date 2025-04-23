@@ -1,4 +1,4 @@
-﻿; Form Designer for PureBasic - 6.12
+﻿; Form Designer for PureBasic - 6.20
 ; Warning: this file uses a strict syntax, if you edit it, make sure to respect the Form Designer limitation or it won't be opened again.
 
 ;
@@ -122,7 +122,7 @@ Procedure OpenNewProjectWindow(x = 0, y = 0, width = 900, height = 600)
   NPW_Button_OpenOtherProject = ButtonGadget(#PB_Any, 20, 550, 150, 30, "Open other project")
   NPW_Button_NewEmptyProject = ButtonGadget(#PB_Any, 730, 550, 150, 30, "New empty project")
   NPW_ButtonImage_Help = ButtonImageGadget(#PB_Any, 840, 20, 34, 30, ImageID(Img_NewProjectWindow_5))
-  Button_Donation = ButtonGadget(#PB_Any, 720, 20, 100, 30, "Donation")
+  Button_Donation = ButtonGadget(#PB_Any, 730, 20, 100, 30, "Donation")
 EndProcedure
 
 Procedure NewProjectWindow_Events(event)

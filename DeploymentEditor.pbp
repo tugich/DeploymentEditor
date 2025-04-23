@@ -7,16 +7,16 @@
   <section name="data">
     <explorer view="C:\ProgramData\PureBasic\Examples\" pattern="0"/>
     <log show="1"/>
-    <lastopen date="2025-04-21 02:01" user="taski" host="TUGIS-NOTEBOOK"/>
+    <lastopen date="2025-04-23 23:12" user="taski" host="TUGIS-NOTEBOOK"/>
   </section>
   <section name="files">
     <file name="DeploymentEditor.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="1" panelstate="+"/>
-      <fingerprint md5="60b7329df95ba69a31fe1662cb716a82"/>
+      <fingerprint md5="9119ad129af587c3cdca09cd72f4f14b"/>
     </file>
     <file name="Forms\MainWindow.pbf">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="2" panelstate="++"/>
-      <fingerprint md5="bfa2397a04c0e9c91da29e9156b9a6ae"/>
+      <fingerprint md5="1cdd56e75b88bced2c75caa08f6690b9"/>
     </file>
     <file name="Forms\AboutWindow.pbf">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="3" panelstate="++"/>
@@ -32,23 +32,31 @@
     </file>
     <file name="Forms\NewProjectWindow.pbf">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="6" panelstate="++"/>
-      <fingerprint md5="9323cd27c33dc8446bfe11f33e856b2c"/>
+      <fingerprint md5="14f606d5a1c62c1ea213353ee5018708"/>
+    </file>
+    <file name="Forms\RunRemoteWindow.pbf">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="7" panelstate="++"/>
+      <fingerprint md5="bd51c67bc7e0042e1f8ceeb29707c89d"/>
     </file>
     <file name="CHANGES.txt">
-      <config load="0" scan="0" panel="1" warn="1" lastopen="1" sortindex="7" panelstate="+"/>
-      <fingerprint md5="458c571d881893a881d558683001b72b"/>
+      <config load="0" scan="0" panel="1" warn="1" lastopen="1" sortindex="8" panelstate="+"/>
+      <fingerprint md5="8429c7341c625718384ade4bd6f3e5c6"/>
     </file>
-    <file name="LICENSE.txt">
-      <config load="0" scan="0" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="+"/>
-      <fingerprint md5="9392991c58f969dc29921652efe78b1a"/>
+    <file name="LICENSE">
+      <config load="0" scan="0" panel="1" warn="1" lastopen="1" sortindex="9" panelstate="+"/>
+      <fingerprint md5="e62637ea8a114355b985fd86c9ffbd6e"/>
     </file>
     <file name="LICENSE_ThirdParty.txt">
       <config load="0" scan="0" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="+"/>
       <fingerprint md5="a5200dc5aede9ae3097704087be139c2"/>
     </file>
-    <file name="README.txt">
+    <file name="README.md">
       <config load="0" scan="0" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="+"/>
-      <fingerprint md5="72df91a127c6abd37137701d6cb1e6c0"/>
+      <fingerprint md5="d43fe197a3420894ce717afce2eca4bd"/>
+    </file>
+    <file name="LICENSE_PSADT.txt">
+      <config load="0" scan="0" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="+"/>
+      <fingerprint md5="9a2fdfacfd7d93343e84bc7ffde89664"/>
     </file>
   </section>
   <section name="targets">

@@ -1,7 +1,10 @@
 Version 1.0.7 (Preview 7, Development):
-* Updated PSADT and templates to v4.0.6
-* Added action parameter to command: Start-ADTMsiProcess
-* Extended test project with MSI example
+* Updated PSADT and templates to v4.0.6 (#4)
+* Added condition for each action/command (#6)
+* Added project based template file (#5)
+* Added action parameter to command: Start-ADTMsiProcess (#2)
+* Added test project with MSI example (#2)
+* Added word wrap in description editor
 
 Version 1.0.6 (Preview 6):
 * Added new feature: Run Installation in Windows Sandbox

@@ -9,7 +9,7 @@
 
 Global MainWindow
 
-Global Container_Actions, Text_ProjectName, Hyperlink_ProjectSettings, ButtonImage_Go, Hyperlink_GenerateDeployment, Checkbox_SilentMode, ButtonImage_StartPowerShell, ButtonImage_Repair, ButtonImage_Uninstallation, ButtonImage_RefreshProject, ButtonImage_RunHelp, ButtonImage_AboutWindow, ButtonImage_Plugins, Panel_Commands, ListView_Commands, Button_AddCustomScript, Button_AddCommand, Tree_Sequence, Panel_Options, Checkbox_ContinueOnError, Text_ActionName, String_ActionName, Editor_ActionDescription, Text_ActionDescription, Checkbox_DisabledAction, Text_ActionCommand, String_ActionCommand, ButtonImage_ShowCommandHelp, Text_ActionVariable, String_ActionVariable, Text_ActionVariable_Hint, Text_DeploymentType, Combo_DeploymentType, Button_RemoveAction, Button_DuplicateAction, ButtonImage_MoveUp, ButtonImage_MoveDown, Image_Check, Image_DisabledStep, Button_SaveAction, Image_PowerShell, Button_DisableAction, Image_Exclamation
+Global Container_Actions, Text_ProjectName, Hyperlink_ProjectSettings, ButtonImage_Go, Hyperlink_GenerateDeployment, Checkbox_SilentMode, ButtonImage_StartPowerShell, ButtonImage_Repair, ButtonImage_Uninstallation, ButtonImage_RefreshProject, ButtonImage_RunHelp, ButtonImage_AboutWindow, ButtonImage_Plugins, Panel_Commands, ListView_Commands, Button_AddCustomScript, Button_AddCommand, Tree_Sequence, Panel_Options, Checkbox_ContinueOnError, Text_ActionName, String_ActionName, Editor_ActionDescription, Text_ActionDescription, Checkbox_DisabledAction, Text_ActionCommand, String_ActionCommand, ButtonImage_ShowCommandHelp, Text_ActionVariable, String_ActionVariable, Text_ActionVariable_Hint, Text_ActionConditions, Editor_ActionConditions, Text_DeploymentType, Combo_DeploymentType, Button_RemoveAction, Button_DuplicateAction, ButtonImage_MoveUp, ButtonImage_MoveDown, Image_Check, Image_DisabledStep, Button_SaveAction, Image_PowerShell, Button_DisableAction, Image_Exclamation
 
 Global Img_MainWindow_0, Img_MainWindow_1, Img_MainWindow_2, Img_MainWindow_3, Img_MainWindow_4, Img_MainWindow_5, Img_MainWindow_6, Img_MainWindow_7, Img_MainWindow_8, Img_MainWindow_9, Img_MainWindow_10, Img_MainWindow_11, Img_MainWindow_12, Img_MainWindow_13, Img_MainWindow_14
 
@@ -176,7 +176,7 @@ Procedure OpenMainWindow(x = 0, y = 0, width = 1400, height = 945)
   Text_ActionName = TextGadget(#PB_Any, 20, 88, 290, 25, "Name:")
   String_ActionName = StringGadget(#PB_Any, 20, 118, 290, 25, "")
   DisableGadget(String_ActionName, 1)
-  Editor_ActionDescription = EditorGadget(#PB_Any, 20, 188, 290, 180)
+  Editor_ActionDescription = EditorGadget(#PB_Any, 20, 188, 290, 90, #PB_Editor_WordWrap)
   DisableGadget(Editor_ActionDescription, 1)
   Text_ActionDescription = TextGadget(#PB_Any, 20, 158, 290, 25, "Description:")
   Checkbox_DisabledAction = CheckBoxGadget(#PB_Any, 20, 660, 290, 25, "Disable this Action")
@@ -191,6 +191,9 @@ Procedure OpenMainWindow(x = 0, y = 0, width = 1400, height = 945)
   String_ActionVariable = StringGadget(#PB_Any, 20, 418, 290, 25, "")
   Text_ActionVariable_Hint = TextGadget(#PB_Any, 20, 448, 290, 25, "Store the result of the command in a variable.")
   SetGadgetColor(Text_ActionVariable_Hint, #PB_Gadget_FrontColor,RGB(128,128,128))
+  Text_ActionConditions = TextGadget(#PB_Any, 20, 290, 290, 25, "Conditions (if else):")
+  Editor_ActionConditions = EditorGadget(#PB_Any, 20, 318, 290, 50, #PB_Editor_WordWrap)
+  DisableGadget(Editor_ActionConditions, 1)
   CloseGadgetList()
   Text_DeploymentType = TextGadget(#PB_Any, 810, 125, 110, 25, "Deployment Type:")
   Combo_DeploymentType = ComboBoxGadget(#PB_Any, 920, 120, 110, 25)
