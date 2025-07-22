@@ -102,7 +102,7 @@ $adtSession = @{
     AppSuccessExitCodes = @(0)
     AppRebootExitCodes = @(1641, 3010)
     AppScriptVersion = '1.0.0'
-    AppScriptDate = '2025-04-23'
+    AppScriptDate = '2025-07-14'
     AppScriptAuthor = 'Tugay'
 
     # Install Titles (Only set here to override defaults set by the toolkit).
@@ -172,7 +172,7 @@ function Uninstall-ADTDeployment
     $adtSession.InstallPhase = $adtSession.DeploymentType
 
     Remove-ADTFile -Path "$envCommonDesktop\Archive File Manager.lnk"
-    Uninstall-ADTApplication -Name "7-Zip 24.09 (x64)"
+    Uninstall-ADTApplication -Name "7-Zip"
 
 
     ##================================================

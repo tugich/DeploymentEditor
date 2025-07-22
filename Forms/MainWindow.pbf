@@ -1,4 +1,4 @@
-﻿; Form Designer for PureBasic - 6.20
+﻿; Form Designer for PureBasic - 6.21
 ; Warning: this file uses a strict syntax, if you edit it, make sure to respect the Form Designer limitation or it won't be opened again.
 
 ;
@@ -84,7 +84,7 @@ Declare GenerateAndStartRepair(EventType)
 Declare SaveAction(EventType)
 
 Procedure OpenMainWindow(x = 0, y = 0, width = 1400, height = 945)
-  MainWindow = OpenWindow(#PB_Any, x, y, width, height, "Deployment Editor (Preview) - TUGI.CH", #PB_Window_SystemMenu | #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget | #PB_Window_SizeGadget | #PB_Window_ScreenCentered)
+  MainWindow = OpenWindow(#PB_Any, x, y, width, height, "Deployment Editor (Preview) - TUGI.CH", #PB_Window_SystemMenu | #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget | #PB_Window_SizeGadget | #PB_Window_ScreenCentered | #PB_Window_SystemMenu | #PB_Window_MinimizeGadget | #PB_Window_ScreenCentered | #PB_Window_MaximizeGadget | #PB_Window_SizeGadget)
   HideWindow(MainWindow, 1)
   AddKeyboardShortcut(MainWindow, #PB_Shortcut_Control | #PB_Shortcut_O, #MenuItem_Open)
   AddKeyboardShortcut(MainWindow, #PB_Shortcut_Control | #PB_Shortcut_S, #MenuItem_Save)

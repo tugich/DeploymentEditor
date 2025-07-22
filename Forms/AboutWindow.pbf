@@ -1,4 +1,4 @@
-﻿; Form Designer for PureBasic - 6.20
+﻿; Form Designer for PureBasic - 6.21
 ; Warning: this file uses a strict syntax, if you edit it, make sure to respect the Form Designer limitation or it won't be opened again.
 
 ;
@@ -29,14 +29,14 @@ Declare CloseAboutWindow(EventType)
 Declare ShowLicensing(EventType)
 
 Procedure OpenAboutWindow(x = 0, y = 0, width = 600, height = 360)
-  AboutWindow = OpenWindow(#PB_Any, x, y, width, height, "About Deployment Editor by TUGI.CH", #PB_Window_SystemMenu | #PB_Window_ScreenCentered)
+  AboutWindow = OpenWindow(#PB_Any, x, y, width, height, "About Deployment Editor by TUGI.CH", #PB_Window_SystemMenu | #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget | #PB_Window_SizeGadget | #PB_Window_ScreenCentered | #PB_Window_SystemMenu | #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget | #PB_Window_SizeGadget | #PB_Window_ScreenCentered)
   Image_ApplicationIcon = ImageGadget(#PB_Any, 30, 30, 128, 128, ImageID(Img_AboutWindow_0))
   Text_Title = TextGadget(#PB_Any, 200, 60, 350, 50, "Deployment Editor")
   SetGadgetColor(Text_Title, #PB_Gadget_FrontColor,RGB(39,39,39))
   SetGadgetFont(Text_Title, FontID(#Font_AboutWindow_0))
   Text_AboutThisApp = TextGadget(#PB_Any, 200, 40, 100, 25, "About this app")
   SetGadgetFont(Text_AboutThisApp, FontID(#Font_AboutWindow_1))
-  Text_Version = TextGadget(#PB_Any, 200, 110, 350, 25, "Version 1.0.7 (Preview 7)")
+  Text_Version = TextGadget(#PB_Any, 200, 110, 350, 25, "Version 1.0.8 (Preview 8)")
   SetGadgetFont(Text_Version, FontID(#Font_AboutWindow_1))
   Text_Copyright = TextGadget(#PB_Any, 200, 140, 350, 25, "Copyright (c) 2025 Tugay Taskin - https://www.tugi.ch")
   Text_Description1 = TextGadget(#PB_Any, 200, 190, 350, 20, "Deployment Editor simplifies software packaging with")

@@ -1,4 +1,4 @@
-﻿; Form Designer for PureBasic - 6.20
+﻿; Form Designer for PureBasic - 6.21
 ; Warning: this file uses a strict syntax, if you edit it, make sure to respect the Form Designer limitation or it won't be opened again.
 
 ;
@@ -11,7 +11,7 @@ Global RunRemoteWindow
 
 
 Procedure OpenRunRemoteWindow(x = 0, y = 0, width = 600, height = 400)
-  RunRemoteWindow = OpenWindow(#PB_Any, x, y, width, height, "Run on Remote Machine", #PB_Window_SystemMenu)
+  RunRemoteWindow = OpenWindow(#PB_Any, x, y, width, height, "Run on Remote Machine", #PB_Window_SystemMenu | #PB_Window_SystemMenu | #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget | #PB_Window_SizeGadget | #PB_Window_ScreenCentered)
 EndProcedure
 
 Procedure RunRemoteWindow_Events(event)

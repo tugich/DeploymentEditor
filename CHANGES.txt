@@ -1,4 +1,7 @@
-Version 1.0.7 (Preview 7, Development):
+Version 1.0.8 (Preview 8, Current):
+* New Feature: WinGet Import
+
+Version 1.0.7 (Preview 7):
 * Updated PSADT and templates to v4.0.6 (#4)
 * Added condition for each action/command (#6)
 * Added project based template file (#5)

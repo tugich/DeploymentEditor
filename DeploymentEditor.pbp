@@ -1,50 +1,54 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<project xmlns="http://www.purebasic.com/namespace" version="1.0" creator="PureBasic 6.20 (Windows - x64)">
+<project xmlns="http://www.purebasic.com/namespace" version="1.0" creator="PureBasic 6.21 (Windows - x64)">
   <section name="config">
     <options closefiles="1" openmode="0" name="Deployment Editor"/>
   </section>
   <section name="data">
     <explorer view="C:\ProgramData\PureBasic\Examples\" pattern="0"/>
     <log show="1"/>
-    <lastopen date="2025-04-23 23:12" user="taski" host="TUGIS-NOTEBOOK"/>
+    <lastopen date="2025-07-22 12:31" user="taski" host="TUGI-DESKTOP"/>
   </section>
   <section name="files">
     <file name="DeploymentEditor.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="1" panelstate="+"/>
-      <fingerprint md5="9119ad129af587c3cdca09cd72f4f14b"/>
+      <fingerprint md5="b3d3c500176852a2222159115f37df53"/>
+    </file>
+    <file name="Forms\WinGetImportWindow.pbf">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="++"/>
+      <fingerprint md5="1003fb7d636f8622be898b3bfdb93e25"/>
+    </file>
+    <file name="CHANGES.txt">
+      <config load="0" scan="0" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="+"/>
+      <fingerprint md5="e9ad034027e65182ecd6ed38cc0a147c"/>
+    </file>
+    <file name="Forms\NewProjectWindow.pbf">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="++"/>
+      <fingerprint md5="bef04c5b75ded2f841a8a62c20b0f1c6"/>
     </file>
     <file name="Forms\MainWindow.pbf">
-      <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="2" panelstate="++"/>
-      <fingerprint md5="1cdd56e75b88bced2c75caa08f6690b9"/>
+      <config load="0" scan="1" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="++"/>
+      <fingerprint md5="0f69ab4683f93a1de9e21332462add0e"/>
+    </file>
+    <file name="Forms\RunRemoteWindow.pbf">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="++"/>
+      <fingerprint md5="62742b9f12b6a91c3504460522dbe68d"/>
+    </file>
+    <file name="LICENSE">
+      <config load="0" scan="0" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="+"/>
+      <fingerprint md5="e62637ea8a114355b985fd86c9ffbd6e"/>
     </file>
     <file name="Forms\AboutWindow.pbf">
-      <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="3" panelstate="++"/>
-      <fingerprint md5="a245814fcaf57f1df6174dc1ae902c83"/>
+      <config load="0" scan="1" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="++"/>
+      <fingerprint md5="c20e36383d604e5b777e1e0ef5ee8fc9"/>
     </file>
     <file name="Forms\ProjectSettingsWindow.pbf">
-      <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="4" panelstate="++"/>
+      <config load="0" scan="1" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="++"/>
       <fingerprint md5="9100b0a55ff56804d790931399882ee0"/>
     </file>
     <file name="Forms\PluginWindow.pbf">
-      <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="5" panelstate="++"/>
+      <config load="0" scan="1" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="++"/>
       <fingerprint md5="0b465b1c2d59cda46c360cfea3db5c97"/>
-    </file>
-    <file name="Forms\NewProjectWindow.pbf">
-      <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="6" panelstate="++"/>
-      <fingerprint md5="14f606d5a1c62c1ea213353ee5018708"/>
-    </file>
-    <file name="Forms\RunRemoteWindow.pbf">
-      <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="7" panelstate="++"/>
-      <fingerprint md5="bd51c67bc7e0042e1f8ceeb29707c89d"/>
-    </file>
-    <file name="CHANGES.txt">
-      <config load="0" scan="0" panel="1" warn="1" lastopen="1" sortindex="8" panelstate="+"/>
-      <fingerprint md5="8429c7341c625718384ade4bd6f3e5c6"/>
-    </file>
-    <file name="LICENSE">
-      <config load="0" scan="0" panel="1" warn="1" lastopen="1" sortindex="9" panelstate="+"/>
-      <fingerprint md5="e62637ea8a114355b985fd86c9ffbd6e"/>
     </file>
     <file name="LICENSE_ThirdParty.txt">
       <config load="0" scan="0" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="+"/>
@@ -52,11 +56,15 @@
     </file>
     <file name="README.md">
       <config load="0" scan="0" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="+"/>
-      <fingerprint md5="d43fe197a3420894ce717afce2eca4bd"/>
+      <fingerprint md5="7bd5f22ac684ac9eb344eabe395a663f"/>
     </file>
     <file name="LICENSE_PSADT.txt">
       <config load="0" scan="0" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="+"/>
       <fingerprint md5="9a2fdfacfd7d93343e84bc7ffde89664"/>
+    </file>
+    <file name="Forms\ProgressWindow.pbf">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="++"/>
+      <fingerprint md5="60334852733a65e3cab8999bf01e3c7a"/>
     </file>
   </section>
   <section name="targets">
@@ -64,13 +72,13 @@
       <inputfile value="DeploymentEditor.pb"/>
       <outputfile value="DeploymentEditor.exe"/>
       <executable value="DeploymentEditor.exe"/>
-      <options thread="1" xpskin="1" dpiaware="1" debug="1" optimizer="0"/>
+      <options thread="1" xpskin="1" dpiaware="1" debug="1" optimizer="1"/>
       <icon enable="1">Icon.ico</icon>
       <versioninfo enable="1">
-        <field0 value="1.0.7.0"/>
-        <field1 value="1.0.7.0"/>
-        <field4 value="1.0.7.0"/>
-        <field5 value="1.0.7.0"/>
+        <field0 value="1.0.8.0"/>
+        <field1 value="1.0.8.0"/>
+        <field4 value="1.0.8.0"/>
+        <field5 value="1.0.8.0"/>
       </versioninfo>
       <constants>
         <constant value="DE_Version=&quot;Preview&quot;" enable="1"/>

@@ -1,4 +1,4 @@
-﻿; Form Designer for PureBasic - 6.20
+﻿; Form Designer for PureBasic - 6.21
 ; Warning: this file uses a strict syntax, if you edit it, make sure to respect the Form Designer limitation or it won't be opened again.
 
 ;
@@ -36,6 +36,7 @@ LoadFont(#Font_NewProjectWindow_2,"Segoe UI Semibold", 10)
 LoadFont(#Font_NewProjectWindow_3,"Segoe UI", 8)
 LoadFont(#Font_NewProjectWindow_4,"Segoe UI", 12)
 
+Declare ShowWinGetImportWindow(EventType)
 Declare ShowAboutWindow(EventType)
 Declare OpenOtherProject(EventType)
 Declare OpenFirstRecentProject(EventType)
@@ -147,7 +148,7 @@ Procedure NewProjectWindow_Events(event)
         Case NPW_ImportEXE_Hyperlink
           NotAvailableFeatureMessage(EventType())          
         Case NPW_ImportWinGet_Hyperlink
-          NotAvailableFeatureMessage(EventType())          
+          ShowWinGetImportWindow(EventType())          
         Case NPW_Button_OpenOtherProject
           OpenOtherProject(EventType())          
         Case NPW_Button_NewEmptyProject

@@ -19,6 +19,7 @@
 EnableExplicit
 UsePNGImageDecoder()
 UseSQLiteDatabase()
+UseZipPacker()
 
 ;------------------------------------------------------------------------------------
 ;- Structures
@@ -60,6 +61,14 @@ Structure EditorPlugin
   Path.s
   File.s
   Parameter.s
+EndStructure
+
+Structure WinGetPackage
+  PackageIdentifier.s
+  PackageVersion.s
+  Scope.s
+  ReleaseDate.s
+  File.s
 EndStructure
 
 ;------------------------------------------------------------------------------------
@@ -105,6 +114,8 @@ RecentProjects()\FileName = "Invoke-AppDeployToolkit.db"
 RecentProjects()\FolderPath = Project_FolderPath
 ; Plugins
 Global NewList EditorPlugins.EditorPlugin()
+; WinGet
+Global NewList WinGetPackages.WinGetPackage()
 
 ; Action
 Global SelectedActionID.i
@@ -114,7 +125,16 @@ Global NewList ActionParameterGadgets.PSADT_Parameter_GadgetGroup()
 ; WinAPI
 Global tvi.TV_ITEM
 
-; Shortcuts
+; WinGet Package
+Global Download_Url.s = "", Download_OutputFile.s = ""
+Global WinGet_RepositoryUrl.s = "https://github.com/microsoft/winget-pkgs/archive/refs/heads/master.zip"
+Global WinGet_RepositoryLocalFile.s = GetTemporaryDirectory() + "WinGetRepository.zip"
+Global WinGet_ManifestTempFolder.s = GetTemporaryDirectory() + "Deployment Editor"
+Global WinGet_Identifier.s = "", WinGet_Version.s = "", WinGet_SilentSwitch.s = ""
+
+;------------------------------------------------------------------------------------
+;- Shortcuts
+;------------------------------------------------------------------------------------
 Enumeration KeyboardShortcuts
   
   ; Menu
@@ -145,6 +165,9 @@ Enumeration KeyboardShortcuts
   #Keyboard_Shortcut_Save
   #Keyboard_Shortcut_Run
   
+  ; WinGet
+  #WinGetImport_Enter
+  
 EndEnumeration
 
 ; Readme
@@ -165,6 +188,8 @@ XIncludeFile "Forms/AboutWindow.pbf"
 XIncludeFile "Forms/NewProjectWindow.pbf"
 XIncludeFile "Forms/ProjectSettingsWindow.pbf"
 XIncludeFile "Forms/PluginWindow.pbf"
+XIncludeFile "Forms/WinGetImportWindow.pbf"
+XIncludeFile "Forms/ProgressWindow.pbf"
 
 ;------------------------------------------------------------------------------------
 ;- Helpers
@@ -182,14 +207,14 @@ CompilerEndIf
 
 Procedure CheckDatabaseUpdate(Database, Query$)
   Protected Result.i
-  Debug "Update query: " + Query$
+  Debug "[Debug: Database Update] Update query: " + Query$
   
   Result = DatabaseUpdate(Database, Query$)
   If Result = 0
     Debug DatabaseError()
   Else
-    Debug "Database update was successfully."
-    Debug "Affected rows: " + AffectedDatabaseRows(Database)
+    Debug "[Debug: Database Update] Database update was successfully."
+    Debug "[Debug: Database Update] Affected rows: " + AffectedDatabaseRows(Database)
   EndIf
   
   ProcedureReturn Result
@@ -208,6 +233,534 @@ Procedure ShowMainWindow()
   OpenMainWindow()
   WindowBounds(MainWindow, WindowWidth(MainWindow)-100, WindowHeight(MainWindow), #PB_Ignore, #PB_Ignore)
   BindEvent(#PB_Event_SizeWindow, @ResizeGadgetsMainWindow(), MainWindow)
+EndProcedure
+
+Procedure UpdateProjectSettings(SettingName.s, Value.s)
+  SetDatabaseString(1, 0, SettingName)
+  SetDatabaseString(1, 1, Value)
+  CheckDatabaseUpdate(1, "INSERT INTO Settings (Name, Value) VALUES (?, ?)")
+EndProcedure
+
+Procedure UpdateProjectSettingByGadget(SettingName.s, Gadget)
+  SetDatabaseString(1, 0, GetGadgetText(Gadget))
+  SetDatabaseString(1, 1, SettingName)
+  CheckDatabaseUpdate(1, "UPDATE Settings SET Value = ? WHERE Name = ?")
+EndProcedure
+
+Procedure.s ReplaceDotsAndForwardSlashes(String.s)
+  String = ReplaceString(String, Chr(47), Chr(95))
+  String = ReplaceString(String, Chr(46), Chr(95))
+  ProcedureReturn String
+EndProcedure
+
+Procedure DownloadInternetFile(Url.s, OutputFile.s, Gadget, What.s = "file")
+  Protected Download, Progress
+  
+  ; Receive HTTP file from url and save it as local file to the file system
+  Download = ReceiveHTTPFile(Url, OutputFile, #PB_HTTP_Asynchronous)
+  
+  ; Progress download
+  If Download
+    Debug "[Debug: Internet File Downloader] Starting download ["+Url+"] to: " + OutputFile
+    Repeat
+      Progress = HTTPProgress(Download)
+      Select Progress
+          
+        ; Success
+        Case #PB_HTTP_Success
+          SetGadgetText(Gadget, "Download successfully")
+          FinishHTTP(Download)
+          Break
+          
+        ; Failed
+        Case #PB_HTTP_Failed
+          Debug "[Debug: Internet File Downloader] Download failed"
+          SetGadgetText(Gadget, "Download failed")
+          FinishHTTP(Download)
+          DeleteFile(OutputFile)
+          ProcedureReturn
+          
+        ; Aborted
+        Case #PB_HTTP_Aborted
+          Debug "[Debug: Internet File Downloader] Download aborted"
+          SetGadgetText(Gadget, "Download aborted")
+          FinishHTTP(Download)
+          DeleteFile(OutputFile)
+          ProcedureReturn
+          
+        ; Default
+        Default
+          Debug "[Debug: Internet File Downloader] Progress of downloading the installer file from internet: " + StrF(Progress / (1024 * 1024), 2) + " MB"
+          SetGadgetText(Gadget, "Downloading "+What+" from internet: " + StrF(Progress / (1024 * 1024), 2) + " MB")
+          
+      EndSelect
+      
+      Delay(500) ; Don't steal the whole CPU
+    ForEver
+  EndIf
+  
+EndProcedure
+
+Procedure.i UpdateLocalWinGetRepository()
+  
+  If FileSize(WinGet_RepositoryLocalFile) = -1
+    Debug "[Debug: WinGet Repository Downloader] Local master copy is not existing"
+    
+    ; Repo doesnt exist
+    If MessageRequester("WinGet Repository", "You need a local copy of the WinGet repository."+Chr(10)+"Do you want To download the latest version automatically from the internet?", #PB_MessageRequester_Warning | #PB_MessageRequester_YesNo) = #PB_MessageRequester_Yes
+      Debug "[Debug: WinGet Repository Downloader] Downloading master from the internet"
+      DownloadInternetFile(WinGet_RepositoryUrl, WinGet_RepositoryLocalFile, Text_WinGetStatus)
+      ProcedureReturn #True
+    Else
+      Debug "[Debug: WinGet Repository Downloader] Aborted master download"
+      ProcedureReturn #False
+    EndIf
+  Else
+    ; Repo exists already
+    If MessageRequester("WinGet Repository", "You already have a local copy of the WinGet repository. Do you want to update or download the latest version from the internet?", #PB_MessageRequester_Info | #PB_MessageRequester_YesNo) = #PB_MessageRequester_Yes
+      Debug "[Debug: WinGet Repository Downloader] Updating master on local filesystem"
+      DownloadInternetFile(WinGet_RepositoryUrl, WinGet_RepositoryLocalFile, Text_WinGetStatus)
+      ProcedureReturn #True
+    Else
+      Debug "[Debug: WinGet Repository Downloader] Cancelled master update"
+      ProcedureReturn #True
+    EndIf
+  EndIf
+  
+  ProcedureReturn #False
+EndProcedure
+
+Procedure DownloadWinGetManifests()
+  Protected PackagePath.s, ManifestFileName.s
+  Protected SearchFor.s = LCase(GetGadgetText(String_WinGetPackageSearch))
+  Protected ResultsCount.i = 0
+  
+  ; Delete temp folder
+  DeleteDirectory(WinGet_ManifestTempFolder, "*.*", #PB_FileSystem_Recursive)
+  
+  If 1 = 1
+    Debug "[Debug: WinGet Repository Extractor] File received and written to disk. If the remote file was not found, it will contains the webserver error."
+      If OpenPack(0, WinGet_RepositoryLocalFile) 
+        
+        ; List all the entries
+        If ExaminePack(0)
+          While NextPackEntry(0)
+            ;Debug "Name: " + PackEntryName(0) + ", Size: " + PackEntrySize(0)
+            
+            If FindString(LCase(PackEntryName(0)), SearchFor) And FindString(PackEntryName(0), "installer.yaml")
+              ;Debug "Name: " + PackEntryName(0)
+              ;Debug "File: " + GetFilePart(PackEntryName(0))
+              
+              ; Remove unnecessary informations
+              PackagePath = ReplaceString(PackEntryName(0), "winget-pkgs-master/manifests/", "")
+              PackagePath = Right(PackagePath, Len(PackagePath) - 2)
+              
+              ; Define file name for manifest
+              ManifestFileName = ReplaceDotsAndForwardSlashes(PackagePath)
+              
+              ; Debug
+              ; AddGadgetItem(WinGetImport_ListIcon, 0, PackagePath)
+              
+              ; Create directory for extraction
+              CreateDirectory(WinGet_ManifestTempFolder)
+              
+              ; Extract manifest
+              If UncompressPackFile(0, WinGet_ManifestTempFolder + "\" + ManifestFileName) = -1
+                Debug "[Debug: WinGet Repository Extractor] Error: unsuccessful unpacking of file: " + PackEntryName(0)
+              EndIf
+              
+              ; Count and limits
+              ResultsCount = ResultsCount + 1
+            EndIf
+            
+            If ResultsCount >= 200
+              Debug "[Debug: WinGet Repository Extractor] Limited to 200 extractions"
+              Break
+            EndIf
+
+          Wend
+        EndIf
+        
+        ClosePack(0)
+      EndIf
+  Else
+    Debug "[Debug: WinGet Repository Download] Failed to download package manifests."
+  EndIf
+EndProcedure
+
+Procedure ReadWinGetPackages()
+  Protected ManifestDirectory.s = WinGet_ManifestTempFolder + "\"
+  Protected FileName$, Format, Line.s
+  Protected PackageID.s, PackageVersion.s, Scope.s, ReleaseDate.s, File.s
+  
+  If ExamineDirectory(0, ManifestDirectory, "*.*") 
+    While NextDirectoryEntry(0)
+      FileName$ = DirectoryEntryName(0)
+      
+      If DirectoryEntryType(0) = #PB_DirectoryEntry_File
+        ;AddGadgetItem(WinGetImport_ListIcon, -1, FileName$)
+        
+        If ReadFile(0, ManifestDirectory + FileName$)
+          Format = ReadStringFormat(0)
+          While Eof(0) = 0
+            Line = ReadString(0, Format)
+            
+            If FindString(Line, "PackageIdentifier:") And Not FindString(Line, " - PackageIdentifier:")
+              PackageID = Trim(ReplaceString(Line, "PackageIdentifier:", ""))
+            EndIf
+            
+            If FindString(Line, "PackageVersion:")
+              PackageVersion = Trim(ReplaceString(Line, "PackageVersion:", ""))
+            EndIf
+            
+            If FindString(Line, "Scope:")
+              Scope = Trim(ReplaceString(Line, "Scope:", ""))
+            EndIf
+            
+            If FindString(Line, "ReleaseDate:")
+              ReleaseDate = Trim(ReplaceString(Line, "ReleaseDate:", ""))
+            EndIf
+          Wend
+          
+          ; Add element to the list
+          AddElement(WinGetPackages())
+          WinGetPackages()\File = FileName$
+          WinGetPackages()\PackageIdentifier = PackageID
+          WinGetPackages()\PackageVersion = RemoveString(RemoveString(PackageVersion, Chr(34)), Chr(39))
+          WinGetPackages()\Scope = Scope
+          WinGetPackages()\ReleaseDate = ReleaseDate
+          
+          CloseFile(0)
+        Else
+          MessageRequester("Information", "Couldn't open the file!")
+        EndIf
+        
+        ; Reset values
+        PackageID = ""
+        PackageVersion = ""
+        Scope = ""
+        ReleaseDate = ""
+      EndIf
+    Wend
+  Else
+    MessageRequester("Error","Can't examine the folder for all manifest files (or 0 search results - Please check the ID).",0)
+  EndIf
+EndProcedure
+
+Procedure RenderWinGetPackages()
+  ; Reset list
+  ClearList(WinGetPackages())
+  
+  ; Read all packages
+  ReadWinGetPackages()
+  
+  ; Clear gadgets
+  ClearGadgetItems(WinGetImport_ListIcon)
+  
+  ; Render in the list icon gadget
+  ForEach WinGetPackages()
+    AddGadgetItem(WinGetImport_ListIcon, 0, WinGetPackages()\PackageIdentifier +Chr(10)+ 
+                                            WinGetPackages()\PackageVersion +Chr(10)+
+                                            WinGetPackages()\Scope +Chr(10)+
+                                            WinGetPackages()\ReleaseDate +Chr(10)+
+                                            WinGetPackages()\File)
+  Next
+EndProcedure
+
+Procedure SearchWinGetPackage(EventType)
+  ; Set status text
+  SetGadgetText(Text_WinGetStatus, "Downloading and extracting packages...")
+  
+  ; Download and extracting manifests
+  DownloadWinGetManifests()
+  
+  ; Render package to the UI
+  RenderWinGetPackages()
+  
+  ; Set final status text
+  SetGadgetText(Text_WinGetStatus, "Select the package and press [Create New Project]")
+EndProcedure
+
+Procedure CloseWinGetImportWindow(EventType)
+  HideWindow(WinGetImportWindow, #True)
+EndProcedure
+
+Procedure CloseProgressWindow(EventType)
+  HideWindow(ProgressWindow, #True)
+  SetGadgetText(Text_ProgressStatus, "No running task.")
+EndProcedure
+
+Procedure DownloadInstallerFile(Event)
+  Protected Download, Progress
+  
+  ; Receive HTTP file from url and save it as local file to the file system
+  Download = ReceiveHTTPFile(Download_Url, Download_OutputFile, #PB_HTTP_Asynchronous)
+  
+  ; Progress download
+  If Download
+    Debug "[Debug: Installer Download] Starting download to: " + Download_OutputFile
+    Repeat
+      Progress = HTTPProgress(Download)
+      Select Progress
+          
+        ; Success
+        Case #PB_HTTP_Success
+          SetGadgetText(Text_ProgressStatus, "Download successfully: " +Chr(10)+ 
+                                             Download_Url +Chr(10)+Chr(10)+
+                                             "Saved file in location: " +Chr(10)+
+                                             Download_OutputFile)
+          FinishHTTP(Download)
+          Break
+          
+        ; Failed
+        Case #PB_HTTP_Failed
+          Debug "[Debug: Installer Download] Download failed"
+          SetGadgetText(Text_ProgressStatus, "Download failed: " + Download_Url)
+          FinishHTTP(Download)
+          DeleteFile(Download_OutputFile)
+          ProcedureReturn
+          
+        ; Aborted
+        Case #PB_HTTP_Aborted
+          Debug "[Debug: Installer Download] Download aborted"
+          SetGadgetText(Text_ProgressStatus, "Download aborted: " + Download_Url)
+          FinishHTTP(Download)
+          DeleteFile(Download_OutputFile)
+          ProcedureReturn
+          
+        ; Default
+        Default
+          Debug "[Debug: Installer Download] Progress of downloading the installer file from internet: " + StrF(Progress / (1024 * 1024), 2) + " MB"
+          SetGadgetText(Text_ProgressStatus, "Downloading the installer file from internet: " + StrF(Progress / (1024 * 1024), 2) + " MB")
+          
+      EndSelect
+      
+      Delay(500) ; Don't steal the whole CPU
+    ForEver
+    
+    ; Next steps: Create entry for project
+    Delay(1000)
+    SetGadgetText(Text_ProgressStatus, "Please wait - Adding installer and silent switch to the project...")
+    Delay(1000)
+    
+    ; Update project database
+    If IsDatabase(1)
+      If GetExtensionPart(Download_Url) = "msi"
+        SetDatabaseString(1, 0, "Start-ADTMsiProcess")
+        SetDatabaseString(1, 1, "Start MSI Installer")
+        SetDatabaseString(1, 2, "Running the setup installer")
+        CheckDatabaseUpdate(1, "INSERT INTO Actions (ID, Step, Command, Name, Disabled, Description, DeploymentType) VALUES (1, 1, ?, ?, 0, ?, 'Installation')")
+        CheckDatabaseUpdate(1, "INSERT INTO Actions_Values (Action, Parameter, Value) VALUES (1, 'FilePath', 'Installer.msi')")
+        CheckDatabaseUpdate(1, "INSERT INTO Actions_Values (Action, Parameter, Value) VALUES (1, 'Action', 'Install')")
+        FinishDatabaseQuery(1)
+      ElseIf GetExtensionPart(Download_Url) = "exe"
+        SetDatabaseString(1, 0, "Start-ADTProcess")
+        SetDatabaseString(1, 1, "Start EXE Installer")
+        SetDatabaseString(1, 2, "Running the setup installer")
+        CheckDatabaseUpdate(1, "INSERT INTO Actions (ID, Step, Command, Name, Disabled, Description, DeploymentType) VALUES (1, 1, ?, ?, 0, ?, 'Installation')")
+        CheckDatabaseUpdate(1, "INSERT INTO Actions_Values (Action, Parameter, Value) VALUES (1, 'FilePath', 'Installer.exe')")
+        CheckDatabaseUpdate(1, "INSERT INTO Actions_Values (Action, Parameter, Value) VALUES (1, 'ArgumentList', '"+WinGet_SilentSwitch+"')")
+        FinishDatabaseQuery(1)
+      Else
+        MessageRequester("WinGet Import", "Sorry, but the downloaded installer is an file type ("+GetExtensionPart(Download_Url)+"), which is Not currently supported For automated sequence generation.", #PB_MessageRequester_Error | #PB_MessageRequester_Ok)
+      EndIf
+      
+      ; Update progress text
+      SetGadgetText(Text_ProgressStatus, "The WinGet Import is now complete. You may now continue in the editor.")
+      
+      ; Refresh the UI
+      RefreshProject(0)
+      Delay(500)
+      UpdateWindow_(MainWindow)
+      ;HideWindow(ProgressWindow, #True)
+    EndIf
+  Else
+    Debug "[Debug: Installer Download] Download error: Could not initiate download."
+  EndIf
+EndProcedure
+
+Procedure LoadProjectSettings()
+  
+  ; Clear first the map with the old values
+  ClearMap(ProjectSettings())
+  
+  ; Read all new settings from the database
+  If OpenDatabase(1, Project_Database, "", "")
+    Debug "[Debug: Project Setting] Loaded Project Database successfully: " + PSADT_Database
+    
+    ; Get all project settings
+    If DatabaseQuery(1, "SELECT Name, Value FROM Settings")
+      While NextDatabaseRow(1)
+        AddMapElement(ProjectSettings(), GetDatabaseString(1, 0))
+        ProjectSettings()\Value = GetDatabaseString(1, 1)
+      Wend
+    Else
+      MessageRequester("Database Error", "Can't execute the query: " + DatabaseError(), #PB_MessageRequester_Error)
+    EndIf
+    
+    FinishDatabaseQuery(1)
+  Else
+    MessageRequester("Error", "Can't open the database: " + Project_Database, #PB_MessageRequester_Error)
+  EndIf  
+EndProcedure
+
+Procedure.s GetProjectSetting(Key.s = "")
+  Protected Value.s = ""
+  
+  If FindMapElement(ProjectSettings(), Key)
+    ForEach ProjectSettings()
+      If MapKey(ProjectSettings()) = Key
+        Value = ProjectSettings()\Value
+        Break
+      EndIf
+    Next
+  EndIf
+  
+  ProcedureReturn Value
+EndProcedure
+
+Procedure CreateWinGetProject(EventType)
+  Protected SelectedWinGetYaml.s, WinGetManifest_FilePath.s
+  Protected TargetArchitecture.s = GetGadgetText(Combo_TargetArchitecture)
+  Protected Format, Line.s
+  Protected FoundArchitecture = #False, FoundInstallerUrl = #False, FoundSilentSwitch = #False
+  Protected Identifier.s = "", Version.s = "", InstallerUrl.s = "", Silent.s = ""
+  
+  ; Find installer url and silent switch in manifest 
+  SelectedWinGetYaml = GetGadgetItemText(WinGetImport_ListIcon, GetGadgetState(WinGetImport_ListIcon), 4)
+  WinGetManifest_FilePath = WinGet_ManifestTempFolder + "\" + SelectedWinGetYaml
+  
+  If ReadFile(0, WinGetManifest_FilePath)
+    Format = ReadStringFormat(0)
+    While Eof(0) = 0
+      ; Read current line
+      Line = ReadString(0, Format)
+      
+      ; Search and extract informations
+      If FindString(Line, "PackageIdentifier:")
+        Identifier = ReplaceString(Line, "PackageIdentifier:", "")
+        Identifier = Trim(Identifier)
+        Identifier = RemoveString(RemoveString(Identifier, Chr(34)), Chr(39))
+        
+        Debug "[Debug: YAML] Package Identifier: " + Identifier
+      EndIf
+   
+      If FindString(Line, "PackageVersion:")
+        Version = ReplaceString(Line, "PackageVersion:", "")
+        Version = Trim(Version)
+        Version = RemoveString(RemoveString(Version, Chr(34)), Chr(39))
+        
+        Debug "[Debug: YAML] Version: " + Version
+      EndIf
+      
+      If FindString(Line, "InstallerType:") And FindString(Line, "nullsoft")
+        Silent = "/S"
+        FoundSilentSwitch = #True
+        
+        Debug "[Debug: YAML] Installer is Nullsoft"
+      EndIf
+      
+      If FindString(Line, "Silent:") And FoundArchitecture = #False And FoundInstallerUrl = #False
+        Silent = ReplaceString(Line, "Silent:", "")
+        Silent = LTrim(Silent)
+        
+        Debug "[Debug: YAML] Found main silent switch for all architectures: " + Silent
+        FoundSilentSwitch = #True
+      EndIf
+      
+      If FindString(Line, "- Architecture:") And FindString(Line, TargetArchitecture) And FoundInstallerUrl = #False
+        Debug "[Debug: YAML] Found target architecture: " + TargetArchitecture
+        FoundArchitecture = #True
+      EndIf
+      
+      If FoundArchitecture And FoundInstallerUrl = #False And FindString(Line, "InstallerUrl:")
+        InstallerUrl = ReplaceString(Line, "InstallerUrl:", "")
+        InstallerUrl = Trim(InstallerUrl)
+        
+        Debug "[Debug: YAML] Installer url: " + InstallerUrl
+        FoundInstallerUrl = #True
+      EndIf
+      
+      If FoundArchitecture And FoundInstallerUrl And FoundSilentSwitch = #False And FindString(Line, "Silent:")
+        Silent = ReplaceString(Line, "Silent:", "")
+        Silent = LTrim(Silent)
+        
+        Debug "[Debug: YAML] Found silent switch: " + Silent
+        FoundSilentSwitch = #True
+      EndIf
+      
+      If FoundArchitecture And FoundInstallerUrl And FoundSilentSwitch
+        Debug "[Debug: YAML] Found all details to create the project."
+        Break
+      EndIf
+    Wend
+    
+    ; Check for prereqs
+    If FoundArchitecture = #False Or FoundInstallerUrl = #False
+      ProcedureReturn MessageRequester("WinGet Import", "The WinGet package cannot be imported. The installer with "+TargetArchitecture+" support is missing.", #PB_MessageRequester_Error | #PB_MessageRequester_Ok)
+    EndIf
+    
+    CloseFile(0)
+  Else
+    MessageRequester("Information", "Couldn't open the manifest file: " + WinGetManifest_FilePath)
+  EndIf
+  
+  ; Open progress window
+  CloseWinGetImportWindow(0)
+
+  ; Create the new project by the user
+  If Not CreateNewProject(0)
+    ProcedureReturn
+  EndIf
+  
+  ; Download installer file
+  OpenProgressWindow()
+  
+  ; Start the asynchronous download to a file
+  Download_Url = InstallerUrl
+  Download_OutputFile = Project_FolderPath + "Files\Installer." + GetExtensionPart(Download_Url)
+  WinGet_Identifier = Identifier
+  WinGet_Version = Version
+  WinGet_SilentSwitch = Silent
+  CreateThread(@DownloadInstallerFile(), 0)
+  
+  ;RedrawWindow_(MainWindow, #Null, #Null, #RDW_INVALIDATE | #RDW_UPDATENOW)
+  UpdateWindow_(MainWindow)
+  
+  ; App name and vendor
+  Protected CompanyCharactersLength.i = FindString(WinGet_Identifier, ".", 0)
+
+  ; Update project settings
+  If IsDatabase(1)
+    UpdateProjectSettings("Database_Version", "1.0.4")
+    UpdateProjectSettings("Project_Name", "WinGet Project")
+    UpdateProjectSettings("App_Version", WinGet_Version)
+    UpdateProjectSettings("App_Vendor", StringField(WinGet_Identifier, 1, "."))
+    UpdateProjectSettings("App_Architecture", TargetArchitecture)
+    UpdateProjectSettings("App_Language", "EN")
+    UpdateProjectSettings("App_Author", "WinGet Import by Deployment Editor")
+    UpdateProjectSettings("App_Name", ReplaceString(Right(WinGet_Identifier, Len(WinGet_Identifier) - CompanyCharactersLength), ".", " "))
+    FinishDatabaseQuery(1)
+  EndIf
+  
+  ; Load new values
+  LoadProjectSettings()
+  
+  ; Update Main Window
+  SetGadgetText(Text_ProjectName, GetProjectSetting("Project_Name"))
+  
+  ; Message to the user
+  MessageRequester("WinGet Import", "Once the installer has been successfully downloaded in the background, the action/parameter for silent installation will be added automatically.", #PB_MessageRequester_Info | #PB_MessageRequester_Ok)
+  
+EndProcedure
+
+Procedure ShowWinGetImportWindow(EventType)
+  OpenWinGetImportWindow()
+  AddKeyboardShortcut(WinGetImportWindow, #PB_Shortcut_Return, #WinGetImport_Enter)
+  SetGadgetText(Combo_TargetArchitecture, "x64")
+  
+  ; Download WinGet repository master
+  UpdateLocalWinGetRepository()
 EndProcedure
 
 Procedure.s ShortenPathWithDots(Path.s)
@@ -264,46 +817,6 @@ Procedure CloseNewProjectWindow(EventType)
   EndIf
 EndProcedure
 
-Procedure.s GetProjectSetting(Key.s = "")
-  Protected Value.s = ""
-  
-  If FindMapElement(ProjectSettings(), Key)
-    ForEach ProjectSettings()
-      If MapKey(ProjectSettings()) = Key
-        Value = ProjectSettings()\Value
-        Break
-      EndIf
-    Next
-  EndIf
-  
-  ProcedureReturn Value
-EndProcedure
-
-Procedure LoadProjectSettings()
-  
-  ; Clear first the map with the old values
-  ClearMap(ProjectSettings())
-  
-  ; Read all new settings from the database
-  If OpenDatabase(1, Project_Database, "", "")
-    Debug "Loaded Project Database successfully: " + PSADT_Database
-    
-    ; Get all project settings
-    If DatabaseQuery(1, "SELECT Name, Value FROM Settings")
-      While NextDatabaseRow(1)
-        AddMapElement(ProjectSettings(), GetDatabaseString(1, 0))
-        ProjectSettings()\Value = GetDatabaseString(1, 1)
-      Wend
-    Else
-      MessageRequester("Database Error", "Can't execute the query: " + DatabaseError(), #PB_MessageRequester_Error)
-    EndIf
-    
-    FinishDatabaseQuery(1)
-  Else
-    MessageRequester("Error", "Can't open the database: " + Project_Database, #PB_MessageRequester_Error)
-  EndIf  
-EndProcedure
-
 Procedure ShowProjectSettingsWindow(EventType)    
   If IsWindow(ProjectSettingsWindow)
     HideWindow(ProjectSettingsWindow, #False)
@@ -327,12 +840,6 @@ Procedure CloseProjectSettingsWindow(EventType)
     HideWindow(ProjectSettingsWindow, #True)
     SetActiveWindow(MainWindow)
   EndIf
-EndProcedure
-
-Procedure UpdateProjectSettingByGadget(SettingName.s, Gadget)
-  SetDatabaseString(1, 0, GetGadgetText(Gadget))
-  SetDatabaseString(1, 1, SettingName)
-  CheckDatabaseUpdate(1, "UPDATE Settings SET Value = ? WHERE Name = ?")
 EndProcedure
 
 Procedure SaveProjectSettings(EventType)
@@ -371,8 +878,8 @@ Procedure CloseAboutWindow(EventType)
   If IsWindow(AboutWindow)
     HideWindow(AboutWindow, #True)
     
-    Debug "Active window ID is: "+GetActiveWindow()
-    Debug "New project window ID is: "+NewProjectWindow
+    Debug "[Debug: Close About Window] Active window ID is: "+GetActiveWindow()
+    Debug "[Debug: Close About Window] New project window ID is: "+NewProjectWindow
     
     If GetActiveWindow() = NewProjectWindow
       SetActiveWindow(NewProjectWindow)
@@ -395,7 +902,7 @@ Procedure NotAvailableFeatureMessage(EventType)
 EndProcedure
 
 Procedure ShowSoftwareLogFolder(EventType)
-  Debug "Start Windows Explorer for Software Logs."
+  Debug "[Debug: Software Log] Start Windows Explorer for Software Logs."
   RunProgram("explorer.exe", "C:\Windows\Logs\Software", "")
 EndProcedure
 
@@ -458,7 +965,7 @@ Procedure LoadProjectFile()
   
   ; Open the database
   If OpenDatabase(1, Project_Database, "", "")
-    Debug "Loaded Project Database successfully: " + Project_Database
+    Debug "[Debug: Project File Loader] Loaded Project Database successfully: " + Project_Database
     
     SetDatabaseString(1, 0, CurrentDeploymentType)
     If DatabaseQuery(1, "SELECT ID,Step,Command,Name,Disabled,Description,ContinueOnError,Action,Parameter,Value,DeploymentType,VariableName FROM View_Sequence WHERE DeploymentType=? ORDER BY Step ASC")
@@ -580,7 +1087,7 @@ Procedure LoadCommandsAndParameters()
   Protected PSADT_Command.s, PSADT_Category.s
   
   If OpenDatabase(0, PSADT_Database, "", "")
-    Debug "Loaded PSADT Database successfully: " + PSADT_Database
+    Debug "[Debug: PSADT Database Loader] Loaded PSADT Database successfully: " + PSADT_Database
     
     ; Get all commands
     If DatabaseQuery(0, "SELECT Command,Category FROM Commands ORDER BY Name ASC")
@@ -642,7 +1149,7 @@ EndProcedure
 Procedure LoadUI()
   
   ; Output in debug console
-  Debug "Triggered LoadUI()"
+  Debug "[Debug: UI] Triggered LoadUI()"
   
   ; Update gadgets and hide image placeholders
   SetGadgetState(Combo_DeploymentType, 0)
@@ -778,7 +1285,7 @@ Procedure CreateIntunePackage(EventType)
   WrapperParameters$ = ReplaceString(WrapperParameters$, "%InstallerPath%", Chr(34) + InstallerPath + Chr(34))
   WrapperParameters$ = ReplaceString(WrapperParameters$, "%PackagePath%", Chr(34) + PackagePath + Chr(34))
   
-  Debug "Parameters for the wrapper: " + WrapperParameters$
+  Debug "[Debug: Create Intune Package] Parameters for the wrapper: " + WrapperParameters$
   
   ; Run IntuneWinAppUtil
   StatusBarText(0, 0, "Create Intune package...")
@@ -802,10 +1309,10 @@ Procedure CreateIntunePackage(EventType)
 
   ; Check the exit code
   If Exitcode = 0
-    Debug "Successfully created the Intune package."
+    Debug "[Debug: Create Intune Package] Successfully created the Intune package."
     MessageRequester("Intune Package Creation", "The Intune package has been successfully created: "+PackagePath, #PB_MessageRequester_Info | #PB_MessageRequester_Ok)
   Else
-    Debug "Error Intune package creation!"
+    Debug "[Debug: Create Intune Package] Error Intune package creation!"
     MessageRequester("Intune Package Creation", "The Intune package compiler failed.", #PB_MessageRequester_Error | #PB_MessageRequester_Ok)
   EndIf
   
@@ -854,7 +1361,7 @@ Procedure OpenOtherProject(EventType)
   File$ = OpenFileRequester("Please choose project database file to load", StandardFile$, Pattern$, Pattern)
   
   If File$ = ""
-    Debug "Canceled project database selection."
+    Debug "[Debug: Project File Selector] Canceled project database selection."
     ProcedureReturn 0
   EndIf
   
@@ -885,7 +1392,7 @@ Procedure OpenOtherProject(EventType)
   
 EndProcedure
 
-Procedure CreateNewProject(EventType)
+Procedure.i CreateNewProject(EventType)
   
   ; Set destination path for the new project
   Protected InitialPath$, Path$, ExamineFolder
@@ -893,26 +1400,27 @@ Procedure CreateNewProject(EventType)
   Path$ = PathRequester("Please choose your path for the new project", InitialPath$)
   
   If Path$
-    Debug "Choosen path is: " + Path$
+    Debug "[Debug: New Project] Choosen path is: " + Path$
   Else
-    Debug "Abort project creation - No folder selected."
+    Debug "[Debug: New Project] Abort project creation - No folder selected."
     ProcedureReturn 0
   EndIf
   
   ; Ask user for confirmation
   Define Confirmation = MessageRequester("Confirmation", "Please confirm the destination folder first - all files will be overwritten with the default template files: " + Path$, #PB_MessageRequester_YesNoCancel | #PB_MessageRequester_Warning)
   If Confirmation = #PB_MessageRequester_No Or Confirmation = #PB_MessageRequester_Cancel
-    ProcedureReturn MessageRequester("Cancelled", "You have canceled the creation of a new project.", #PB_MessageRequester_Ok | #PB_MessageRequester_Info)
+    MessageRequester("Cancelled", "You have canceled the creation of a new project.", #PB_MessageRequester_Ok | #PB_MessageRequester_Info)
+    ProcedureReturn #False
   EndIf
   
   ; Copy template folder from PSADT source
-  Debug "Copy PSADT framework..."
-  Debug "Source Template folder: " + Template_PSADT
-  Debug "Destination folder: " + Path$
+  Debug "[Debug: New Project] Copy PSADT framework..."
+  Debug "[Debug: New Project] Source Template folder: " + Template_PSADT
+  Debug "[Debug: New Project] Destination folder: " + Path$
   CopyDirectory(Template_PSADT, Path$, "", #PB_FileSystem_Recursive | #PB_FileSystem_Force)
   
   ; Copy empty database template to destination folder
-  Debug "Copy empty database file..."
+  Debug "[Debug: New Project] Copy empty database file..."
   CopyFile(Template_EmptyDatabase, Path$ + "Invoke-AppDeployToolkit.db")
   
   ; Set Project Folder and File
@@ -940,13 +1448,14 @@ Procedure CreateNewProject(EventType)
   DisableGadget(Button_AddCommand, #False)
   DisableGadget(Button_AddCustomScript, #False)
   
+  ProcedureReturn #True
 EndProcedure
 
 Procedure.s GetActionParameterValueByID(ActionID.i, Parameter.s)
   Protected Value.s = ""
   Protected RequestQuery.s = "SELECT Value FROM Actions_Values WHERE Parameter='"+Parameter+"' AND Action="+ActionID
   
-  Debug "Query is: " + RequestQuery
+  Debug "[Debug: Action Query] Query is: " + RequestQuery
   
   If DatabaseQuery(1, RequestQuery)
     While NextDatabaseRow(1)
@@ -962,12 +1471,12 @@ Procedure.s GetActionParameterValueByID(ActionID.i, Parameter.s)
 EndProcedure
 
 Procedure EditorInputHandler()
-  Debug "Input in Editor > Action triggered."
+  Debug "[Debug: Editor Input Handler] Input in Editor > Action triggered."
   UnsavedChange = #True
 EndProcedure
 
 Procedure OptionsInputHandler()
-  Debug "Input in Editor > Options triggered."
+  Debug "[Debug: Options Input Handler] Input in Editor > Options triggered."
   SaveAction(0)
 EndProcedure
 
@@ -995,11 +1504,11 @@ Procedure RenderActionEditor(ID.i = -1)
     EndIf
   EndIf
 
-  Debug "You clicked on item with data ID: " + ID
+  Debug "[Debug: Action Editor Renderer] You clicked on item with data ID: " + ID
   SelectedActionID = ID
   
   If ID = 0
-    Debug "No action rendering by ID=0."
+    Debug "[Debug: Action Editor Renderer] No action rendering by ID=0."
     SetGadgetText(String_ActionCommand, "")
     SetGadgetText(String_ActionName, "")
     SetGadgetText(String_ActionVariable, "")
@@ -1112,7 +1621,7 @@ Procedure RenderActionEditor(ID.i = -1)
       Protected NamePrefix.s = ""
       
       ; Debug
-      Debug "Current action gadget count: " + Count
+      Debug "[Debug: Action Editor Renderer] Current action gadget count: " + Count
       
       ; Counting
       If Count <> 1
@@ -1136,7 +1645,7 @@ Procedure RenderActionEditor(ID.i = -1)
         FreeMemory(*Text)
         
       ElseIf ControlType = "Checkbox"
-        Debug "Control is checkbox."
+        Debug "[Debug: Action Editor Renderer] Control is checkbox."
         Define TextGadget = TextGadget(#PB_Any, 20, GadgetPosY, 270, GadgetDefaultHeight, NamePrefix+ParameterName+" ("+ParameterType+")"+":")
         Define InputGadget = CheckBoxGadget(#PB_Any, 20, (GadgetPosY + GadgetDefaultHeight), 270, GadgetDefaultHeight, "Enabled")
         GadgetToolTip(InputGadget, ParameterDescription)
@@ -1185,7 +1694,7 @@ Procedure SaveAction(EventType)
   Protected ActionDisabled.i = GetGadgetState(Checkbox_DisabledAction)
   
   If SelectedActionID = 0
-    Debug "No action selected for saving!"
+    Debug "[Debug: Save Action Handler] No action selected for saving!"
     ProcedureReturn
   EndIf
     
@@ -1213,7 +1722,7 @@ Procedure SaveAction(EventType)
     EndSelect
     
     ; Debug
-    Debug "Update action with ID "+ActionParameterGadgets()\ActionID+" And parameter "+ActionParameterGadgets()\Parameter+" With the value: "+GadgetValue
+    Debug "[Debug: Save Action Handler] Update action with ID "+ActionParameterGadgets()\ActionID+" And parameter "+ActionParameterGadgets()\Parameter+" With the value: "+GadgetValue
     
     ; Delete the old values
     SetDatabaseLong(1, 0, ActionParameterGadgets()\ActionID)
@@ -1243,14 +1752,14 @@ Procedure AddAction(EventType)
   Protected LastStep.i = 0, NextStep.i = 0
   Protected NewActionName.s = "Your new action"
   Protected Command.s = GetGadgetText(ListView_Commands)
-  Debug "Adding new action for: "+Command
+  Debug "[Debug: Add Action Handler] Adding new action for: "+Command
   
   ; Retrieve last step
   SetDatabaseString(1, 0, CurrentDeploymentType)
   If DatabaseQuery(1, "SELECT MAX(Step) FROM Actions WHERE DeploymentType=? LIMIT 1")
     If FirstDatabaseRow(1)
       LastStep = GetDatabaseLong(1, 0)
-      Debug "Last step count: "+LastStep
+      Debug "[Debug: Add Action Handler] Last step count: "+LastStep
     EndIf
   EndIf
   
@@ -1265,7 +1774,7 @@ Procedure AddAction(EventType)
   ; Add new action in the database
   If IsDatabase(1) And Command <> ""
     Protected Query.s = "INSERT INTO Actions (Step, Command, Name, Disabled, ContinueOnError, DeploymentType) VALUES ("+NextStep+", '"+Command+"', '"+NewActionName+"', 0, 0, '"+CurrentDeploymentType+"')"
-    Debug "Update table: "+Query
+    Debug "[Debug: Add Action Handler] Update table: "+Query
     CheckDatabaseUpdate(1, Query)
   EndIf
   
@@ -1284,7 +1793,7 @@ Procedure AddAction_CustomScript(EventType)
   If DatabaseQuery(1, "SELECT MAX(Step) FROM Actions WHERE DeploymentType=? LIMIT 1")
     If FirstDatabaseRow(1)
       LastStep = GetDatabaseLong(1, 0)
-      Debug "Last step count: "+LastStep
+      Debug "[Debug: Add Action Custom Script Handler] Last step count: "+LastStep
     EndIf
   EndIf
   
@@ -1294,7 +1803,7 @@ Procedure AddAction_CustomScript(EventType)
   ; Add new action
   If IsDatabase(1) And Command <> ""
     Protected Query.s = "INSERT INTO Actions (Step, Command, Name, Disabled, ContinueOnError, DeploymentType) VALUES ("+NextStep+", '"+Command+"', 'My custom PowerShell script', 0, 0, '"+CurrentDeploymentType+"')"
-    Debug "Update table: "+Query
+    Debug "[Debug: Add Action Custom Script Handler] Update table: "+Query
     CheckDatabaseUpdate(1, Query)
   EndIf
   
@@ -1312,11 +1821,11 @@ Procedure RemoveAction(EventType)
   ; Remove action
   If IsDatabase(1)
     Protected RemoveActionQuery.s = "DELETE FROM Actions WHERE ID="+SelectedActionID
-    Debug "Remove entry in table: "+RemoveActionQuery
+    Debug "[Debug: Remove Action Handler] Remove entry in table: "+RemoveActionQuery
     CheckDatabaseUpdate(1, RemoveActionQuery)
     
     Protected RemoveValuesQuery.s = "DELETE FROM Actions_Values WHERE Action="+SelectedActionID
-    Debug "Remove entry in table: "+RemoveValuesQuery
+    Debug "[Debug: Remove Action Handler] Remove entry in table: "+RemoveValuesQuery
     CheckDatabaseUpdate(1, RemoveValuesQuery)
   EndIf
   
@@ -1349,13 +1858,13 @@ Procedure MoveActionUp(EventType)
   If DatabaseQuery(1, "SELECT Step FROM Actions WHERE ID="+SelectedActionID)
     If FirstDatabaseRow(1)
       CurrentStep = GetDatabaseLong(1, 0)
-      Debug "Current step is: "+CurrentStep
+      Debug "[Debug: Move Action Handler] Current step is: "+CurrentStep
     EndIf
   EndIf
   
   ; Return if 
   If CurrentStep <= 1
-    Debug "The action is already the first one."
+    Debug "[Debug: Move Action Handler] The action is already the first one."
     ProcedureReturn
   EndIf
   
@@ -1369,7 +1878,7 @@ Procedure MoveActionUp(EventType)
   SetDatabaseString(1, 2, CurrentDeploymentType)
   If DatabaseQuery(1, "UPDATE Actions SET Step=? WHERE Step=? AND DeploymentType=?")
     If FirstDatabaseRow(1)
-      Debug "Fixed overlapping step."
+      Debug "[Debug: Move Action Handler] Fixed overlapping step."
     EndIf
   EndIf
   
@@ -1391,7 +1900,7 @@ Procedure MoveActionDown(EventType)
   If DatabaseQuery(1, "SELECT MAX(Step) FROM Actions WHERE DeploymentType='"+CurrentDeploymentType+"'")
     If FirstDatabaseRow(1)
       LastStep = GetDatabaseLong(1, 0)
-      Debug "Last step is: "+LastStep
+      Debug "[Debug: Move Action Handler] Last step is: "+LastStep
     EndIf
   EndIf
   
@@ -1399,13 +1908,13 @@ Procedure MoveActionDown(EventType)
   If DatabaseQuery(1, "SELECT Step FROM Actions WHERE ID="+SelectedActionID)
     If FirstDatabaseRow(1)
       CurrentStep = GetDatabaseLong(1, 0)
-      Debug "Current step is: "+CurrentStep
+      Debug "[Debug: Move Action Handler] Current step is: "+CurrentStep
     EndIf
   EndIf
   
   ; Return if 
   If CurrentStep >= LastStep
-    Debug "The action is already the last one."
+    Debug "[Debug: Move Action Handler] The action is already the last one."
     ProcedureReturn
   EndIf
 
@@ -1419,7 +1928,7 @@ Procedure MoveActionDown(EventType)
   SetDatabaseString(1, 2, CurrentDeploymentType)
   If DatabaseQuery(1, "UPDATE Actions SET Step=? WHERE Step=? AND DeploymentType=?")
     If FirstDatabaseRow(1)
-      Debug "Fixed overlapping step."
+      Debug "[Debug: Move Action Handler] Fixed overlapping step."
     EndIf
   EndIf
   
@@ -1437,7 +1946,7 @@ Procedure StartDeploymentWithPSADT(DeploymentType.s = "Install")
   Protected SilentSwitch.s = ""
   
   If GetGadgetState(Checkbox_SilentMode) = #PB_Checkbox_Checked
-    Debug "Running PSADT deployment in silent mode: "+DeploymentType
+    Debug "[Debug: PSADT Deployment Starter] Running PSADT deployment in silent mode: "+DeploymentType
     SilentSwitch = " -DeployMode Silent"
   EndIf
 
@@ -1507,7 +2016,7 @@ Procedure.s BuildScript(DeploymentType.s = "Installation")
         
         Select Command
           Case "#CustomScript"
-            Debug "Found custom script in the action list!"
+            Debug "[Debug: PSADT Script Builder] Found custom script in the action list!"
             Value = ReplaceString(Value, #CRLF$, #CRLF$ + PSADT_Spacing)
             ScriptBuilder = ScriptBuilder + #CRLF$ + PSADT_Spacing + "# " + Description + #CRLF$ + PSADT_Spacing + Value
             LastAction = GetDatabaseLong(1, 0)
@@ -1579,7 +2088,7 @@ EndProcedure
 
 Procedure GenerateDeploymentTemplateFile()
   If FileSize(Project_DeploymentFile + ".template") = -1
-    Debug "Template file is missing!"
+    Debug "[Debug: Deployment Template File Copier] Template file is missing!"
     CopyFile(PSADT_TemplateFile, Project_DeploymentFile + ".template")
   EndIf
 EndProcedure
@@ -1608,7 +2117,7 @@ Procedure GenerateDeploymentFile()
   Protected FileIn, FileOut, sLine.s
   FileIn = ReadFile(#PB_Any, PSADT_TemplateFile, #PB_File_SharedRead)
   If FileIn
-    Debug "Generating new deployment file: "+Project_DeploymentFile
+    Debug "[Debug: Deployment File Generator] Generating new deployment file: "+Project_DeploymentFile
     FileOut = OpenFile(#PB_Any, Project_DeploymentFile)
     
     If FileOut
@@ -1747,18 +2256,18 @@ Procedure DownloadIntuneWinAppUtil(Event)
   Protected DownloadFileSize = 0
 
   If ReceiveHTTPFile("https://github.com/microsoft/Microsoft-Win32-Content-Prep-Tool/raw/master/IntuneWinAppUtil.exe", DestinationPath)
-    Debug "IntuneWinAppUtil file size is: " + FileSize(DestinationPath)
+    Debug "[Debug: IntuneWinAppUtil] IntuneWinAppUtil file size is: " + FileSize(DestinationPath)
     DownloadFileSize = FileSize(DestinationPath)
     
     If DownloadFileSize >= 50000 And DownloadFileSize <= 100000
-      Debug "Downloaded IntuneWinAppUtil successfully: " + DestinationPath
+      Debug "[Debug: IntuneWinAppUtil] Downloaded IntuneWinAppUtil successfully: " + DestinationPath
       IntuneWinAppUtil = DestinationPath
     Else
-      Debug "Failed to download IntuneWinAppUtil - Wrong file size."
+      Debug "[Debug: IntuneWinAppUtil] Failed to download IntuneWinAppUtil - Wrong file size."
       MessageRequester("Error", "Unfortunately, something went wrong during the download of IntuneWinAppUtil. Please check your internet connection.", #PB_MessageRequester_Ok | #PB_MessageRequester_Error)
     EndIf
   Else
-    Debug "Failed to download IntuneWinAppUtil - Network issue"
+    Debug "[Debug: IntuneWinAppUtil] Failed to download IntuneWinAppUtil - Network issue"
     MessageRequester("Download Error", "Unfortunately, something went wrong during the download of IntuneWinAppUtil. Please check your internet connection.", #PB_MessageRequester_Ok | #PB_MessageRequester_Error)
   EndIf
   
@@ -1781,7 +2290,7 @@ Procedure LoadPlugins(Event)
           Protected PluginFolder.s = PluginDirectory + "\" + FileName$
           Protected PluginName.s = ReplaceString(FileName$, "Enabled-", "")
           
-          Debug "Found plugin which is enabled by folder name: "+PluginName+" ("+PluginFolder+")"
+          Debug "[Debug: Plugin Loader] Found plugin which is enabled by folder name: "+PluginName+" ("+PluginFolder+")"
           AddGadgetItem(ListView_Plugins, -1, PluginName)
           
           ; Read preference file
@@ -1821,7 +2330,7 @@ Procedure RenderPluginDetails(Event)
   
   ForEach EditorPlugins()
     If EditorPlugins()\ID = SelectedPluginID
-      Debug "Found details about the plugin!"
+      Debug "[Debug: Plugin Loader] Found details about the plugin!"
       SetGadgetText(Text_PluginDetails, EditorPlugins()\Name+#CRLF$+EditorPlugins()\Description+#CRLF$+#CRLF$+"Developed by "+EditorPlugins()\Author+#CRLF$+"Version: "+EditorPlugins()\Version)
       
       ; Stop loop
@@ -1839,12 +2348,12 @@ Procedure RunPlugin(EventType)
   
   ForEach EditorPlugins()
     If EditorPlugins()\ID = SelectedPluginID
-      Debug "Found the plugin! Lets run it."
+      Debug "[Debug: Plugin Loader] Found the plugin! Lets run it."
       Protected FilePath.s = EditorPlugins()\Path + "\" + EditorPlugins()\File
       
       ; Run process
       Protected PowerShell_Parameter.s = "-ExecutionPolicy ByPass -File "+Chr(34)+FilePath+Chr(34)+" -ProjectPath "+Chr(34)+Project_FolderPath
-      Debug "PowerShell parameter: " + PowerShell_Parameter
+      Debug "[Debug: Plugin Loader] PowerShell parameter: " + PowerShell_Parameter
       RunProgram("powershell.exe", PowerShell_Parameter, GetPathPart(FilePath))
       
       ; Stop loop
@@ -1862,7 +2371,7 @@ Procedure ShowPluginWindow(EventType)
   EndIf
   
   ; Load Plugins
-  Debug "Loading plugins..."
+  Debug "[Debug: Plugin Loader] Loading plugins..."
   CreateThread(@LoadPlugins(), 0)
 EndProcedure
 
@@ -1889,13 +2398,13 @@ Procedure EndApplication(EventType)
   
   ; Close PSADT database
   If IsDatabase(0)
-    Debug "Closing Commands Database: " + PSADT_Database
+    Debug "[Debug: Application Ending Process] Closing Commands Database: " + PSADT_Database
     CloseDatabase(0)
   EndIf
   
   ; Close Project database
   If IsDatabase(1)
-    Debug "Closing Project Database: " + Project_Database
+    Debug "[Debug: Application Ending Process] Closing Project Database: " + Project_Database
     CloseDatabase(1)
   EndIf
   
@@ -1913,7 +2422,7 @@ ShowNewProjectWindow(0)
 ShowSoftwareReadMe()
 
 ; New Thread: Download IntuneWinAppUtil
-Debug "Downloading IntuneWinAppUtil..."
+Debug "[Debug: IntuneWinAppUtil] Installing IntuneWinAppUtil from GitHub."
 CreateThread(@DownloadIntuneWinAppUtil(), 0)
 
 ;------------------------------------------------------------------------------------
@@ -2023,12 +2532,31 @@ Repeat
         AboutWindow_Events(Event)
       EndIf
       
+    ;- [WinGet Import Window]
+    Case WinGetImportWindow
+      If Event = #PB_Event_CloseWindow
+        CloseWinGetImportWindow(0)
+      ElseIf Event = #PB_Event_Menu
+          Select EventMenu()
+            Case #WinGetImport_Enter : SearchWinGetPackage(Event)
+          EndSelect
+      Else
+        WinGetImportWindow_Events(Event)
+      EndIf
+      
+    ;- [Progress Window]
+    Case ProgressWindow
+      If Event = #PB_Event_CloseWindow
+        CloseProgressWindow(0)
+      Else
+        ProgressWindow_Events(Event)
+      EndIf
+      
   EndSelect
   
 Until Quit = #True
-; IDE Options = PureBasic 6.20 (Windows - x64)
-; CursorPosition = 1577
-; FirstLine = 347
-; Folding = AAAAAAAAAAQAA9
+; IDE Options = PureBasic 6.21 (Windows - x64)
+; CursorPosition = 3
+; Folding = AAAAAAAAAAAAAAA5
 ; EnableXP
 ; DPIAware
