@@ -24,6 +24,7 @@ Enumeration FormMenu
   #MenuItem_ShowSupportFilesFolder
   #MenuItem_OpenWithISE
   #MenuItem_OpenWithNotepadPlusPlus
+  #MenuItem_OpenWithVSCode
   #MenuItem_RunInstallation
   #MenuItem_RunWindowsSandbox
   #MenuItem_RunOnRemoteMachine
@@ -84,7 +85,7 @@ Declare GenerateAndStartRepair(EventType)
 Declare SaveAction(EventType)
 
 Procedure OpenMainWindow(x = 0, y = 0, width = 1400, height = 945)
-  MainWindow = OpenWindow(#PB_Any, x, y, width, height, "Deployment Editor (Preview) - TUGI.CH", #PB_Window_SystemMenu | #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget | #PB_Window_SizeGadget | #PB_Window_ScreenCentered | #PB_Window_SystemMenu | #PB_Window_MinimizeGadget | #PB_Window_ScreenCentered | #PB_Window_MaximizeGadget | #PB_Window_SizeGadget)
+  MainWindow = OpenWindow(#PB_Any, x, y, width, height, "Deployment Editor (Preview) - TUGI.CH", #PB_Window_SystemMenu | #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget | #PB_Window_SizeGadget | #PB_Window_ScreenCentered | #PB_Window_SystemMenu | #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget | #PB_Window_SizeGadget | #PB_Window_ScreenCentered)
   HideWindow(MainWindow, 1)
   AddKeyboardShortcut(MainWindow, #PB_Shortcut_Control | #PB_Shortcut_O, #MenuItem_Open)
   AddKeyboardShortcut(MainWindow, #PB_Shortcut_Control | #PB_Shortcut_S, #MenuItem_Save)
@@ -109,6 +110,7 @@ Procedure OpenMainWindow(x = 0, y = 0, width = 1400, height = 945)
   MenuBar()
   MenuItem(#MenuItem_OpenWithISE, "Open Deployment File with PS ISE")
   MenuItem(#MenuItem_OpenWithNotepadPlusPlus, "Open Deployment File with Notepad++")
+  MenuItem(#MenuItem_OpenWithVSCode, "Open Deployment File with VS Code")
   MenuTitle("Run")
   MenuItem(#MenuItem_RunInstallation, "Run Installation" + Chr(9) + "F5")
   MenuItem(#MenuItem_RunWindowsSandbox, "Run Installation in Windows Sandbox")
@@ -264,6 +266,7 @@ Procedure MainWindow_Events(event)
         Case #MenuItem_ShowSupportFilesFolder
         Case #MenuItem_OpenWithISE
         Case #MenuItem_OpenWithNotepadPlusPlus
+        Case #MenuItem_OpenWithVSCode
         Case #MenuItem_RunInstallation
         Case #MenuItem_RunWindowsSandbox
         Case #MenuItem_RunOnRemoteMachine

@@ -1,4 +1,9 @@
-Version 1.0.8 (Preview 8, Current):
+Version 1.0.9 (Preview 9, Latest):
+* Updated PSADT and templates to v4.1.0
+* Added 'Open with VS Code' to the project menu bar (#9)
+* Fixed the demo project with 7-Zip
+
+Version 1.0.8 (Preview 8):
 * New Feature: WinGet Import
 
 Version 1.0.7 (Preview 7):

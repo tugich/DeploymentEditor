@@ -8,7 +8,7 @@ The script can be called directly to dot-source the toolkit functions for testin
 
 The script can usually be updated to the latest version without impacting your per-application Deploy-Application scripts. Please check release notes before upgrading.
 
-PSAppDeployToolkit is licensed under the GNU LGPLv3 License - (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
+PSAppDeployToolkit is licensed under the GNU LGPLv3 License - © 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the
 Free Software Foundation, either version 3 of the License, or any later version. This program is distributed in the hope that it will be useful, but
@@ -64,23 +64,23 @@ function Write-Log
 
         [Parameter(Mandatory = $false, Position = 2)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Source,
+        [System.String]$Source = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false, Position = 3)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$ScriptSection,
+        [System.String]$ScriptSection = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false, Position = 4)]
         [ValidateSet('CMTrace', 'Legacy')]
-        [System.String]$LogType,
+        [System.String]$LogType = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false, Position = 5)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$LogFileDirectory,
+        [System.String]$LogFileDirectory = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false, Position = 6)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$LogFileName,
+        [System.String]$LogFileName = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false, Position = 7)]
         [ValidateNotNullOrEmpty()]
@@ -88,7 +88,7 @@ function Write-Log
 
         [Parameter(Mandatory = $false, Position = 8)]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$MaxLogHistory,
+        [System.Nullable[System.Int32]]$MaxLogHistory,
 
         [Parameter(Mandatory = $false, Position = 9)]
         [ValidateNotNullOrEmpty()]
@@ -137,13 +137,13 @@ function Write-Log
         }
 
         # Set up collector for piped in messages.
-        $messages = [System.Collections.Specialized.StringCollection]::new()
+        $messages = [System.Collections.Generic.List[System.String]]::new()
     }
 
     process
     {
         # Add all non-null messages to the collector.
-        $null = $Message | & {
+        $Message | & {
             process
             {
                 if (![System.String]::IsNullOrWhiteSpace($_))
@@ -189,7 +189,7 @@ function Exit-Script
     (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$ExitCode
+        [System.Nullable[System.Int32]]$ExitCode
     )
 
     # Set strict mode to the highest within this function's scope.
@@ -215,7 +215,6 @@ function Exit-Script
 
 function Invoke-HKCURegistrySettingsForAllUsers
 {
-    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This compatibility wrapper function cannot have its name changed for backwards compatiblity purposes.")]
     [CmdletBinding()]
     param
     (
@@ -292,7 +291,7 @@ function Get-FreeDiskSpace
     (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Drive,
+        [System.String]$Drive = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -332,7 +331,6 @@ function Get-FreeDiskSpace
 function Remove-InvalidFileNameChars
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = "This compatibility wrapper function cannot support ShouldProcess for backwards compatiblity purposes.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This compatibility wrapper function cannot have its name changed for backwards compatiblity purposes.")]
     [CmdletBinding(SupportsShouldProcess = $false)]
     param
     (
@@ -348,7 +346,7 @@ function Remove-InvalidFileNameChars
 
         # Announce deprecation of function and set up accumulator for all piped in names.
         Write-ADTLogEntry -Message "The function [$($MyInvocation.MyCommand.Name)] has been replaced by [Remove-ADTInvalidFileNameChars]. Please migrate your scripts to use the new function." -Severity 2 -DebugMessage:$noDepWarnings
-        $names = [System.Collections.Specialized.StringCollection]::new()
+        $names = [System.Collections.Generic.List[System.String]]::new()
     }
 
     process
@@ -356,7 +354,7 @@ function Remove-InvalidFileNameChars
         # Add all non-null names to the collector.
         if (![System.String]::IsNullOrWhiteSpace($Name))
         {
-            $null = $names.Add($Name)
+            $names.Add($Name)
         }
     }
 
@@ -398,7 +396,7 @@ function Get-InstalledApplication
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$ProductCode,
+        [System.String]$ProductCode = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$Exact,
@@ -454,7 +452,6 @@ function Get-InstalledApplication
 function Remove-MSIApplications
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = "This compatibility wrapper function cannot support ShouldProcess for backwards compatiblity purposes.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This compatibility wrapper function cannot have its name changed for backwards compatiblity purposes.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'Name', Justification = "This parameter is passed to an underlying function via `$PSBoundParameters, therefore this warning is benign.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidAssignmentToAutomaticVariable', '', Justification = '$_ is intentionally overwritten in this function to expand the input array.')]
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'ArgumentList', Justification = "This parameter is passed to an underlying function via `$PSBoundParameters, therefore this warning is benign.")]
@@ -481,12 +478,12 @@ function Remove-MSIApplications
         [Parameter(Mandatory = $false)]
         [Alias('Arguments', 'Parameters')]
         [ValidateNotNullOrEmpty()]
-        [System.String]$ArgumentList,
+        [System.String]$ArgumentList = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
         [Alias('AddParameters')]
-        [System.String]$AdditionalArgumentList,
+        [System.String]$AdditionalArgumentList = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -501,11 +498,11 @@ function Remove-MSIApplications
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$LoggingOptions,
+        [System.String]$LoggingOptions = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [Alias('LogName')]
-        [System.String]$LogFileName,
+        [System.String]$LogFileName = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -598,7 +595,7 @@ function Remove-MSIApplications
         }
     )
 
-    $filterScript = $filterArray -join ' -and '
+    $filterScript = [System.String]::Join(' -and ', $filterArray)
 
     if ($filterScript)
     {
@@ -674,7 +671,6 @@ function Get-FileVersion
 
 function Get-UserProfiles
 {
-    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This compatibility wrapper function cannot have its name changed for backwards compatiblity purposes.")]
     [CmdletBinding()]
     param
     (
@@ -762,7 +758,6 @@ function Update-Desktop
 function Update-SessionEnvironmentVariables
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = "This compatibility wrapper function cannot support ShouldProcess for backwards compatiblity purposes.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This compatibility wrapper function cannot have its name changed for backwards compatiblity purposes.")]
     [CmdletBinding()]
     param
     (
@@ -942,7 +937,6 @@ function Remove-File
 
 function Copy-FileToUserProfiles
 {
-    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This compatibility wrapper function cannot have its name changed for backwards compatiblity purposes.")]
     [CmdletBinding(SupportsShouldProcess = $false)]
     param
     (
@@ -950,7 +944,7 @@ function Copy-FileToUserProfiles
         [System.String[]]$Path,
 
         [Parameter(Mandatory = $false, Position = 2)]
-        [System.String]$Destination,
+        [System.String]$Destination = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$Recurse,
@@ -964,7 +958,7 @@ function Copy-FileToUserProfiles
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$RobocopyAdditionalParams,
+        [System.String]$RobocopyAdditionalParams = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -1020,13 +1014,13 @@ function Copy-FileToUserProfiles
         }
 
         # Set up collector for piped in path objects.
-        $srcPaths = [System.Collections.Specialized.StringCollection]::new()
+        $srcPaths = [System.Collections.Generic.List[System.String]]::new()
     }
 
     process
     {
         # Add all non-null strings to the collector.
-        $null = $Path | & {
+        $Path | & {
             process
             {
                 if (![System.String]::IsNullOrWhiteSpace($_))
@@ -1072,7 +1066,7 @@ function Show-InstallationPrompt
     (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Title,
+        [System.String]$Title = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
@@ -1080,23 +1074,23 @@ function Show-InstallationPrompt
 
         [Parameter(Mandatory = $false)]
         [ValidateSet('Left', 'Center', 'Right')]
-        [System.String]$MessageAlignment,
+        [System.String]$MessageAlignment = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$ButtonRightText,
+        [System.String]$ButtonRightText = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$ButtonLeftText,
+        [System.String]$ButtonLeftText = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$ButtonMiddleText,
+        [System.String]$ButtonMiddleText = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateSet('Application', 'Asterisk', 'Error', 'Exclamation', 'Hand', 'Information', 'None', 'Question', 'Shield', 'Warning', 'WinLogo')]
-        [System.String]$Icon,
+        [System.String]$Icon = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$NoWait,
@@ -1109,7 +1103,7 @@ function Show-InstallationPrompt
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.UInt32]$Timeout,
+        [System.Nullable[System.UInt32]]$Timeout,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -1167,11 +1161,11 @@ function Show-InstallationProgress
     (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$StatusMessage,
+        [System.String]$StatusMessage = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateSet('Default', 'TopLeft', 'Top', 'TopRight', 'TopCenter', 'BottomLeft', 'Bottom', 'BottomRight')]
-        [System.String]$WindowLocation,
+        [System.String]$WindowLocation = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -1227,23 +1221,23 @@ function Show-DialogBox
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Title,
+        [System.String]$Title = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateSet('OK', 'OKCancel', 'AbortRetryIgnore', 'YesNoCancel', 'YesNo', 'RetryCancel', 'CancelTryAgainContinue')]
-        [System.String]$Buttons,
+        [System.String]$Buttons = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateSet('First', 'Second', 'Third')]
-        [System.String]$DefaultButton,
+        [System.String]$DefaultButton = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateSet('Exclamation', 'Information', 'None', 'Stop', 'Question')]
-        [System.String]$Icon,
+        [System.String]$Icon = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Timeout,
+        [System.String]$Timeout = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -1284,18 +1278,18 @@ function Show-InstallationWelcome
     (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$CloseApps,
+        [System.String]$CloseApps = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$Silent,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$CloseAppsCountdown,
+        [System.Nullable[System.Int32]]$CloseAppsCountdown,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$ForceCloseAppsCountdown,
+        [System.Nullable[System.Int32]]$ForceCloseAppsCountdown,
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$PromptToSave,
@@ -1314,22 +1308,22 @@ function Show-InstallationWelcome
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$DeferTimes,
+        [System.Nullable[System.Int32]]$DeferTimes,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$DeferDays,
+        [System.Nullable[System.Int32]]$DeferDays,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$DeferDeadline,
+        [System.String]$DeferDeadline = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(ParameterSetName = 'CheckDiskSpaceParameterSet', Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$CheckDiskSpace,
 
         [Parameter(ParameterSetName = 'CheckDiskSpaceParameterSet', Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$RequiredDiskSpace,
+        [System.Nullable[System.Int32]]$RequiredDiskSpace,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -1341,7 +1335,7 @@ function Show-InstallationWelcome
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$ForceCountdown,
+        [System.Nullable[System.Int32]]$ForceCountdown,
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$CustomText
@@ -1362,11 +1356,11 @@ function Show-InstallationWelcome
                 $name, $description = $_.Split('=')
                 if ($description)
                 {
-                    return [PSADT.Types.ProcessObject]::new($name, $description)
+                    return [PSADT.ProcessManagement.ProcessDefinition]::new($name, $description)
                 }
                 else
                 {
-                    return [PSADT.Types.ProcessObject]::new($name)
+                    return [PSADT.ProcessManagement.ProcessDefinition]::new($name)
                 }
             }
         }
@@ -1379,15 +1373,14 @@ function Show-InstallationWelcome
                 $PSBoundParameters.Remove($oldParam)
             }
         })
-    if ($PSBoundParameters.ContainsKey('MinimizeWindows'))
-    {
-        $PSBoundParameters.Add('NoMinimizeWindows', !$PSBoundParameters.MinimizeWindows)
-        $null = $PSBoundParameters.Remove('MinimizeWindows')
-    }
     if ($PSBoundParameters.ContainsKey('TopMost'))
     {
         $PSBoundParameters.Add('NotTopMost', !$PSBoundParameters.TopMost)
         $null = $PSBoundParameters.Remove('TopMost')
+    }
+    if ($MinimizeWindows)
+    {
+        $PSBoundParameters.Add('MinimizeWindows', $MinimizeWindows)
     }
 
     # Invoke function with amended parameters.
@@ -1457,11 +1450,11 @@ function Show-InstallationRestartPrompt
     (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$CountdownSeconds,
+        [System.Nullable[System.Int32]]$CountdownSeconds,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$CountdownNoHideSeconds,
+        [System.Nullable[System.Int32]]$CountdownNoHideSeconds,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -1469,7 +1462,7 @@ function Show-InstallationRestartPrompt
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$SilentCountdownSeconds,
+        [System.Nullable[System.Int32]]$SilentCountdownSeconds,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -1522,7 +1515,7 @@ function Show-BalloonTip
 
         [Parameter(Mandatory = $false, Position = 1)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$BalloonTipTitle,
+        [System.String]$BalloonTipTitle = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false, Position = 2)]
         [ValidateSet('Error', 'Info', 'None', 'Warning')]
@@ -1530,7 +1523,7 @@ function Show-BalloonTip
 
         [Parameter(Mandatory = $false, Position = 3)]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$BalloonTipTime,
+        [System.Nullable[System.Int32]]$BalloonTipTime,
 
         [Parameter(Mandatory = $false, Position = 4)]
         [System.Management.Automation.SwitchParameter]$NoWait
@@ -1678,7 +1671,7 @@ function Get-IniValue
     (
         [Parameter(Mandatory = $true)]
         [ValidateScript({
-                if (![System.IO.File]::Exists($_))
+                if (!(Test-Path -LiteralPath $_ -PathType Leaf))
                 {
                     $PSCmdlet.ThrowTerminatingError((New-ADTValidateScriptErrorRecord -ParameterName FilePath -ProvidedValue $_ -ExceptionMessage 'The specified file does not exist.'))
                 }
@@ -1736,7 +1729,7 @@ function Set-IniValue
     (
         [Parameter(Mandatory = $true)]
         [ValidateScript({
-                if (![System.IO.File]::Exists($_))
+                if (!(Test-Path -LiteralPath $_ -PathType Leaf))
                 {
                     $PSCmdlet.ThrowTerminatingError((New-ADTValidateScriptErrorRecord -ParameterName FilePath -ProvidedValue $_ -ExceptionMessage 'The specified file does not exist.'))
                 }
@@ -1912,7 +1905,7 @@ function Get-UniversalDate
     (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$DateTime,
+        [System.String]$DateTime = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -1950,7 +1943,6 @@ function Get-UniversalDate
 
 function Test-ServiceExists
 {
-    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This compatibility wrapper function cannot have its name changed for backwards compatiblity purposes.")]
     [CmdletBinding()]
     param
     (
@@ -1960,7 +1952,7 @@ function Test-ServiceExists
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$ComputerName,
+        [System.String]$ComputerName = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$PassThru,
@@ -2251,7 +2243,7 @@ function Get-ServiceStartMode
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$ComputerName,
+        [System.String]$ComputerName = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -2310,7 +2302,7 @@ function Set-ServiceStartMode
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$StartMode,
+        [System.String]$StartMode = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -2392,11 +2384,11 @@ function Execute-Process
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$MsiExecWaitTime = (Get-ADTConfig).MSI.MutexWaitTime,
+        [System.Nullable[System.Int32]]$MsiExecWaitTime = (Get-ADTConfig).MSI.MutexWaitTime,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$IgnoreExitCodes,
+        [System.String]$IgnoreExitCodes = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateSet('Idle', 'Normal', 'High', 'AboveNormal', 'BelowNormal', 'RealTime')]
@@ -2422,6 +2414,10 @@ function Execute-Process
     Write-ADTLogEntry -Message "The function [$($MyInvocation.MyCommand.Name)] has been replaced by [Start-ADTProcess]. Please migrate your scripts to use the new function." -Severity 2 -DebugMessage:$noDepWarnings
 
     # Convert out changed parameters.
+    if ($PSBoundParameters.ContainsKey('MsiExecWaitTime'))
+    {
+        $PSBoundParameters.MsiExecWaitTime = [System.TimeSpan]::FromSeconds($MsiExecWaitTime)
+    }
     if ($PSBoundParameters.ContainsKey('IgnoreExitCodes'))
     {
         $PSBoundParameters.IgnoreExitCodes = $IgnoreExitCodes.Split(',')
@@ -2462,7 +2458,7 @@ function Execute-MSI
     (
         [Parameter(Mandatory = $false)]
         [ValidateSet('Install', 'Uninstall', 'Patch', 'Repair', 'ActiveSetup')]
-        [System.String]$Action,
+        [System.String]$Action = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $true, HelpMessage = 'Please enter either the path to the MSI/MSP file or the ProductCode')]
         [ValidateScript({ ($_ -match (Get-ADTEnvironmentTable).MSIProductCodeRegExPattern) -or ('.msi', '.msp' -contains [System.IO.Path]::GetExtension($_)) })]
@@ -2471,17 +2467,17 @@ function Execute-MSI
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Transform,
+        [System.String]$Transform = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
         [Alias('Arguments', 'Parameters')]
-        [System.String]$ArgumentList,
+        [System.String]$ArgumentList = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
         [Alias('AddParameters')]
-        [System.String]$AdditionalArgumentList,
+        [System.String]$AdditionalArgumentList = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [Alias('SecureParameters')]
@@ -2489,20 +2485,20 @@ function Execute-MSI
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Patch,
+        [System.String]$Patch = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$LoggingOptions,
+        [System.String]$LoggingOptions = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
         [Alias('LogName')]
-        [System.String]$LogFileName,
+        [System.String]$LogFileName = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$WorkingDirectory,
+        [System.String]$WorkingDirectory = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$SkipMSIAlreadyInstalledCheck,
@@ -2518,7 +2514,7 @@ function Execute-MSI
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$IgnoreExitCodes,
+        [System.String]$IgnoreExitCodes = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateSet('Idle', 'Normal', 'High', 'AboveNormal', 'BelowNormal', 'RealTime')]
@@ -2692,7 +2688,7 @@ function Test-RegistryValue
 
         [Parameter(Mandatory = $false, Position = 2)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$SID,
+        [System.String]$SID = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$Wow6432Node
@@ -2756,7 +2752,7 @@ function Convert-RegistryPath
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$SID,
+        [System.String]$SID = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -2794,7 +2790,6 @@ function Convert-RegistryPath
 
 function Test-MSUpdates
 {
-    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This compatibility wrapper function cannot have its name changed for backwards compatiblity purposes.")]
     [CmdletBinding()]
     param
     (
@@ -2873,7 +2868,6 @@ function Test-Battery
 function Start-ServiceAndDependencies
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = "This compatibility wrapper function cannot support ShouldProcess for backwards compatiblity purposes.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This compatibility wrapper function cannot have its name changed for backwards compatiblity purposes.")]
     [CmdletBinding()]
     param
     (
@@ -2884,7 +2878,7 @@ function Start-ServiceAndDependencies
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$ComputerName,
+        [System.String]$ComputerName = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$SkipServiceExistsTest,
@@ -2950,7 +2944,6 @@ function Start-ServiceAndDependencies
 function Stop-ServiceAndDependencies
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = "This compatibility wrapper function cannot support ShouldProcess for backwards compatiblity purposes.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This compatibility wrapper function cannot have its name changed for backwards compatiblity purposes.")]
     [CmdletBinding()]
     param
     (
@@ -2961,7 +2954,7 @@ function Stop-ServiceAndDependencies
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$ComputerName,
+        [System.String]$ComputerName = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$SkipServiceExistsTest,
@@ -3036,13 +3029,13 @@ function Set-RegistryKey
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Name,
+        [System.String]$Name = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [System.Object]$Value,
 
         [Parameter(Mandatory = $false)]
-        [ValidateSet('Binary', 'DWord', 'ExpandString', 'MultiString', 'None', 'QWord', 'String', 'Unknown')]
+        [ValidateNotNullOrEmpty()]
         [Microsoft.Win32.RegistryValueKind]$Type,
 
         [Parameter(Mandatory = $false)]
@@ -3050,7 +3043,7 @@ function Set-RegistryKey
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$SID,
+        [System.String]$SID = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -3102,14 +3095,14 @@ function Remove-RegistryKey
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Name,
+        [System.String]$Name = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$Recurse,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$SID,
+        [System.String]$SID = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -3152,7 +3145,6 @@ function Remove-RegistryKey
 function Remove-FileFromUserProfiles
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = "This compatibility wrapper function cannot support ShouldProcess for backwards compatiblity purposes.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This compatibility wrapper function cannot have its name changed for backwards compatiblity purposes.")]
     [CmdletBinding()]
     param
     (
@@ -3237,14 +3229,14 @@ function Get-RegistryKey
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
         [Alias('Value')]
-        [System.String]$Name,
+        [System.String]$Name = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$Wow6432Node,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$SID,
+        [System.String]$SID = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$ReturnEmptyKeyIfExists,
@@ -3292,7 +3284,6 @@ function Get-RegistryKey
 
 function Install-MSUpdates
 {
-    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This compatibility wrapper function cannot have its name changed for backwards compatiblity purposes.")]
     [CmdletBinding()]
     param
     (
@@ -3318,47 +3309,83 @@ function Install-MSUpdates
 
 #---------------------------------------------------------------------------
 #
-# MARK: Wrapper around Get-ADTSchedulerTask
+# MARK: Direct implementation for Get-SchedulerTask.
 #
 #---------------------------------------------------------------------------
 
 function Get-SchedulerTask
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'TaskName', Justification = "This parameter is used within delegates that PSScriptAnalyzer has no visibility of. See https://github.com/PowerShell/PSScriptAnalyzer/issues/1472 for more details.")]
     [CmdletBinding()]
     param
     (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$TaskName,
+        [System.String]$TaskName = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
         [System.Boolean]$ContinueOnError = $true
     )
 
-    # Set strict mode to the highest within this function's scope.
-    Set-StrictMode -Version 3
+    begin
+    {
+        # Set strict mode to the highest within this function's scope.
+        Set-StrictMode -Version 3
 
-    # Announce overall deprecation and translate $ContinueOnError to an ActionPreference before executing.
-    Write-ADTLogEntry -Message "The function [$($MyInvocation.MyCommand.Name)] has been replaced by [Get-ADTSchedulerTask]. Please migrate your scripts to use the new function." -Severity 2 -DebugMessage:$noDepWarnings
-    if ($PSBoundParameters.ContainsKey('ContinueOnError'))
-    {
-        $null = $PSBoundParameters.Remove('ContinueOnError')
+        # Make this function continue on error.
+        Initialize-ADTFunction -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorAction ('Stop', 'SilentlyContinue')[$ContinueOnError]
+
+        # Advise that this function is considered deprecated.
+        Write-ADTLogEntry -Message "The function [$($MyInvocation.MyCommand.Name)] is deprecated. Please migrate your scripts to use the built-in [Get-ScheduledTask] Cmdlet." -Severity 2
     }
-    if (!$ContinueOnError)
+
+    process
     {
-        $PSBoundParameters.ErrorAction = [System.Management.Automation.ActionPreference]::Stop
-    }
-    try
-    {
-        Get-ADTSchedulerTask @PSBoundParameters
-    }
-    catch
-    {
-        if (!$ContinueOnError)
+        Write-ADTLogEntry -Message 'Retrieving Scheduled Tasks...'
+        try
         {
-            $PSCmdlet.ThrowTerminatingError($_)
+            try
+            {
+                # Get CSV data from the binary and confirm success.
+                $exeSchtasksResults = & "$([System.Environment]::SystemDirectory)\schtasks.exe" /Query /V /FO CSV 2>&1
+                if ($Global:LASTEXITCODE -ne 0)
+                {
+                    $naerParams = @{
+                        Exception = [System.Runtime.InteropServices.ExternalException]::new("The call to [$([System.Environment]::SystemDirectory)\schtasks.exe] failed with exit code [$Global:LASTEXITCODE].", $Global:LASTEXITCODE)
+                        Category = [System.Management.Automation.ErrorCategory]::InvalidResult
+                        ErrorId = 'SchTasksExecutableFailure'
+                        TargetObject = $exeSchtasksResults
+                        RecommendedAction = "Please review the result in this error's TargetObject property and try again."
+                    }
+                    throw (New-ADTErrorRecord @naerParams)
+                }
+
+                # Convert CSV data to objects and re-process to remove non-word characters before returning data to the caller.
+                if (($schTasks = $exeSchtasksResults | ConvertFrom-Csv | & { process { if (($_.TaskName -match '^\\') -and (!$PSBoundParameters.ContainsKey('TaskName') -or ($_.TaskName -match $TaskName))) { return $_ } } }))
+                {
+                    return $schTasks | Select-Object -Property ($schTasks[0].PSObject.Properties.Name | & {
+                            process
+                            {
+                                @{ Label = $_ -replace '[^\w]'; Expression = [scriptblock]::Create("`$_.'$_'") }
+                            }
+                        })
+                }
+            }
+            catch
+            {
+                Write-Error -ErrorRecord $_
+            }
         }
+        catch
+        {
+            Invoke-ADTFunctionErrorHandler -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorRecord $_ -LogMessage "Failed to retrieve scheduled tasks."
+        }
+    }
+
+    end
+    {
+        Complete-ADTFunction -Cmdlet $PSCmdlet
     }
 }
 
@@ -3404,7 +3431,7 @@ function Invoke-RegisterOrUnregisterDLL
         [Parameter(Mandatory = $false)]
         [ValidateSet('Register', 'Unregister')]
         [Alias('DLLAction')]
-        [System.String]$Action,
+        [System.String]$Action = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -3601,26 +3628,26 @@ function Set-ActiveSetup
 
         [Parameter(Mandatory = $false, ParameterSetName = 'Create')]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Arguments,
+        [System.String]$Arguments = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false, ParameterSetName = 'Create')]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Description,
+        [System.String]$Description = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Key,
+        [System.String]$Key = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$Wow6432Node,
 
         [Parameter(Mandatory = $false, ParameterSetName = 'Create')]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Version,
+        [System.String]$Version = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false, ParameterSetName = 'Create')]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Locale,
+        [System.String]$Locale = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false, ParameterSetName = 'Create')]
         [System.Management.Automation.SwitchParameter]$DisableActiveSetup,
@@ -3763,11 +3790,11 @@ function New-MsiTransform
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$ApplyTransformPath,
+        [System.String]$ApplyTransformPath = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$NewTransformPath,
+        [System.String]$NewTransformPath = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
@@ -3860,13 +3887,12 @@ function Invoke-SCCMTask
 
 function Install-SCCMSoftwareUpdates
 {
-    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This compatibility wrapper function cannot have its name changed for backwards compatiblity purposes.")]
     [CmdletBinding()]
     param
     (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$SoftwareUpdatesScanWaitInSeconds,
+        [System.Nullable[System.Int32]]$SoftwareUpdatesScanWaitInSeconds,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -3912,14 +3938,13 @@ function Install-SCCMSoftwareUpdates
 
 function Send-Keys
 {
-    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification = "This compatibility wrapper function cannot have its name changed for backwards compatiblity purposes.")]
     [CmdletBinding()]
     param
     (
         [Parameter(Mandatory = $false, Position = 0)]
         [AllowEmptyString()]
         [ValidateNotNull()]
-        [System.String]$WindowTitle,
+        [System.String]$WindowTitle = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false, Position = 1)]
         [ValidateNotNullOrEmpty()]
@@ -3931,11 +3956,11 @@ function Send-Keys
 
         [Parameter(Mandatory = $false, Position = 3)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Keys,
+        [System.String]$Keys = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false, Position = 4)]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$WaitSeconds
+        [System.Nullable[System.Int32]]$WaitSeconds
     )
 
     # Set strict mode to the highest within this function's scope.
@@ -4027,38 +4052,38 @@ function Set-Shortcut
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$TargetPath,
+        [System.String]$TargetPath = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Arguments,
+        [System.String]$Arguments = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$IconLocation,
+        [System.String]$IconLocation = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$IconIndex,
+        [System.String]$IconIndex = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Description,
+        [System.String]$Description = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$WorkingDirectory,
+        [System.String]$WorkingDirectory = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateSet('Normal', 'Maximized', 'Minimized', 'DontChange')]
-        [System.String]$WindowStyle,
+        [System.String]$WindowStyle = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [System.Nullable[System.Boolean]]$RunAsAdmin,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Hotkey,
+        [System.String]$Hotkey = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -4082,7 +4107,7 @@ function Set-Shortcut
         }
 
         # Set up collector for piped in path objects.
-        $paths = [System.Collections.Specialized.StringCollection]::new()
+        $paths = [System.Collections.Generic.List[System.String]]::new()
     }
 
     process
@@ -4145,34 +4170,34 @@ function New-Shortcut
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Arguments,
+        [System.String]$Arguments = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$IconLocation,
+        [System.String]$IconLocation = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$IconIndex,
+        [System.Nullable[System.Int32]]$IconIndex,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Description,
+        [System.String]$Description = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$WorkingDirectory,
+        [System.String]$WorkingDirectory = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateSet('Normal', 'Maximized', 'Minimized')]
-        [System.String]$WindowStyle,
+        [System.String]$WindowStyle = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$RunAsAdmin,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Hotkey,
+        [System.String]$Hotkey = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -4220,7 +4245,7 @@ function Execute-ProcessAsUser
     (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$UserName = (Get-ADTRunAsActiveUser).NTAccount,
+        [System.String]$UserName = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
@@ -4229,12 +4254,12 @@ function Execute-ProcessAsUser
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$TempPath,
+        [System.String]$TempPath = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
         [Alias('Parameters')]
-        [System.String]$ArgumentList,
+        [System.String]$ArgumentList = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [Alias('SecureParameters')]
@@ -4253,7 +4278,7 @@ function Execute-ProcessAsUser
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.String]$WorkingDirectory,
+        [System.String]$WorkingDirectory = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -4274,6 +4299,17 @@ function Execute-ProcessAsUser
                 $PSBoundParameters.Remove($_)
             }
         })
+
+    # Translate Wait parameter, which is now NoWait in 4.1
+    if ($PSBoundParameters.ContainsKey('Wait'))
+    {
+        $PSBoundParameters.Add('NoWait', !$PSBoundParameters.Wait)
+        $null = $PSBoundParameters.Remove('Wait')
+    }
+    else
+    {
+        $PSBoundParameters.Add('NoWait', $true)
+    }
 
     # Translate the ContinueOnError state.
     if ($PSBoundParameters.ContainsKey('ContinueOnError'))
@@ -4377,7 +4413,7 @@ function ConvertTo-NTAccountOrSID
         Write-ADTLogEntry -Message "The function [$($MyInvocation.MyCommand.Name)] has been replaced by [ConvertTo-ADTNTAccountOrSID]. Please migrate your scripts to use the new function." -Severity 2 -DebugMessage:$noDepWarnings
 
         # Set up collector for pipelined input.
-        $pipedInput = [System.Collections.Specialized.StringCollection]::new()
+        $pipedInput = [System.Collections.Generic.List[System.String]]::new()
     }
 
     process
@@ -4385,7 +4421,7 @@ function ConvertTo-NTAccountOrSID
         # Only add non-null strings to our collector.
         if (![System.String]::IsNullOrWhiteSpace(($thisInput = Get-Variable -Name $PSCmdlet.ParameterSetName -ValueOnly)))
         {
-            $null = $pipedInput.Add($thisInput)
+            $pipedInput.Add($thisInput)
         }
     }
 
@@ -4455,7 +4491,7 @@ function Set-DeferHistory
     (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$DeferTimesRemaining,
+        [System.Nullable[System.Int32]]$DeferTimesRemaining,
 
         [Parameter(Mandatory = $false)]
         [AllowEmptyString()]
@@ -4501,15 +4537,15 @@ function Get-MsiTableProperty
 
         [Parameter(Mandatory = $false, ParameterSetName = 'TableInfo')]
         [ValidateNotNullOrEmpty()]
-        [System.String]$Table,
+        [System.String]$Table = [System.Management.Automation.Language.NullString]::Value,
 
         [Parameter(Mandatory = $false, ParameterSetName = 'TableInfo')]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$TablePropertyNameColumnNum,
+        [System.Nullable[System.Int32]]$TablePropertyNameColumnNum,
 
         [Parameter(Mandatory = $false, ParameterSetName = 'TableInfo')]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$TablePropertyValueColumnNum,
+        [System.Nullable[System.Int32]]$TablePropertyValueColumnNum,
 
         [Parameter(Mandatory = $true, ParameterSetName = 'SummaryInfo')]
         [System.Management.Automation.SwitchParameter]$GetSummaryInformation,
@@ -4615,7 +4651,7 @@ function Get-MsiExitCodeMessage
     (
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
-        [System.Int32]$MsiExitCode
+        [System.Nullable[System.Int32]]$MsiExitCode
     )
 
     # Set strict mode to the highest within this function's scope.
@@ -4856,8 +4892,8 @@ function Test-IsMutexAvailable
         [System.String]$MutexName,
 
         [Parameter(Mandatory = $false)]
-        [ValidateNotNullOrEmpty()]
-        [System.TimeSpan]$MutexWaitTime
+        [ValidateScript({ ($_ -ge -1) -and ($_ -le [System.Int32]::MaxValue) })]
+        [System.Nullable[System.Int32]]$MutexWaitTimeInMilliseconds = 1
     )
 
     # Set strict mode to the highest within this function's scope.
@@ -4865,6 +4901,13 @@ function Test-IsMutexAvailable
 
     # Announce overall deprecation and any dead parameters before executing.
     Write-ADTLogEntry -Message "The function [$($MyInvocation.MyCommand.Name)] has been replaced by [Test-ADTMutexAvailability]. Please migrate your scripts to use the new function." -Severity 2 -DebugMessage:$noDepWarnings
+
+    # Convert out changed parameter.
+    if ($PSBoundParameters.ContainsKey('MutexWaitTimeInMilliseconds'))
+    {
+        $PSBoundParameters.MutexWaitTime = [System.TimeSpan]::FromMilliseconds($MutexWaitTimeInMilliseconds)
+        $null = $PSBoundParameters.Remove('MutexWaitTimeInMilliseconds')
+    }
 
     # Invoke underlying function.
     try
@@ -4936,7 +4979,7 @@ function New-ZipFile
     $null = $PSBoundParameters.Remove($PSCmdlet.ParameterSetName)
 
     # Convert destination parameters.
-    $PSBoundParameters.Add('DestinationPath', [System.IO.Path]::Combine($DestinationArchiveDirectoryPath, $DestinationArchiveFileName))
+    $PSBoundParameters.Add('DestinationPath', (Join-Path -Path $DestinationArchiveDirectoryPath -ChildPath $DestinationArchiveFileName))
     $null = $PSBoundParameters.Remove('DestinationArchiveDirectoryPath')
     $null = $PSBoundParameters.Remove('DestinationArchiveFileName')
 
@@ -5010,7 +5053,7 @@ function Write-FunctionHeaderOrFooter
 
         [Parameter(Mandatory = $true, ParameterSetName = 'Header')]
         [AllowEmptyCollection()]
-        [System.Collections.Hashtable]$CmdletBoundParameters,
+        [System.Collections.Generic.IReadOnlyDictionary[System.String, System.Object]]$CmdletBoundParameters,
 
         [Parameter(Mandatory = $true, ParameterSetName = 'Header')]
         [System.Management.Automation.SwitchParameter]$Header,
@@ -5018,6 +5061,9 @@ function Write-FunctionHeaderOrFooter
         [Parameter(Mandatory = $true, ParameterSetName = 'Footer')]
         [System.Management.Automation.SwitchParameter]$Footer
     )
+
+    # Set strict mode to the highest within this function's scope.
+    Set-StrictMode -Version 3
 
     if ($Header)
     {
@@ -5052,36 +5098,23 @@ $ProgressPreference = [System.Management.Automation.ActionPreference]::SilentlyC
 Set-StrictMode -Version 3
 
 # Import our module backend.
-$moduleName = if ([System.IO.Directory]::Exists("$PSScriptRoot\PSAppDeployToolkit"))
+$adtModule = if (Test-Path -LiteralPath "$PSScriptRoot\PSAppDeployToolkit" -PathType Container)
 {
     Get-ChildItem -LiteralPath $PSScriptRoot\PSAppDeployToolkit -Recurse -File | Unblock-File
-    "$PSScriptRoot\PSAppDeployToolkit\PSAppDeployToolkit.psd1"
+    Import-Module -FullyQualifiedName @{ ModuleName = "$PSScriptRoot\PSAppDeployToolkit\PSAppDeployToolkit.psd1"; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.0' } -Force -PassThru -ErrorAction Stop
 }
-elseif ([System.IO.Directory]::Exists("$PSScriptRoot\..\..\..\..\PSAppDeployToolkit"))
+elseif (Test-Path -LiteralPath "$PSScriptRoot\..\..\..\..\PSAppDeployToolkit" -PathType Container)
 {
     Get-ChildItem -LiteralPath $PSScriptRoot\..\..\..\..\PSAppDeployToolkit -Recurse -File | Unblock-File
-    "$PSScriptRoot\..\..\..\..\PSAppDeployToolkit\PSAppDeployToolkit.psd1"
+    Import-Module -FullyQualifiedName @{ ModuleName = "$PSScriptRoot\..\..\..\..\PSAppDeployToolkit\PSAppDeployToolkit.psd1"; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.0' } -Force -PassThru -ErrorAction Stop
 }
 else
 {
-    'PSAppDeployToolkit'
-}
-Remove-Module -Name PSAppDeployToolkit* -Force
-$adtModule = Import-Module -FullyQualifiedName @{ ModuleName = $moduleName; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.0.6' } -Force -PassThru -ErrorAction Stop
-
-# Get all parameters from Open-ADTSession that are considered frontend params/variables.
-$sessionVars = $adtModule.ExportedCommands.'Open-ADTSession'.Parameters.Values | & {
-    process
-    {
-        if ($_.ParameterSets.Values.HelpMessage -match '^Frontend (Parameter|Variable)$')
-        {
-            return $_.Name
-        }
-    }
+    Import-Module -FullyQualifiedName @{ ModuleName = 'PSAppDeployToolkit'; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.0' } -Force -PassThru -ErrorAction Stop
 }
 
 # Build out parameter hashtable and open a new deployment session.
-$sessionParams = Get-Variable -Name $sessionVars -ErrorAction Ignore | & {
+$sessionParams = $adtModule.ExportedCommands.'Open-ADTSession'.Parameters.Values | & {
     begin
     {
         # Open collector to hold valid parameters.
@@ -5090,19 +5123,38 @@ $sessionParams = Get-Variable -Name $sessionVars -ErrorAction Ignore | & {
 
     process
     {
-        # Add the parameter if it's not null.
-        if (![System.String]::IsNullOrWhiteSpace((Out-String -InputObject $_.Value)))
+        # Skip any Open-ADTSession params that are considered frontend params/variables.
+        if ($_.ParameterSets.Values.HelpMessage -notmatch '^Frontend (Parameter|Variable)$')
         {
-            $sessionParams.Add($_.Name, $_.Value)
+            return
+        }
+
+        # Skip if we didn't get a variable value.
+        if (!($variable = Get-Variable -Name $_.Name -ErrorAction Ignore))
+        {
+            return
+        }
+
+        # Add the parameter if it's not null.
+        if (![System.String]::IsNullOrWhiteSpace((Out-String -InputObject $variable.Value)))
+        {
+            $sessionParams.Add($variable.Name, $variable.Value)
         }
     }
 
     end
     {
-        # Remove AppScriptDate if it's Deploy-Application.ps1's default value.
-        if ($sessionParams.ContainsKey('AppScriptDate') -and ($sessionParams.AppScriptDate -eq 'XX/XX/20XX'))
+        # Remove dates if they fail to parse using local culture settings.
+        if ($sessionParams.ContainsKey('AppScriptDate'))
         {
-            $null = $sessionParams.Remove('AppScriptDate')
+            try
+            {
+                $sessionParams.AppScriptDate = [System.DateTime]::Parse($sessionParams.AppScriptDate, $Host.CurrentCulture)
+            }
+            catch
+            {
+                $null = $sessionParams.Remove('AppScriptDate')
+            }
         }
 
         # Redefine DeployAppScriptParameters due bad casting in Deploy-Application.ps1.
@@ -5118,13 +5170,13 @@ $sessionParams = Get-Variable -Name $sessionVars -ErrorAction Ignore | & {
 Open-ADTSession -SessionState $ExecutionContext.SessionState @sessionParams
 
 # Define aliases for some functions to maintain backwards compatibility.
-New-Alias -Name Refresh-SessionEnvironmentVariables -Value Update-ADTEnvironmentPsProvider -Option ReadOnly -Force
+New-Alias -Name Refresh-SessionEnvironmentVariables -Value Update-SessionEnvironmentVariables -Option ReadOnly -Force
 New-Alias -Name Refresh-Desktop -Value Update-Desktop -Option ReadOnly -Force
 
 # Finalize setup of AppDeployToolkitMain.ps1.
 Set-Item -LiteralPath $adtWrapperFuncs -Options ReadOnly
 New-Variable -Name noDepWarnings -Value (($adtConfig = Get-ADTConfig).Toolkit.ContainsKey('WrapperWarnings') -and !$adtConfig.Toolkit.WrapperWarnings) -Option ReadOnly -Force
-Remove-Variable -Name adtConfig, adtModule, adtWrapperFuncs, sessionParams, sessionVars -Force -Confirm:$false
+Remove-Variable -Name adtConfig, adtWrapperFuncs, sessionParams, adtModule -Force -Confirm:$false
 Set-StrictMode -Version 1
 
 
@@ -5140,21 +5192,21 @@ if ((Test-Path -LiteralPath "$PSScriptRoot\AppDeployToolkitExtensions.ps1" -Path
     $scriptParentPath = if ($invokingScript = (Get-Variable -Name 'MyInvocation').Value.ScriptName)
     {
         # If this script was invoked by another script.
-        Split-Path -Path $invokingScript -Parent
+        (Get-Item -LiteralPath $invokingScript).DirectoryName
     }
     else
     {
         # If this script was not invoked by another script, fall back to the directory one level above this script.
-        (Get-Item -LiteralPath (Split-Path -Path $MyInvocation.MyCommand.Definition -Parent)).Parent.FullName
+        (Get-Item -LiteralPath $MyInvocation.MyCommand.Definition).Directory.Parent.FullName
     }
     . "$PSScriptRoot\AppDeployToolkitExtensions.ps1"
 }
 
 # SIG # Begin signature block
-# MIIuLAYJKoZIhvcNAQcCoIIuHTCCLhkCAQExDzANBglghkgBZQMEAgEFADB5Bgor
+# MIIuaAYJKoZIhvcNAQcCoIIuWTCCLlUCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDnarrb2MryShTz
-# 2rhUxGlQzsR0KTP1uMRd/CjhJtS1v6CCE5UwggWQMIIDeKADAgECAhAFmxtXno4h
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAkpiH/NSYxAizp
+# H6u+Ywazl72xVCqZdmWeo2GK7rxELqCCE5UwggWQMIIDeKADAgECAhAFmxtXno4h
 # MuI5B72nd3VcMA0GCSqGSIb3DQEBDAUAMGIxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xITAfBgNV
 # BAMTGERpZ2lDZXJ0IFRydXN0ZWQgUm9vdCBHNDAeFw0xMzA4MDExMjAwMDBaFw0z
@@ -5259,143 +5311,144 @@ if ((Test-Path -LiteralPath "$PSScriptRoot\AppDeployToolkitExtensions.ps1" -Path
 # z+pfEMPqeX/g5+mpb4ap6ZmNJuAYJFmU0LIkCLQN9mKXi1Il9WU6ifn3vYutGMSL
 # /BdeWP+7fM7MZLiO+1BIsBdSmV6pZVS3LRBAy3wIlbWL69mvyLCPIQ7z4dtfuzwC
 # 36E9k2vhzeiDQ+k1dFJDSdxTDetsck0FuD1ovhiu2caL4BdFsCWsXPLMyvu6OlYx
-# ghntMIIZ6QIBATB9MGkxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwg
+# ghopMIIaJQIBATB9MGkxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwg
 # SW5jLjFBMD8GA1UEAxM4RGlnaUNlcnQgVHJ1c3RlZCBHNCBDb2RlIFNpZ25pbmcg
 # UlNBNDA5NiBTSEEzODQgMjAyMSBDQTECEAr5W7a+ogyFDpjG+46sCPkwDQYJYIZI
 # AWUDBAIBBQCggYQwGAYKKwYBBAGCNwIBDDEKMAigAoAAoQKAADAZBgkqhkiG9w0B
 # CQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3AgELMQ4wDAYKKwYBBAGCNwIBFTAv
-# BgkqhkiG9w0BCQQxIgQginQOBLiMe12fJu1Tjx7nsmiTRyJUeP1U/y8e79j+RVww
-# DQYJKoZIhvcNAQEBBQAEggGAllJeowvKPojGvk8FeLxAcbOInh8HhVS5JqKmO/LW
-# BS71BvcpclqY0I383t1+4cjGyY9p9e6ECAAD0Skio0xiCSLJTx+S7P3vgBouTtYb
-# zHLzZZBrBroLQt73Kzt2y+zVtgyjSe/DihTSLLTuRyhgatlD7Cyf+/LnhSjy+PgZ
-# BrfWOOobeAC5aE4Qb1n7PMT3Dgj0tD/mbJthXm+4IdGFGvlEihIYr47fS9tiYM+D
-# j6uvAZJEZ1nyQI9jMshNNBGd/dxH0wQxRb64D+C+XkW7l3Kzmz7PuFns9EChk8bc
-# cW4chWDlZkIN0MYyNBe9f0FoIWkfElIMX9du7l2fHWnnLhGkhqHKbzh5q0chJDsc
-# cIr8UnngdGHy9oM4wg3R8pEMeNt2+TGT8cBQpmReZxzuh7ZsJvENaas2li3hcNGr
-# S7C3FoJO2+hP2LVFc06U83OkjAv+V89zxTsesv8K2Bsh6Mksze/E42ZkF5//F6kG
-# 7OyDR/ZkwEJmq+r2zdbq4AhXoYIXOjCCFzYGCisGAQQBgjcDAwExghcmMIIXIgYJ
-# KoZIhvcNAQcCoIIXEzCCFw8CAQMxDzANBglghkgBZQMEAgEFADB4BgsqhkiG9w0B
-# CRABBKBpBGcwZQIBAQYJYIZIAYb9bAcBMDEwDQYJYIZIAWUDBAIBBQAEIOnk3QgW
-# v6+a0LMqNrj+X4R2kdwL4Xf/KhaxFEqEjuXzAhEA5tvTQ3Mj3UasW4EVw/k4hhgP
-# MjAyNTAyMjMyMzQ2NTVaoIITAzCCBrwwggSkoAMCAQICEAuuZrxaun+Vh8b56QTj
-# MwQwDQYJKoZIhvcNAQELBQAwYzELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lD
-# ZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdpQ2VydCBUcnVzdGVkIEc0IFJTQTQwOTYg
-# U0hBMjU2IFRpbWVTdGFtcGluZyBDQTAeFw0yNDA5MjYwMDAwMDBaFw0zNTExMjUy
-# MzU5NTlaMEIxCzAJBgNVBAYTAlVTMREwDwYDVQQKEwhEaWdpQ2VydDEgMB4GA1UE
-# AxMXRGlnaUNlcnQgVGltZXN0YW1wIDIwMjQwggIiMA0GCSqGSIb3DQEBAQUAA4IC
-# DwAwggIKAoICAQC+anOf9pUhq5Ywultt5lmjtej9kR8YxIg7apnjpcH9CjAgQxK+
-# CMR0Rne/i+utMeV5bUlYYSuuM4vQngvQepVHVzNLO9RDnEXvPghCaft0djvKKO+h
-# Du6ObS7rJcXa/UKvNminKQPTv/1+kBPgHGlP28mgmoCw/xi6FG9+Un1h4eN6zh92
-# 6SxMe6We2r1Z6VFZj75MU/HNmtsgtFjKfITLutLWUdAoWle+jYZ49+wxGE1/UXjW
-# fISDmHuI5e/6+NfQrxGFSKx+rDdNMsePW6FLrphfYtk/FLihp/feun0eV+pIF496
-# OVh4R1TvjQYpAztJpVIfdNsEvxHofBf1BWkadc+Up0Th8EifkEEWdX4rA/FE1Q0r
-# qViTbLVZIqi6viEk3RIySho1XyHLIAOJfXG5PEppc3XYeBH7xa6VTZ3rOHNeiYnY
-# +V4j1XbJ+Z9dI8ZhqcaDHOoj5KGg4YuiYx3eYm33aebsyF6eD9MF5IDbPgjvwmnA
-# alNEeJPvIeoGJXaeBQjIK13SlnzODdLtuThALhGtyconcVuPI8AaiCaiJnfdzUcb
-# 3dWnqUnjXkRFwLtsVAxFvGqsxUA2Jq/WTjbnNjIUzIs3ITVC6VBKAOlb2u29Vwgf
-# ta8b2ypi6n2PzP0nVepsFk8nlcuWfyZLzBaZ0MucEdeBiXL+nUOGhCjl+QIDAQAB
-# o4IBizCCAYcwDgYDVR0PAQH/BAQDAgeAMAwGA1UdEwEB/wQCMAAwFgYDVR0lAQH/
-# BAwwCgYIKwYBBQUHAwgwIAYDVR0gBBkwFzAIBgZngQwBBAIwCwYJYIZIAYb9bAcB
-# MB8GA1UdIwQYMBaAFLoW2W1NhS9zKXaaL3WMaiCPnshvMB0GA1UdDgQWBBSfVywD
-# dw4oFZBmpWNe7k+SH3agWzBaBgNVHR8EUzBRME+gTaBLhklodHRwOi8vY3JsMy5k
-# aWdpY2VydC5jb20vRGlnaUNlcnRUcnVzdGVkRzRSU0E0MDk2U0hBMjU2VGltZVN0
-# YW1waW5nQ0EuY3JsMIGQBggrBgEFBQcBAQSBgzCBgDAkBggrBgEFBQcwAYYYaHR0
-# cDovL29jc3AuZGlnaWNlcnQuY29tMFgGCCsGAQUFBzAChkxodHRwOi8vY2FjZXJ0
-# cy5kaWdpY2VydC5jb20vRGlnaUNlcnRUcnVzdGVkRzRSU0E0MDk2U0hBMjU2VGlt
-# ZVN0YW1waW5nQ0EuY3J0MA0GCSqGSIb3DQEBCwUAA4ICAQA9rR4fdplb4ziEEkfZ
-# Q5H2EdubTggd0ShPz9Pce4FLJl6reNKLkZd5Y/vEIqFWKt4oKcKz7wZmXa5VgW9B
-# 76k9NJxUl4JlKwyjUkKhk3aYx7D8vi2mpU1tKlY71AYXB8wTLrQeh83pXnWwwsxc
-# 1Mt+FWqz57yFq6laICtKjPICYYf/qgxACHTvypGHrC8k1TqCeHk6u4I/VBQC9VK7
-# iSpU5wlWjNlHlFFv/M93748YTeoXU/fFa9hWJQkuzG2+B7+bMDvmgF8VlJt1qQcl
-# 7YFUMYgZU1WM6nyw23vT6QSgwX5Pq2m0xQ2V6FJHu8z4LXe/371k5QrN9FQBhLLI
-# SZi2yemW0P8ZZfx4zvSWzVXpAb9k4Hpvpi6bUe8iK6WonUSV6yPlMwerwJZP/Gtb
-# u3CKldMnn+LmmRTkTXpFIEB06nXZrDwhCGED+8RsWQSIXZpuG4WLFQOhtloDRWGo
-# Cwwc6ZpPddOFkM2LlTbMcqFSzm4cd0boGhBq7vkqI1uHRz6Fq1IX7TaRQuR+0BGO
-# zISkcqwXu7nMpFu3mgrlgbAW+BzikRVQ3K2YHcGkiKjA4gi4OA/kz1YCsdhIBHXq
-# BzR0/Zd2QwQ/l4Gxftt/8wY3grcc/nS//TVkej9nmUYu83BDtccHHXKibMs/yXHh
-# DXNkoPIdynhVAku7aRZOwqw6pDCCBq4wggSWoAMCAQICEAc2N7ckVHzYR6z9KGYq
-# XlswDQYJKoZIhvcNAQELBQAwYjELMAkGA1UEBhMCVVMxFTATBgNVBAoTDERpZ2lD
+# BgkqhkiG9w0BCQQxIgQgD9tGio+iyJ7PKCkZhnsQaS4Fkx+jOOEpKY8zKXbIH78w
+# DQYJKoZIhvcNAQEBBQAEggGAbrSNASW6yBqBVVAhs0tJ8tOXtHXwX9mO3JYuWpy/
+# xzaUU+7LbSDp/qdm8OWFPzjncULwiGrXT2FcZXcnnKdxV0TryOSCnX3QhV94rFNm
+# FSp3H+MkG69Qo9AJbm7OSLyOSe37eLuSYkQLpzhUjWpXuE1hGkBBsdDNwg2IH1RA
+# 1YoLbcf/Fg/LT9Y0jw1Ysvjpek/WMvAcgMtH43lfqCw2FrvKiz4dxtAA8EKZMH5f
+# RId6W2a+0kqKeoEOnmllxDzbjlJRw+oduP5bhMXzcrg41bqyeQIUpWUX0R12SuZg
+# ix2j7MjVlhIBOVDRIIwuP89r1nV6ZeKVn1ZPNz4u4bFYZSVWRBlLQ+dgO47PtyOH
+# qiPbXnwjlUMY4uMKGcB2Roqlhw6/InlwERm26iImBDRv/aky6KNtQorL0ydqbS0e
+# xQrUfU7hEAmZninELDOBW5W9BemwnMl4y0vR0HbU1s1k9DY6wJtWE1izZCu3+B7Y
+# W4imu9IviFQtOe9jNHe2OpACoYIXdjCCF3IGCisGAQQBgjcDAwExghdiMIIXXgYJ
+# KoZIhvcNAQcCoIIXTzCCF0sCAQMxDzANBglghkgBZQMEAgEFADB3BgsqhkiG9w0B
+# CRABBKBoBGYwZAIBAQYJYIZIAYb9bAcBMDEwDQYJYIZIAWUDBAIBBQAEIJAQqmeN
+# HAa5PGvrSdAp4a3ZHBNCP5fi3pIQjzqO/O3OAhAkNesv6WJJ+dJBLA0SYrPdGA8y
+# MDI1MDgwNzA3MTEyMlqgghM6MIIG7TCCBNWgAwIBAgIQCoDvGEuN8QWC0cR2p5V0
+# aDANBgkqhkiG9w0BAQsFADBpMQswCQYDVQQGEwJVUzEXMBUGA1UEChMORGlnaUNl
+# cnQsIEluYy4xQTA/BgNVBAMTOERpZ2lDZXJ0IFRydXN0ZWQgRzQgVGltZVN0YW1w
+# aW5nIFJTQTQwOTYgU0hBMjU2IDIwMjUgQ0ExMB4XDTI1MDYwNDAwMDAwMFoXDTM2
+# MDkwMzIzNTk1OVowYzELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJ
+# bmMuMTswOQYDVQQDEzJEaWdpQ2VydCBTSEEyNTYgUlNBNDA5NiBUaW1lc3RhbXAg
+# UmVzcG9uZGVyIDIwMjUgMTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIB
+# ANBGrC0Sxp7Q6q5gVrMrV7pvUf+GcAoB38o3zBlCMGMyqJnfFNZx+wvA69HFTBdw
+# bHwBSOeLpvPnZ8ZN+vo8dE2/pPvOx/Vj8TchTySA2R4QKpVD7dvNZh6wW2R6kSu9
+# RJt/4QhguSssp3qome7MrxVyfQO9sMx6ZAWjFDYOzDi8SOhPUWlLnh00Cll8pjrU
+# cCV3K3E0zz09ldQ//nBZZREr4h/GI6Dxb2UoyrN0ijtUDVHRXdmncOOMA3CoB/iU
+# SROUINDT98oksouTMYFOnHoRh6+86Ltc5zjPKHW5KqCvpSduSwhwUmotuQhcg9tw
+# 2YD3w6ySSSu+3qU8DD+nigNJFmt6LAHvH3KSuNLoZLc1Hf2JNMVL4Q1OpbybpMe4
+# 6YceNA0LfNsnqcnpJeItK/DhKbPxTTuGoX7wJNdoRORVbPR1VVnDuSeHVZlc4seA
+# O+6d2sC26/PQPdP51ho1zBp+xUIZkpSFA8vWdoUoHLWnqWU3dCCyFG1roSrgHjSH
+# lq8xymLnjCbSLZ49kPmk8iyyizNDIXj//cOgrY7rlRyTlaCCfw7aSUROwnu7zER6
+# EaJ+AliL7ojTdS5PWPsWeupWs7NpChUk555K096V1hE0yZIXe+giAwW00aHzrDch
+# Ic2bQhpp0IoKRR7YufAkprxMiXAJQ1XCmnCfgPf8+3mnAgMBAAGjggGVMIIBkTAM
+# BgNVHRMBAf8EAjAAMB0GA1UdDgQWBBTkO/zyMe39/dfzkXFjGVBDz2GM6DAfBgNV
+# HSMEGDAWgBTvb1NK6eQGfHrK4pBW9i/USezLTjAOBgNVHQ8BAf8EBAMCB4AwFgYD
+# VR0lAQH/BAwwCgYIKwYBBQUHAwgwgZUGCCsGAQUFBwEBBIGIMIGFMCQGCCsGAQUF
+# BzABhhhodHRwOi8vb2NzcC5kaWdpY2VydC5jb20wXQYIKwYBBQUHMAKGUWh0dHA6
+# Ly9jYWNlcnRzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydFRydXN0ZWRHNFRpbWVTdGFt
+# cGluZ1JTQTQwOTZTSEEyNTYyMDI1Q0ExLmNydDBfBgNVHR8EWDBWMFSgUqBQhk5o
+# dHRwOi8vY3JsMy5kaWdpY2VydC5jb20vRGlnaUNlcnRUcnVzdGVkRzRUaW1lU3Rh
+# bXBpbmdSU0E0MDk2U0hBMjU2MjAyNUNBMS5jcmwwIAYDVR0gBBkwFzAIBgZngQwB
+# BAIwCwYJYIZIAYb9bAcBMA0GCSqGSIb3DQEBCwUAA4ICAQBlKq3xHCcEua5gQezR
+# CESeY0ByIfjk9iJP2zWLpQq1b4URGnwWBdEZD9gBq9fNaNmFj6Eh8/YmRDfxT7C0
+# k8FUFqNh+tshgb4O6Lgjg8K8elC4+oWCqnU/ML9lFfim8/9yJmZSe2F8AQ/UdKFO
+# tj7YMTmqPO9mzskgiC3QYIUP2S3HQvHG1FDu+WUqW4daIqToXFE/JQ/EABgfZXLW
+# U0ziTN6R3ygQBHMUBaB5bdrPbF6MRYs03h4obEMnxYOX8VBRKe1uNnzQVTeLni2n
+# HkX/QqvXnNb+YkDFkxUGtMTaiLR9wjxUxu2hECZpqyU1d0IbX6Wq8/gVutDojBIF
+# eRlqAcuEVT0cKsb+zJNEsuEB7O7/cuvTQasnM9AWcIQfVjnzrvwiCZ85EE8LUkqR
+# hoS3Y50OHgaY7T/lwd6UArb+BOVAkg2oOvol/DJgddJ35XTxfUlQ+8Hggt8l2Yv7
+# roancJIFcbojBcxlRcGG0LIhp6GvReQGgMgYxQbV1S3CrWqZzBt1R9xJgKf47Cdx
+# VRd/ndUlQ05oxYy2zRWVFjF7mcr4C34Mj3ocCVccAvlKV9jEnstrniLvUxxVZE/r
+# ptb7IRE2lskKPIJgbaP5t2nGj/ULLi49xTcBZU8atufk+EMF/cWuiC7POGT75qaL
+# 6vdCvHlshtjdNXOCIUjsarfNZzCCBrQwggScoAMCAQICEA3HrFcF/yGZLkBDIgw6
+# SYYwDQYJKoZIhvcNAQELBQAwYjELMAkGA1UEBhMCVVMxFTATBgNVBAoTDERpZ2lD
 # ZXJ0IEluYzEZMBcGA1UECxMQd3d3LmRpZ2ljZXJ0LmNvbTEhMB8GA1UEAxMYRGln
-# aUNlcnQgVHJ1c3RlZCBSb290IEc0MB4XDTIyMDMyMzAwMDAwMFoXDTM3MDMyMjIz
-# NTk1OVowYzELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTsw
-# OQYDVQQDEzJEaWdpQ2VydCBUcnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVT
-# dGFtcGluZyBDQTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAMaGNQZJ
-# s8E9cklRVcclA8TykTepl1Gh1tKD0Z5Mom2gsMyD+Vr2EaFEFUJfpIjzaPp985yJ
-# C3+dH54PMx9QEwsmc5Zt+FeoAn39Q7SE2hHxc7Gz7iuAhIoiGN/r2j3EF3+rGSs+
-# QtxnjupRPfDWVtTnKC3r07G1decfBmWNlCnT2exp39mQh0YAe9tEQYncfGpXevA3
-# eZ9drMvohGS0UvJ2R/dhgxndX7RUCyFobjchu0CsX7LeSn3O9TkSZ+8OpWNs5KbF
-# Hc02DVzV5huowWR0QKfAcsW6Th+xtVhNef7Xj3OTrCw54qVI1vCwMROpVymWJy71
-# h6aPTnYVVSZwmCZ/oBpHIEPjQ2OAe3VuJyWQmDo4EbP29p7mO1vsgd4iFNmCKseS
-# v6De4z6ic/rnH1pslPJSlRErWHRAKKtzQ87fSqEcazjFKfPKqpZzQmiftkaznTqj
-# 1QPgv/CiPMpC3BhIfxQ0z9JMq++bPf4OuGQq+nUoJEHtQr8FnGZJUlD0UfM2SU2L
-# INIsVzV5K6jzRWC8I41Y99xh3pP+OcD5sjClTNfpmEpYPtMDiP6zj9NeS3YSUZPJ
-# jAw7W4oiqMEmCPkUEBIDfV8ju2TjY+Cm4T72wnSyPx4JduyrXUZ14mCjWAkBKAAO
-# hFTuzuldyF4wEr1GnrXTdrnSDmuZDNIztM2xAgMBAAGjggFdMIIBWTASBgNVHRMB
-# Af8ECDAGAQH/AgEAMB0GA1UdDgQWBBS6FtltTYUvcyl2mi91jGogj57IbzAfBgNV
-# HSMEGDAWgBTs1+OC0nFdZEzfLmc/57qYrhwPTzAOBgNVHQ8BAf8EBAMCAYYwEwYD
-# VR0lBAwwCgYIKwYBBQUHAwgwdwYIKwYBBQUHAQEEazBpMCQGCCsGAQUFBzABhhho
-# dHRwOi8vb2NzcC5kaWdpY2VydC5jb20wQQYIKwYBBQUHMAKGNWh0dHA6Ly9jYWNl
-# cnRzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydFRydXN0ZWRSb290RzQuY3J0MEMGA1Ud
-# HwQ8MDowOKA2oDSGMmh0dHA6Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydFRy
-# dXN0ZWRSb290RzQuY3JsMCAGA1UdIAQZMBcwCAYGZ4EMAQQCMAsGCWCGSAGG/WwH
-# ATANBgkqhkiG9w0BAQsFAAOCAgEAfVmOwJO2b5ipRCIBfmbW2CFC4bAYLhBNE88w
-# U86/GPvHUF3iSyn7cIoNqilp/GnBzx0H6T5gyNgL5Vxb122H+oQgJTQxZ822EpZv
-# xFBMYh0MCIKoFr2pVs8Vc40BIiXOlWk/R3f7cnQU1/+rT4osequFzUNf7WC2qk+R
-# Zp4snuCKrOX9jLxkJodskr2dfNBwCnzvqLx1T7pa96kQsl3p/yhUifDVinF2ZdrM
-# 8HKjI/rAJ4JErpknG6skHibBt94q6/aesXmZgaNWhqsKRcnfxI2g55j7+6adcq/E
-# x8HBanHZxhOACcS2n82HhyS7T6NJuXdmkfFynOlLAlKnN36TU6w7HQhJD5TNOXrd
-# /yVjmScsPT9rp/Fmw0HNT7ZAmyEhQNC3EyTN3B14OuSereU0cZLXJmvkOHOrpgFP
-# vT87eK1MrfvElXvtCl8zOYdBeHo46Zzh3SP9HSjTx/no8Zhf+yvYfvJGnXUsHics
-# JttvFXseGYs2uJPU5vIXmVnKcPA3v5gA3yAWTyf7YGcWoWa63VXAOimGsJigK+2V
-# Qbc61RWYMbRiCQ8KvYHZE/6/pNHzV9m8BPqC3jLfBInwAM1dwvnQI38AC+R2AibZ
-# 8GV2QqYphwlHK+Z/GqSFD/yYlvZVVCsfgPrA8g4r5db7qS9EFUrnEw4d2zc4GqEr
-# 9u3WfPwwggWNMIIEdaADAgECAhAOmxiO+dAt5+/bUOIIQBhaMA0GCSqGSIb3DQEB
-# DAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNV
-# BAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNVBAMTG0RpZ2lDZXJ0IEFzc3VyZWQg
-# SUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBaFw0zMTExMDkyMzU5NTlaMGIxCzAJ
-# BgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5k
-# aWdpY2VydC5jb20xITAfBgNVBAMTGERpZ2lDZXJ0IFRydXN0ZWQgUm9vdCBHNDCC
-# AiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAL/mkHNo3rvkXUo8MCIwaTPs
-# wqclLskhPfKK2FnC4SmnPVirdprNrnsbhA3EMB/zG6Q4FutWxpdtHauyefLKEdLk
-# X9YFPFIPUh/GnhWlfr6fqVcWWVVyr2iTcMKyunWZanMylNEQRBAu34LzB4TmdDtt
-# ceItDBvuINXJIB1jKS3O7F5OyJP4IWGbNOsFxl7sWxq868nPzaw0QF+xembud8hI
-# qGZXV59UWI4MK7dPpzDZVu7Ke13jrclPXuU15zHL2pNe3I6PgNq2kZhAkHnDeMe2
-# scS1ahg4AxCN2NQ3pC4FfYj1gj4QkXCrVYJBMtfbBHMqbpEBfCFM1LyuGwN1XXhm
-# 2ToxRJozQL8I11pJpMLmqaBn3aQnvKFPObURWBf3JFxGj2T3wWmIdph2PVldQnaH
-# iZdpekjw4KISG2aadMreSx7nDmOu5tTvkpI6nj3cAORFJYm2mkQZK37AlLTSYW3r
-# M9nF30sEAMx9HJXDj/chsrIRt7t/8tWMcCxBYKqxYxhElRp2Yn72gLD76GSmM9GJ
-# B+G9t+ZDpBi4pncB4Q+UDCEdslQpJYls5Q5SUUd0viastkF13nqsX40/ybzTQRES
-# W+UQUOsxxcpyFiIJ33xMdT9j7CFfxCBRa2+xq4aLT8LWRV+dIPyhHsXAj6Kxfgom
-# mfXkaS+YHS312amyHeUbAgMBAAGjggE6MIIBNjAPBgNVHRMBAf8EBTADAQH/MB0G
-# A1UdDgQWBBTs1+OC0nFdZEzfLmc/57qYrhwPTzAfBgNVHSMEGDAWgBRF66Kv9JLL
-# gjEtUYunpyGd823IDzAOBgNVHQ8BAf8EBAMCAYYweQYIKwYBBQUHAQEEbTBrMCQG
-# CCsGAQUFBzABhhhodHRwOi8vb2NzcC5kaWdpY2VydC5jb20wQwYIKwYBBQUHMAKG
-# N2h0dHA6Ly9jYWNlcnRzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEFzc3VyZWRJRFJv
-# b3RDQS5jcnQwRQYDVR0fBD4wPDA6oDigNoY0aHR0cDovL2NybDMuZGlnaWNlcnQu
-# Y29tL0RpZ2lDZXJ0QXNzdXJlZElEUm9vdENBLmNybDARBgNVHSAECjAIMAYGBFUd
-# IAAwDQYJKoZIhvcNAQEMBQADggEBAHCgv0NcVec4X6CjdBs9thbX979XB72arKGH
-# LOyFXqkauyL4hxppVCLtpIh3bb0aFPQTSnovLbc47/T/gLn4offyct4kvFIDyE7Q
-# Kt76LVbP+fT3rDB6mouyXtTP0UNEm0Mh65ZyoUi0mcudT6cGAxN3J0TU53/oWajw
-# vy8LpunyNDzs9wPHh6jSTEAZNUZqaVSwuKFWjuyk1T3osdz9HNj0d1pcVIxv76FQ
-# Pfx2CWiEn2/K2yCNNWAcAgPLILCsWKAOQGPFmCLBsln1VWvPJ6tsds5vIy30fnFq
-# I2si/xK4VC0nftg62fC2h5b9W9FcrBjDTZ9ztwGpn1eqXijiuZQxggN2MIIDcgIB
-# ATB3MGMxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwgSW5jLjE7MDkG
-# A1UEAxMyRGlnaUNlcnQgVHJ1c3RlZCBHNCBSU0E0MDk2IFNIQTI1NiBUaW1lU3Rh
-# bXBpbmcgQ0ECEAuuZrxaun+Vh8b56QTjMwQwDQYJYIZIAWUDBAIBBQCggdEwGgYJ
-# KoZIhvcNAQkDMQ0GCyqGSIb3DQEJEAEEMBwGCSqGSIb3DQEJBTEPFw0yNTAyMjMy
-# MzQ2NTVaMCsGCyqGSIb3DQEJEAIMMRwwGjAYMBYEFNvThe5i29I+e+T2cUhQhyTV
-# hltFMC8GCSqGSIb3DQEJBDEiBCBbir60ahsXZaPFa0zrHYuKcMDi9BNN1ik6JDa/
-# XdQI5DA3BgsqhkiG9w0BCRACLzEoMCYwJDAiBCB2dp+o8mMvH0MLOiMwrtZWdf7X
-# c9sF1mW5BZOYQ4+a2zANBgkqhkiG9w0BAQEFAASCAgACx1NM7E4nCfVWQgC9Rexz
-# iHpqnUs+WdGjZoSeaTJf2siqdNIDjeasOdvbc8Wm24LDSfSmVFykbXqkcesxgMrx
-# cP7sWM15R3jTFSPrbZHGOU14PTWaElQgJzV4+onG26bQdb+7N3y+mHo9ppzZm4W+
-# B6J38Ns8XoXneok3kfxwADjfYpm1eGKEqrkdQ/gh0JpO16auMmo/PUGjsg4r4YLG
-# KzRgWK/iRndiHDk8P1OnQmEb0RXH3/v7qxuLvbVRLSMiT+nfa00D2TQM1sYp649H
-# NxFpzR5Lwpku6QExJG5FrUHtOdgw4fvu+I0xjmlTYwuFO4VQMbnf9PuHsnX5uCH6
-# rO6rYZniItBQsn1f3EvFxhK6qUMQNmFRLlwGfTC1OH87zjslKwPMQsAbgPeT2G7q
-# j4AIleCkvnSN/oMK6z7mQ4yYAiD5Pk8K6PhkcbK73jJAja48Yo03Vm8QjwL1X6tV
-# 5rruS7cLjMrsORvm9IYteKKQ1+27EU4mDCLD3oyJTNzCUjGHZpClZXqpYKshVYXd
-# QOIEIt3w4+yamarFVMaaOMN9dTqI9GxG1r5Knwe+zKJ9y39f5Pk2w/pJFKT/Ma6+
-# x7o7NREc9N2bv0VykGZpQP1huA7Gxh+N4dytpOqu7a0YyErgabrfBJHj1KY505pJ
-# RTTRAXCAcdgOkOUG6XNFYg==
+# aUNlcnQgVHJ1c3RlZCBSb290IEc0MB4XDTI1MDUwNzAwMDAwMFoXDTM4MDExNDIz
+# NTk1OVowaTELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMUEw
+# PwYDVQQDEzhEaWdpQ2VydCBUcnVzdGVkIEc0IFRpbWVTdGFtcGluZyBSU0E0MDk2
+# IFNIQTI1NiAyMDI1IENBMTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIB
+# ALR4MdMKmEFyvjxGwBysddujRmh0tFEXnU2tjQ2UtZmWgyxU7UNqEY81FzJsQqr5
+# G7A6c+Gh/qm8Xi4aPCOo2N8S9SLrC6Kbltqn7SWCWgzbNfiR+2fkHUiljNOqnIVD
+# /gG3SYDEAd4dg2dDGpeZGKe+42DFUF0mR/vtLa4+gKPsYfwEu7EEbkC9+0F2w4QJ
+# LVSTEG8yAR2CQWIM1iI5PHg62IVwxKSpO0XaF9DPfNBKS7Zazch8NF5vp7eaZ2CV
+# NxpqumzTCNSOxm+SAWSuIr21Qomb+zzQWKhxKTVVgtmUPAW35xUUFREmDrMxSNlr
+# /NsJyUXzdtFUUt4aS4CEeIY8y9IaaGBpPNXKFifinT7zL2gdFpBP9qh8SdLnEut/
+# GcalNeJQ55IuwnKCgs+nrpuQNfVmUB5KlCX3ZA4x5HHKS+rqBvKWxdCyQEEGcbLe
+# 1b8Aw4wJkhU1JrPsFfxW1gaou30yZ46t4Y9F20HHfIY4/6vHespYMQmUiote8lad
+# jS/nJ0+k6MvqzfpzPDOy5y6gqztiT96Fv/9bH7mQyogxG9QEPHrPV6/7umw052Ak
+# yiLA6tQbZl1KhBtTasySkuJDpsZGKdlsjg4u70EwgWbVRSX1Wd4+zoFpp4Ra+MlK
+# M2baoD6x0VR4RjSpWM8o5a6D8bpfm4CLKczsG7ZrIGNTAgMBAAGjggFdMIIBWTAS
+# BgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBTvb1NK6eQGfHrK4pBW9i/USezL
+# TjAfBgNVHSMEGDAWgBTs1+OC0nFdZEzfLmc/57qYrhwPTzAOBgNVHQ8BAf8EBAMC
+# AYYwEwYDVR0lBAwwCgYIKwYBBQUHAwgwdwYIKwYBBQUHAQEEazBpMCQGCCsGAQUF
+# BzABhhhodHRwOi8vb2NzcC5kaWdpY2VydC5jb20wQQYIKwYBBQUHMAKGNWh0dHA6
+# Ly9jYWNlcnRzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydFRydXN0ZWRSb290RzQuY3J0
+# MEMGA1UdHwQ8MDowOKA2oDSGMmh0dHA6Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdp
+# Q2VydFRydXN0ZWRSb290RzQuY3JsMCAGA1UdIAQZMBcwCAYGZ4EMAQQCMAsGCWCG
+# SAGG/WwHATANBgkqhkiG9w0BAQsFAAOCAgEAF877FoAc/gc9EXZxML2+C8i1NKZ/
+# zdCHxYgaMH9Pw5tcBnPw6O6FTGNpoV2V4wzSUGvI9NAzaoQk97frPBtIj+ZLzdp+
+# yXdhOP4hCFATuNT+ReOPK0mCefSG+tXqGpYZ3essBS3q8nL2UwM+NMvEuBd/2vmd
+# YxDCvwzJv2sRUoKEfJ+nN57mQfQXwcAEGCvRR2qKtntujB71WPYAgwPyWLKu6Rna
+# ID/B0ba2H3LUiwDRAXx1Neq9ydOal95CHfmTnM4I+ZI2rVQfjXQA1WSjjf4J2a7j
+# LzWGNqNX+DF0SQzHU0pTi4dBwp9nEC8EAqoxW6q17r0z0noDjs6+BFo+z7bKSBwZ
+# XTRNivYuve3L2oiKNqetRHdqfMTCW/NmKLJ9M+MtucVGyOxiDf06VXxyKkOirv6o
+# 02OoXN4bFzK0vlNMsvhlqgF2puE6FndlENSmE+9JGYxOGLS/D284NHNboDGcmWXf
+# wXRy4kbu4QFhOm0xJuF2EZAOk5eCkhSxZON3rGlHqhpB/8MluDezooIs8CVnrpHM
+# iD2wL40mm53+/j7tFaxYKIqL0Q4ssd8xHZnIn/7GELH3IdvG2XlM9q7WP/UwgOkw
+# /HQtyRN62JK4S1C8uw3PdBunvAZapsiI5YKdvlarEvf8EA+8hcpSM9LHJmyrxaFt
+# oza2zNaQ9k+5t1wwggWNMIIEdaADAgECAhAOmxiO+dAt5+/bUOIIQBhaMA0GCSqG
+# SIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMx
+# GTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNVBAMTG0RpZ2lDZXJ0IEFz
+# c3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBaFw0zMTExMDkyMzU5NTla
+# MGIxCzAJBgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsT
+# EHd3dy5kaWdpY2VydC5jb20xITAfBgNVBAMTGERpZ2lDZXJ0IFRydXN0ZWQgUm9v
+# dCBHNDCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAL/mkHNo3rvkXUo8
+# MCIwaTPswqclLskhPfKK2FnC4SmnPVirdprNrnsbhA3EMB/zG6Q4FutWxpdtHauy
+# efLKEdLkX9YFPFIPUh/GnhWlfr6fqVcWWVVyr2iTcMKyunWZanMylNEQRBAu34Lz
+# B4TmdDttceItDBvuINXJIB1jKS3O7F5OyJP4IWGbNOsFxl7sWxq868nPzaw0QF+x
+# embud8hIqGZXV59UWI4MK7dPpzDZVu7Ke13jrclPXuU15zHL2pNe3I6PgNq2kZhA
+# kHnDeMe2scS1ahg4AxCN2NQ3pC4FfYj1gj4QkXCrVYJBMtfbBHMqbpEBfCFM1Lyu
+# GwN1XXhm2ToxRJozQL8I11pJpMLmqaBn3aQnvKFPObURWBf3JFxGj2T3wWmIdph2
+# PVldQnaHiZdpekjw4KISG2aadMreSx7nDmOu5tTvkpI6nj3cAORFJYm2mkQZK37A
+# lLTSYW3rM9nF30sEAMx9HJXDj/chsrIRt7t/8tWMcCxBYKqxYxhElRp2Yn72gLD7
+# 6GSmM9GJB+G9t+ZDpBi4pncB4Q+UDCEdslQpJYls5Q5SUUd0viastkF13nqsX40/
+# ybzTQRESW+UQUOsxxcpyFiIJ33xMdT9j7CFfxCBRa2+xq4aLT8LWRV+dIPyhHsXA
+# j6KxfgommfXkaS+YHS312amyHeUbAgMBAAGjggE6MIIBNjAPBgNVHRMBAf8EBTAD
+# AQH/MB0GA1UdDgQWBBTs1+OC0nFdZEzfLmc/57qYrhwPTzAfBgNVHSMEGDAWgBRF
+# 66Kv9JLLgjEtUYunpyGd823IDzAOBgNVHQ8BAf8EBAMCAYYweQYIKwYBBQUHAQEE
+# bTBrMCQGCCsGAQUFBzABhhhodHRwOi8vb2NzcC5kaWdpY2VydC5jb20wQwYIKwYB
+# BQUHMAKGN2h0dHA6Ly9jYWNlcnRzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEFzc3Vy
+# ZWRJRFJvb3RDQS5jcnQwRQYDVR0fBD4wPDA6oDigNoY0aHR0cDovL2NybDMuZGln
+# aWNlcnQuY29tL0RpZ2lDZXJ0QXNzdXJlZElEUm9vdENBLmNybDARBgNVHSAECjAI
+# MAYGBFUdIAAwDQYJKoZIhvcNAQEMBQADggEBAHCgv0NcVec4X6CjdBs9thbX979X
+# B72arKGHLOyFXqkauyL4hxppVCLtpIh3bb0aFPQTSnovLbc47/T/gLn4offyct4k
+# vFIDyE7QKt76LVbP+fT3rDB6mouyXtTP0UNEm0Mh65ZyoUi0mcudT6cGAxN3J0TU
+# 53/oWajwvy8LpunyNDzs9wPHh6jSTEAZNUZqaVSwuKFWjuyk1T3osdz9HNj0d1pc
+# VIxv76FQPfx2CWiEn2/K2yCNNWAcAgPLILCsWKAOQGPFmCLBsln1VWvPJ6tsds5v
+# Iy30fnFqI2si/xK4VC0nftg62fC2h5b9W9FcrBjDTZ9ztwGpn1eqXijiuZQxggN8
+# MIIDeAIBATB9MGkxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwgSW5j
+# LjFBMD8GA1UEAxM4RGlnaUNlcnQgVHJ1c3RlZCBHNCBUaW1lU3RhbXBpbmcgUlNB
+# NDA5NiBTSEEyNTYgMjAyNSBDQTECEAqA7xhLjfEFgtHEdqeVdGgwDQYJYIZIAWUD
+# BAIBBQCggdEwGgYJKoZIhvcNAQkDMQ0GCyqGSIb3DQEJEAEEMBwGCSqGSIb3DQEJ
+# BTEPFw0yNTA4MDcwNzExMjJaMCsGCyqGSIb3DQEJEAIMMRwwGjAYMBYEFN1iMKyG
+# Ci0wa9o4sWh5UjAH+0F+MC8GCSqGSIb3DQEJBDEiBCBVtRsefuUYODaoo0+qoyU4
+# AOOmJMdRyrM9ApwqKuB3AzA3BgsqhkiG9w0BCRACLzEoMCYwJDAiBCBKoD+iLNdc
+# hMVck4+CjmdrnK7Ksz/jbSaaozTxRhEKMzANBgkqhkiG9w0BAQEFAASCAgAyyEdA
+# 5dnWoqpeV3/4ysh/3TB1OGFtei3JrvZg7DS71eNQTHFAn4wFKnAsM2vyzmxzqeJ1
+# 0PAm4ZLEvK5IYcF4X/EH+1OOsHby8WADtoJ68uoThVdOMN5zAyeMBZncA5KTUpgF
+# 4l+zzY70HN2XxV+gcadgzpih40AZfpUzmpOPz6qaLnE8b3DWci2c2IQp1GSOLBo8
+# 3ougoTCbvMFdXpeYExzcepCm4EdCyPLIAfMnf0aeo25lO0Bh0AtvLXcw7kAGl+Kg
+# dIq1UePCRXGNQitQ+pdalXJ43Hf27HOFQjaKmCmf93yde1966Ee7+R1YOFsZSneq
+# cVVH7MD3WP+YpeiN5B/olpzBc1/9XttCzF0+hn7qIkrbzYXsBhi1H3LcL2Z6vKtT
+# aTTufxlUzyEK/35yXHQKkchzLMjgPPYT8RDcRzwLhF65O1MF9skZx/JBrcbtkYui
+# V+pcdNOqLwN2FnBbLYn9e/32DG1PrEjJP3CsNsqXcTsVqvsVZpBx3sgHJttlxKw9
+# 8EefSVBgdkxylzrzMym3YLb2ZrOPvL0Tdv3i8jWu8XHQW8b7a+0wMruNPjKwi6iC
+# XofPBG+5M/EZH0v/pNQUdNnKaJc4JNhpylBZ9Yu7HbSsLSGpKS1ZRqYW03qULDBl
+# heUFa/VwmDcD+RTgfd9zvk8ACKX8gctibX4bzg==
 # SIG # End signature block

@@ -1,97 +1,96 @@
 ﻿@{
-    BalloonText = @{
-        # Text displayed in the balloon tip for successful completion of a deployment type.
-        Complete = 'complete.'
+    BalloonTip = @{
+        # Text displayed in the balloon tip for the start of a deployment type.
+        Start = @{
+            Install = 'Installation started.'
+            Repair = 'Repair started.'
+            Uninstall = 'Uninstallation started.'
+        }
 
-        # Text displayed in the balloon tip for a failed deployment type.
-        Error = 'failed.'
+        # Text displayed in the balloon tip for successful completion of a deployment type.
+        Complete = @{
+            Install = 'Installation complete.'
+            Repair = 'Repair complete.'
+            Uninstall = 'Uninstallation complete.'
+        }
+
+        # Text displayed in the balloon tip for successful completion of a deployment type.
+        RestartRequired = @{
+            Install = 'Installation complete. A reboot is required.'
+            Repair = 'Repair complete. A reboot is required.'
+            Uninstall = 'Uninstallation complete. A reboot is required.'
+        }
 
         # Text displayed in the balloon tip for fast retry of a deployment.
-        FastRetry = 'not complete.'
+        FastRetry = @{
+            Install = 'Installation not complete.'
+            Repair = 'Repair not complete.'
+            Uninstall = 'Uninstallation not complete.'
+        }
 
-        # Text displayed in the balloon tip for successful completion of a deployment type.
-        RestartRequired = 'complete. A reboot is required.'
-
-        # Text displayed in the balloon tip for the start of a deployment type.
-        Start = 'started.'
+        # Text displayed in the balloon tip for a failed deployment type.
+        Error = @{
+            Install = 'Installation failed.'
+            Repair = 'Repair failed.'
+            Uninstall = 'Uninstallation failed.'
+        }
     }
 
-    BlockExecution = @{
+    BlockExecutionText = @{
         # Text displayed when prompting user that an application has been blocked.
-        Message = 'Launching this application has been temporarily blocked so that an installation operation can complete.'
+        Message = @{
+            Install = 'Launching this application has been temporarily blocked so that an installation operation can complete.'
+            Repair = 'Launching this application has been temporarily blocked so that a repair operation can complete.'
+            Uninstall = 'Launching this application has been temporarily blocked so that an uninstallation operation can complete.'
+        }
+
+        # The subtitle underneath the Install Title, e.g. Company Name. Only for Fluent dialogs.
+        Subtitle = @{
+            Install = '{Toolkit\CompanyName} - App Installation'
+            Repair = '{Toolkit\CompanyName} - App Repair'
+            Uninstall = '{Toolkit\CompanyName} - App Uninstallation'
+        }
     }
 
-    ClosePrompt = @{
-        # Text displayed on the close button when prompting to close running programs.
-        ButtonClose = 'Close &Programs'
-
-        # Text displayed on the continue button when prompting to close running programs.
-        ButtonContinue = '&Continue'
-
-        # Tooltip text displayed on the continue button when prompting to close running programs.
-        ButtonContinueTooltip = "Only select `"Continue`" after closing the above listed application(s)."
-
-        # Text displayed on the defer button when prompting to close running programs.
-        ButtonDefer = '&Defer'
-
-        # Text displayed when counting down to automatically closing applications.
-        CountdownMessage = 'NOTE: The program(s) will be automatically closed in:'
-
-        # Text displayed when prompting to close running programs.
-        Message = "The following programs must be closed before the installation can proceed.`n`nPlease save your work, close the programs, and then continue. Alternatively, save your work and click `"Close Programs`"."
-    }
-
-    DeferPrompt = @{
-        # Text displayed when there is a specific deferral deadline.
-        Deadline = 'Deadline:'
-
-        # Text displayed when a deferral option is available.
-        ExpiryMessage = 'You can choose to defer the installation until the deferral expires:'
-
-        # Text displayed when there are a specific number of deferrals remaining.
-        RemainingDeferrals = 'Remaining Deferrals:'
-
-        # Text displayed after the deferral options.
-        WarningMessage = 'Once the deferral has expired, you will no longer have the option to defer.'
-
-        # Text displayed when only the deferral dialog is to be displayed and there are no applications to close.
-        WelcomeMessage = 'The following application is about to be installed:'
-    }
-
-    DeploymentType = @{
-        # Name displayed in UI for installation deployment type.
-        Install = 'Installation'
-
-        # Name displayed in UI for repair deployment type.
-        Repair = 'Repairing'
-
-        # Name displayed in UI for Uninstallation deployment type.
-        Uninstall = 'Uninstallation'
-    }
-
-    DiskSpace = @{
+    DiskSpaceText = @{
         # Text displayed when the system does not have sufficient free disk space available to complete the installation.
-        Message = "You do not have enough disk space to complete the installation of:`n{0}`n`nSpace required: {1}MB`nSpace available: {2}MB`n`nPlease free up enough disk space in order to proceed with the installation."
+        Message = @{
+            Install = "You do not have enough disk space to complete the installation of:`n{0}`n`nSpace required: {1}MB`nSpace available: {2}MB`n`nPlease free up enough disk space in order to proceed with the installation."
+            Repair = "You do not have enough disk space to complete the repair of:`n{0}`n`nSpace required: {1}MB`nSpace available: {2}MB`n`nPlease free up enough disk space in order to proceed with the repair."
+            Uninstall = "You do not have enough disk space to complete the uninstallation of:`n{0}`n`nSpace required: {1}MB`nSpace available: {2}MB`n`nPlease free up enough disk space in order to proceed with the uninstallation."
+        }
     }
 
-    Progress = @{
-        # Default text displayed in the progress bar for installations.
-        MessageInstall = 'Installation in progress. Please wait...'
+    InstallationPrompt = @{
+        # The subtitle underneath the Install Title, e.g. Company Name. Only for Fluent dialogs.
+        Subtitle = @{
+            Install = '{Toolkit\CompanyName} - App Installation'
+            Repair = '{Toolkit\CompanyName} - App Repair'
+            Uninstall = '{Toolkit\CompanyName} - App Uninstallation'
+        }
+    }
 
-        # Default text displayed in the progress bar for installations.
-        MessageInstallDetail = 'This window will close automatically when the installation is complete.'
+    ProgressPrompt = @{
+        # Default message displayed in the progress bar.
+        Message = @{
+            Install = 'Installation in progress. Please wait…'
+            Repair = 'Repair in progress. Please wait…'
+            Uninstall = 'Uninstallation in progress. Please wait…'
+        }
 
-        # Default text displayed in the progress bar for repairs.
-        MessageRepair = 'Repair in progress. Please wait...'
+        # Default message detail displayed in the progress bar.
+        MessageDetail = @{
+            Install = 'This window will close automatically when the installation is complete.'
+            Repair = 'This window will close automatically when the repair is complete.'
+            Uninstall = 'This window will close automatically when the uninstallation is complete.'
+        }
 
-        # Default text displayed in the progress bar for repairs.
-        MessageRepairDetail = 'This window will close automatically when the repair is complete.'
-
-        # Default text displayed in the progress bar for Uninstallations.
-        MessageUninstall = 'Uninstallation in progress. Please wait...'
-
-        # Default text displayed in the progress bar for Uninstallations.
-        MessageUninstallDetail = 'This window will close automatically when the uninstallation is complete.'
+        # The subtitle underneath the Install Title, e.g. Company Name. Only for Fluent dialogs.
+        Subtitle = @{
+            Install = '{Toolkit\CompanyName} - App Installation'
+            Repair = '{Toolkit\CompanyName} - App Repair'
+            Uninstall = '{Toolkit\CompanyName} - App Uninstallation'
+        }
     }
 
     RestartPrompt = @{
@@ -102,7 +101,14 @@
         ButtonRestartNow = 'Restart Now'
 
         # Text displayed when the device requires a restart.
-        Message = 'In order for the installation to complete, you must restart your computer.'
+        Message = @{
+            Install = 'In order for the installation to complete, you must restart your computer.'
+            Repair = 'In order for the repair to complete, you must restart your computer.'
+            Uninstall = 'In order for the uninstallation to complete, you must restart your computer.'
+        }
+
+        # This is a custom message to display at the Restart window.
+        CustomMessage = ''
 
         # Text displayed when indicating when the device will be restarted.
         MessageRestart = 'Your computer will be automatically restarted at the end of the countdown.'
@@ -115,46 +121,133 @@
 
         # Text displayed in the title of the restart prompt which helps the script identify whether there is already a restart prompt being displayed and not to duplicate it.
         Title = 'Restart Required'
+
+        # The subtitle underneath the Install Title, e.g. Company Name. Only for Fluent dialogs.
+        Subtitle = @{
+            Install = '{Toolkit\CompanyName} - App Installation'
+            Repair = '{Toolkit\CompanyName} - App Repair'
+            Uninstall = '{Toolkit\CompanyName} - App Uninstallation'
+        }
     }
 
-    WelcomePrompt = @{
+    CloseAppsPrompt = @{
         Classic = @{
-            # The countdown message displayed at the Welcome Screen to indicate when the install will continue if no response from user.
-            CountdownMessage = 'The {0} will automatically continue in:'
+            # Text displayed when only the deferral dialog is to be displayed and there are no applications to close.
+            WelcomeMessage = @{
+                Install = 'The following application is about to be installed:'
+                Repair = 'The following application is about to be repaired:'
+                Uninstall = 'The following application is about to be uninstalled:'
+            }
 
-            # This is a custom message to display at the Welcome Screen window.
-            CustomMessage = ''
+            # Text displayed when prompting to close running programs.
+            CloseAppsMessage = @{
+                Install = "The following programs must be closed before the installation can proceed.`n`nPlease save your work, close the programs, and then continue. Alternatively, save your work and click `"Close Programs`"."
+                Repair = "The following programs must be closed before the repair can proceed.`n`nPlease save your work, close the programs, and then continue. Alternatively, save your work and click `"Close Programs`"."
+                Uninstall = "The following programs must be closed before the uninstallation can proceed.`n`nPlease save your work, close the programs, and then continue. Alternatively, save your work and click `"Close Programs`"."
+            }
+
+            # Text displayed when a deferral option is available.
+            ExpiryMessage = @{
+                Install = 'You can choose to defer the installation until the deferral expires:'
+                Repair = 'You can choose to defer the repair until the deferral expires:'
+                Uninstall = 'You can choose to defer the uninstallation until the deferral expires:'
+            }
+
+            # Text displayed when there are a specific number of deferrals remaining.
+            DeferralsRemaining = 'Remaining Deferrals:'
+
+            # Text displayed when there is a specific deferral deadline.
+            DeferralDeadline = 'Deadline:'
+
+            # Text displayed after the deferral options.
+            ExpiryWarning = 'Once the deferral has expired, you will no longer have the option to defer.'
+
+            # The countdown message displayed at the Welcome Screen to indicate when the deployment will continue if no response from user.
+            CountdownDefer = @{
+                Install = 'The installation will automatically continue in:'
+                Repair = 'The repair will automatically continue in:'
+                Uninstall = 'The uninstallation will automatically continue in:'
+            }
+
+            # Text displayed when counting down to automatically closing applications.
+            CountdownClose = @{
+                Install = 'NOTE: The program(s) will be automatically closed in:'
+                Repair = 'NOTE: The program(s) will be automatically closed in:'
+                Uninstall = 'NOTE: The program(s) will be automatically closed in:'
+            }
+
+            # Text displayed on the close button when prompting to close running programs.
+            ButtonClose = 'Close &Programs'
+
+            # Text displayed on the defer button when prompting to close running programs.
+            ButtonDefer = '&Defer'
+
+            # Text displayed on the continue button when prompting to close running programs.
+            ButtonContinue = '&Continue'
+
+            # Tooltip text displayed on the continue button when prompting to close running programs.
+            ButtonContinueTooltip = 'Only select "Continue" after closing the above listed application(s).'
         }
-        Fluent = @{
-            # The subtitle underneath the Application Title, e.g. Company Name. Using {0} will insert the Application Type, e.g. App "Install"
-            Subtitle = 'PSAppDeployToolkit - App {0}'
 
+        Fluent = @{
             # This is a message to prompt users to save their work.
-            DialogMessage = 'Please save your work before continuing as the following applications will be closed automatically.'
+            DialogMessage = @{
+                Install = 'Please save your work before continuing as the following applications will be closed automatically.'
+                Repair = 'Please save your work before continuing as the following applications will be closed automatically.'
+                Uninstall = 'Please save your work before continuing as the following applications will be closed automatically.'
+            }
 
             # This is a message to when there are no running processes available.
-            DialogMessageNoProcesses = 'Please select Install to continue with the installation. If you have any deferrals remaining, you may also choose to delay the installation.'
+            DialogMessageNoProcesses = @{
+                Install = 'Please select Install to continue with the installation.'
+                Repair = 'Please select Repair to continue with the repair.'
+                Uninstall = 'Please select Uninstall to continue with the uninstallation.'
+            }
 
-            # This is a word used to describe the number of deferrals left. custom message to display at the Welcome Screen window.
-            ButtonDeferRemaining = 'remain'
+            # A string to describe the automatic start countdown.
+            AutomaticStartCountdown = 'Automatic Start Countdown'
 
-            # This is a phrase used to describe the process of deferring an application installation.
-            ButtonLeftText = 'Defer'
+            # Text displayed when there are a specific number of deferrals remaining.
+            DeferralsRemaining = 'Remaining Deferrals'
 
-            # This is a phrase used to describe the process of closing applications and installing the application.
-            ButtonRightText = 'Close Apps & Install'
+            # Text displayed when there is a specific deferral deadline.
+            DeferralDeadline = 'Deferral Deadline'
 
-            # This is a phrase used to describe the process of installing the application.
-            ButtonRightTextNoProcesses = 'Install'
+            # This is a phrase used to describe the process of closing applications and commencing the deployment.
+            ButtonLeftText = @{
+                Install = 'Close Apps & Install'
+                Repair = 'Close Apps & Repair'
+                Uninstall = 'Close Apps & Uninstall'
+            }
+
+            # This is a phrase used to describe the process of commencing the deployment.
+            ButtonLeftNoProcessesText = @{
+                Install = 'Install'
+                Repair = 'Repair'
+                Uninstall = 'Uninstall'
+            }
+
+            # This is a phrase used to describe the process of deferring a deployment.
+            ButtonRightText = 'Defer'
+
+            # The subtitle underneath the Install Title, e.g. Company Name.
+            Subtitle = @{
+                Install = '{Toolkit\CompanyName} - App Installation'
+                Repair = '{Toolkit\CompanyName} - App Repair'
+                Uninstall = '{Toolkit\CompanyName} - App Uninstallation'
+            }
         }
+
+        # This is a custom message to display at the Welcome Screen window.
+        CustomMessage = ''
     }
 }
 
 # SIG # Begin signature block
-# MIIuKwYJKoZIhvcNAQcCoIIuHDCCLhgCAQExDzANBglghkgBZQMEAgEFADB5Bgor
+# MIIuaAYJKoZIhvcNAQcCoIIuWTCCLlUCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDceA32Kn94Ko4r
-# JPkYaKYPFcqZE31XFSHfazKWkIpQaqCCE5UwggWQMIIDeKADAgECAhAFmxtXno4h
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCD22e5HhSoaGZYq
+# Ce7454CxPFYhpBib9EZVjcYdSIIuzqCCE5UwggWQMIIDeKADAgECAhAFmxtXno4h
 # MuI5B72nd3VcMA0GCSqGSIb3DQEBDAUAMGIxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xITAfBgNV
 # BAMTGERpZ2lDZXJ0IFRydXN0ZWQgUm9vdCBHNDAeFw0xMzA4MDExMjAwMDBaFw0z
@@ -259,143 +352,144 @@
 # z+pfEMPqeX/g5+mpb4ap6ZmNJuAYJFmU0LIkCLQN9mKXi1Il9WU6ifn3vYutGMSL
 # /BdeWP+7fM7MZLiO+1BIsBdSmV6pZVS3LRBAy3wIlbWL69mvyLCPIQ7z4dtfuzwC
 # 36E9k2vhzeiDQ+k1dFJDSdxTDetsck0FuD1ovhiu2caL4BdFsCWsXPLMyvu6OlYx
-# ghnsMIIZ6AIBATB9MGkxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwg
+# ghopMIIaJQIBATB9MGkxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwg
 # SW5jLjFBMD8GA1UEAxM4RGlnaUNlcnQgVHJ1c3RlZCBHNCBDb2RlIFNpZ25pbmcg
 # UlNBNDA5NiBTSEEzODQgMjAyMSBDQTECEAr5W7a+ogyFDpjG+46sCPkwDQYJYIZI
 # AWUDBAIBBQCggYQwGAYKKwYBBAGCNwIBDDEKMAigAoAAoQKAADAZBgkqhkiG9w0B
 # CQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3AgELMQ4wDAYKKwYBBAGCNwIBFTAv
-# BgkqhkiG9w0BCQQxIgQgFEg4Jh0XisAdDJYdBIJXgg7djD7m96fqxYC3yH8TfVww
-# DQYJKoZIhvcNAQEBBQAEggGAmbsFqaErBEWR5X5aiqUksCAxY+3TicS5uGMLNIwg
-# bj8huksFVI3DvpPltFKqtKed39PZc9LWOiaPMgx7dE/9EEnxEh7fqtVrGm76DaJJ
-# hYodnjxfuxsS575eLYhVygqK7C6OCD9z10mBzSKVCDR5Rsu5ANLGAxeDpmUIfQns
-# ZhyZjFCgp9T+tswvgWAT/1X0axN1jOtzsrrcK/r/ftBY7kLseogPdvew41K2Uhfv
-# 9o+SVmyqv2GKPVwm3vlY4szgT9/SbCxmyg7/rECrQth/hMFE6H1FKrYw1AuIhVUF
-# yZFmtWajtlH15nBWOEOGcvwqafzodRH7WQoALWaAU5bRu1dF64UD1ftBZfy25855
-# 53zhQHLK8kk5VYIkgIcXV6/9MXUAFe7iNotRLZ5mO6D3Pg55cH4mysMD+pN1NvXY
-# 80hgoyXNPPn9FqhKwmg3YXsqtxhCGpsZJZFiGsFtD9XZXbV16/hpK8drqI1KVEM3
-# bYwqsmKbGCQbScFNGwUqUyZWoYIXOTCCFzUGCisGAQQBgjcDAwExghclMIIXIQYJ
-# KoZIhvcNAQcCoIIXEjCCFw4CAQMxDzANBglghkgBZQMEAgEFADB3BgsqhkiG9w0B
-# CRABBKBoBGYwZAIBAQYJYIZIAYb9bAcBMDEwDQYJYIZIAWUDBAIBBQAEIBcD7mhl
-# aUZS7xadVuEb+bqSu+AluIOz7UvoDYrqu/s/AhBBGwVpLbE8WrsnS+preM3+GA8y
-# MDI1MDIyMzIzNDgzMlqgghMDMIIGvDCCBKSgAwIBAgIQC65mvFq6f5WHxvnpBOMz
-# BDANBgkqhkiG9w0BAQsFADBjMQswCQYDVQQGEwJVUzEXMBUGA1UEChMORGlnaUNl
-# cnQsIEluYy4xOzA5BgNVBAMTMkRpZ2lDZXJ0IFRydXN0ZWQgRzQgUlNBNDA5NiBT
-# SEEyNTYgVGltZVN0YW1waW5nIENBMB4XDTI0MDkyNjAwMDAwMFoXDTM1MTEyNTIz
-# NTk1OVowQjELMAkGA1UEBhMCVVMxETAPBgNVBAoTCERpZ2lDZXJ0MSAwHgYDVQQD
-# ExdEaWdpQ2VydCBUaW1lc3RhbXAgMjAyNDCCAiIwDQYJKoZIhvcNAQEBBQADggIP
-# ADCCAgoCggIBAL5qc5/2lSGrljC6W23mWaO16P2RHxjEiDtqmeOlwf0KMCBDEr4I
-# xHRGd7+L660x5XltSVhhK64zi9CeC9B6lUdXM0s71EOcRe8+CEJp+3R2O8oo76EO
-# 7o5tLuslxdr9Qq82aKcpA9O//X6QE+AcaU/byaCagLD/GLoUb35SfWHh43rOH3bp
-# LEx7pZ7avVnpUVmPvkxT8c2a2yC0WMp8hMu60tZR0ChaV76Nhnj37DEYTX9ReNZ8
-# hIOYe4jl7/r419CvEYVIrH6sN00yx49boUuumF9i2T8UuKGn9966fR5X6kgXj3o5
-# WHhHVO+NBikDO0mlUh902wS/Eeh8F/UFaRp1z5SnROHwSJ+QQRZ1fisD8UTVDSup
-# WJNstVkiqLq+ISTdEjJKGjVfIcsgA4l9cbk8Smlzddh4EfvFrpVNnes4c16Jidj5
-# XiPVdsn5n10jxmGpxoMc6iPkoaDhi6JjHd5ibfdp5uzIXp4P0wXkgNs+CO/CacBq
-# U0R4k+8h6gYldp4FCMgrXdKWfM4N0u25OEAuEa3JyidxW48jwBqIJqImd93NRxvd
-# 1aepSeNeREXAu2xUDEW8aqzFQDYmr9ZONuc2MhTMizchNULpUEoA6Vva7b1XCB+1
-# rxvbKmLqfY/M/SdV6mwWTyeVy5Z/JkvMFpnQy5wR14GJcv6dQ4aEKOX5AgMBAAGj
-# ggGLMIIBhzAOBgNVHQ8BAf8EBAMCB4AwDAYDVR0TAQH/BAIwADAWBgNVHSUBAf8E
-# DDAKBggrBgEFBQcDCDAgBgNVHSAEGTAXMAgGBmeBDAEEAjALBglghkgBhv1sBwEw
-# HwYDVR0jBBgwFoAUuhbZbU2FL3MpdpovdYxqII+eyG8wHQYDVR0OBBYEFJ9XLAN3
-# DigVkGalY17uT5IfdqBbMFoGA1UdHwRTMFEwT6BNoEuGSWh0dHA6Ly9jcmwzLmRp
-# Z2ljZXJ0LmNvbS9EaWdpQ2VydFRydXN0ZWRHNFJTQTQwOTZTSEEyNTZUaW1lU3Rh
-# bXBpbmdDQS5jcmwwgZAGCCsGAQUFBwEBBIGDMIGAMCQGCCsGAQUFBzABhhhodHRw
-# Oi8vb2NzcC5kaWdpY2VydC5jb20wWAYIKwYBBQUHMAKGTGh0dHA6Ly9jYWNlcnRz
-# LmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydFRydXN0ZWRHNFJTQTQwOTZTSEEyNTZUaW1l
-# U3RhbXBpbmdDQS5jcnQwDQYJKoZIhvcNAQELBQADggIBAD2tHh92mVvjOIQSR9lD
-# kfYR25tOCB3RKE/P09x7gUsmXqt40ouRl3lj+8QioVYq3igpwrPvBmZdrlWBb0Hv
-# qT00nFSXgmUrDKNSQqGTdpjHsPy+LaalTW0qVjvUBhcHzBMutB6HzeledbDCzFzU
-# y34VarPnvIWrqVogK0qM8gJhh/+qDEAIdO/KkYesLyTVOoJ4eTq7gj9UFAL1UruJ
-# KlTnCVaM2UeUUW/8z3fvjxhN6hdT98Vr2FYlCS7Mbb4Hv5swO+aAXxWUm3WpByXt
-# gVQxiBlTVYzqfLDbe9PpBKDBfk+rabTFDZXoUke7zPgtd7/fvWTlCs30VAGEsshJ
-# mLbJ6ZbQ/xll/HjO9JbNVekBv2Tgem+mLptR7yIrpaidRJXrI+UzB6vAlk/8a1u7
-# cIqV0yef4uaZFORNekUgQHTqddmsPCEIYQP7xGxZBIhdmm4bhYsVA6G2WgNFYagL
-# DBzpmk9104WQzYuVNsxyoVLObhx3RugaEGru+SojW4dHPoWrUhftNpFC5H7QEY7M
-# hKRyrBe7ucykW7eaCuWBsBb4HOKRFVDcrZgdwaSIqMDiCLg4D+TPVgKx2EgEdeoH
-# NHT9l3ZDBD+XgbF+23/zBjeCtxz+dL/9NWR6P2eZRi7zcEO1xwcdcqJsyz/JceEN
-# c2Sg8h3KeFUCS7tpFk7CrDqkMIIGrjCCBJagAwIBAgIQBzY3tyRUfNhHrP0oZipe
-# WzANBgkqhkiG9w0BAQsFADBiMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNl
-# cnQgSW5jMRkwFwYDVQQLExB3d3cuZGlnaWNlcnQuY29tMSEwHwYDVQQDExhEaWdp
-# Q2VydCBUcnVzdGVkIFJvb3QgRzQwHhcNMjIwMzIzMDAwMDAwWhcNMzcwMzIyMjM1
-# OTU5WjBjMQswCQYDVQQGEwJVUzEXMBUGA1UEChMORGlnaUNlcnQsIEluYy4xOzA5
-# BgNVBAMTMkRpZ2lDZXJ0IFRydXN0ZWQgRzQgUlNBNDA5NiBTSEEyNTYgVGltZVN0
-# YW1waW5nIENBMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAxoY1Bkmz
-# wT1ySVFVxyUDxPKRN6mXUaHW0oPRnkyibaCwzIP5WvYRoUQVQl+kiPNo+n3znIkL
-# f50fng8zH1ATCyZzlm34V6gCff1DtITaEfFzsbPuK4CEiiIY3+vaPcQXf6sZKz5C
-# 3GeO6lE98NZW1OcoLevTsbV15x8GZY2UKdPZ7Gnf2ZCHRgB720RBidx8ald68Dd5
-# n12sy+iEZLRS8nZH92GDGd1ftFQLIWhuNyG7QKxfst5Kfc71ORJn7w6lY2zkpsUd
-# zTYNXNXmG6jBZHRAp8ByxbpOH7G1WE15/tePc5OsLDnipUjW8LAxE6lXKZYnLvWH
-# po9OdhVVJnCYJn+gGkcgQ+NDY4B7dW4nJZCYOjgRs/b2nuY7W+yB3iIU2YIqx5K/
-# oN7jPqJz+ucfWmyU8lKVEStYdEAoq3NDzt9KoRxrOMUp88qqlnNCaJ+2RrOdOqPV
-# A+C/8KI8ykLcGEh/FDTP0kyr75s9/g64ZCr6dSgkQe1CvwWcZklSUPRR8zZJTYsg
-# 0ixXNXkrqPNFYLwjjVj33GHek/45wPmyMKVM1+mYSlg+0wOI/rOP015LdhJRk8mM
-# DDtbiiKowSYI+RQQEgN9XyO7ZONj4KbhPvbCdLI/Hgl27KtdRnXiYKNYCQEoAA6E
-# VO7O6V3IXjASvUaetdN2udIOa5kM0jO0zbECAwEAAaOCAV0wggFZMBIGA1UdEwEB
-# /wQIMAYBAf8CAQAwHQYDVR0OBBYEFLoW2W1NhS9zKXaaL3WMaiCPnshvMB8GA1Ud
-# IwQYMBaAFOzX44LScV1kTN8uZz/nupiuHA9PMA4GA1UdDwEB/wQEAwIBhjATBgNV
-# HSUEDDAKBggrBgEFBQcDCDB3BggrBgEFBQcBAQRrMGkwJAYIKwYBBQUHMAGGGGh0
-# dHA6Ly9vY3NwLmRpZ2ljZXJ0LmNvbTBBBggrBgEFBQcwAoY1aHR0cDovL2NhY2Vy
-# dHMuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0VHJ1c3RlZFJvb3RHNC5jcnQwQwYDVR0f
-# BDwwOjA4oDagNIYyaHR0cDovL2NybDMuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0VHJ1
-# c3RlZFJvb3RHNC5jcmwwIAYDVR0gBBkwFzAIBgZngQwBBAIwCwYJYIZIAYb9bAcB
-# MA0GCSqGSIb3DQEBCwUAA4ICAQB9WY7Ak7ZvmKlEIgF+ZtbYIULhsBguEE0TzzBT
-# zr8Y+8dQXeJLKftwig2qKWn8acHPHQfpPmDI2AvlXFvXbYf6hCAlNDFnzbYSlm/E
-# UExiHQwIgqgWvalWzxVzjQEiJc6VaT9Hd/tydBTX/6tPiix6q4XNQ1/tYLaqT5Fm
-# niye4Iqs5f2MvGQmh2ySvZ180HAKfO+ovHVPulr3qRCyXen/KFSJ8NWKcXZl2szw
-# cqMj+sAngkSumScbqyQeJsG33irr9p6xeZmBo1aGqwpFyd/EjaDnmPv7pp1yr8TH
-# wcFqcdnGE4AJxLafzYeHJLtPo0m5d2aR8XKc6UsCUqc3fpNTrDsdCEkPlM05et3/
-# JWOZJyw9P2un8WbDQc1PtkCbISFA0LcTJM3cHXg65J6t5TRxktcma+Q4c6umAU+9
-# Pzt4rUyt+8SVe+0KXzM5h0F4ejjpnOHdI/0dKNPH+ejxmF/7K9h+8kaddSweJywm
-# 228Vex4Ziza4k9Tm8heZWcpw8De/mADfIBZPJ/tgZxahZrrdVcA6KYawmKAr7ZVB
-# tzrVFZgxtGIJDwq9gdkT/r+k0fNX2bwE+oLeMt8EifAAzV3C+dAjfwAL5HYCJtnw
-# ZXZCpimHCUcr5n8apIUP/JiW9lVUKx+A+sDyDivl1vupL0QVSucTDh3bNzgaoSv2
-# 7dZ8/DCCBY0wggR1oAMCAQICEA6bGI750C3n79tQ4ghAGFowDQYJKoZIhvcNAQEM
-# BQAwZTELMAkGA1UEBhMCVVMxFTATBgNVBAoTDERpZ2lDZXJ0IEluYzEZMBcGA1UE
-# CxMQd3d3LmRpZ2ljZXJ0LmNvbTEkMCIGA1UEAxMbRGlnaUNlcnQgQXNzdXJlZCBJ
-# RCBSb290IENBMB4XDTIyMDgwMTAwMDAwMFoXDTMxMTEwOTIzNTk1OVowYjELMAkG
-# A1UEBhMCVVMxFTATBgNVBAoTDERpZ2lDZXJ0IEluYzEZMBcGA1UECxMQd3d3LmRp
-# Z2ljZXJ0LmNvbTEhMB8GA1UEAxMYRGlnaUNlcnQgVHJ1c3RlZCBSb290IEc0MIIC
-# IjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAv+aQc2jeu+RdSjwwIjBpM+zC
-# pyUuySE98orYWcLhKac9WKt2ms2uexuEDcQwH/MbpDgW61bGl20dq7J58soR0uRf
-# 1gU8Ug9SH8aeFaV+vp+pVxZZVXKvaJNwwrK6dZlqczKU0RBEEC7fgvMHhOZ0O21x
-# 4i0MG+4g1ckgHWMpLc7sXk7Ik/ghYZs06wXGXuxbGrzryc/NrDRAX7F6Zu53yEio
-# ZldXn1RYjgwrt0+nMNlW7sp7XeOtyU9e5TXnMcvak17cjo+A2raRmECQecN4x7ax
-# xLVqGDgDEI3Y1DekLgV9iPWCPhCRcKtVgkEy19sEcypukQF8IUzUvK4bA3VdeGbZ
-# OjFEmjNAvwjXWkmkwuapoGfdpCe8oU85tRFYF/ckXEaPZPfBaYh2mHY9WV1CdoeJ
-# l2l6SPDgohIbZpp0yt5LHucOY67m1O+SkjqePdwA5EUlibaaRBkrfsCUtNJhbesz
-# 2cXfSwQAzH0clcOP9yGyshG3u3/y1YxwLEFgqrFjGESVGnZifvaAsPvoZKYz0YkH
-# 4b235kOkGLimdwHhD5QMIR2yVCkliWzlDlJRR3S+Jqy2QXXeeqxfjT/JvNNBERJb
-# 5RBQ6zHFynIWIgnffEx1P2PsIV/EIFFrb7GrhotPwtZFX50g/KEexcCPorF+CiaZ
-# 9eRpL5gdLfXZqbId5RsCAwEAAaOCATowggE2MA8GA1UdEwEB/wQFMAMBAf8wHQYD
-# VR0OBBYEFOzX44LScV1kTN8uZz/nupiuHA9PMB8GA1UdIwQYMBaAFEXroq/0ksuC
-# MS1Ri6enIZ3zbcgPMA4GA1UdDwEB/wQEAwIBhjB5BggrBgEFBQcBAQRtMGswJAYI
-# KwYBBQUHMAGGGGh0dHA6Ly9vY3NwLmRpZ2ljZXJ0LmNvbTBDBggrBgEFBQcwAoY3
-# aHR0cDovL2NhY2VydHMuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0QXNzdXJlZElEUm9v
-# dENBLmNydDBFBgNVHR8EPjA8MDqgOKA2hjRodHRwOi8vY3JsMy5kaWdpY2VydC5j
-# b20vRGlnaUNlcnRBc3N1cmVkSURSb290Q0EuY3JsMBEGA1UdIAQKMAgwBgYEVR0g
-# ADANBgkqhkiG9w0BAQwFAAOCAQEAcKC/Q1xV5zhfoKN0Gz22Ftf3v1cHvZqsoYcs
-# 7IVeqRq7IviHGmlUIu2kiHdtvRoU9BNKei8ttzjv9P+Aufih9/Jy3iS8UgPITtAq
-# 3votVs/59PesMHqai7Je1M/RQ0SbQyHrlnKhSLSZy51PpwYDE3cnRNTnf+hZqPC/
-# Lwum6fI0POz3A8eHqNJMQBk1RmppVLC4oVaO7KTVPeix3P0c2PR3WlxUjG/voVA9
-# /HYJaISfb8rbII01YBwCA8sgsKxYoA5AY8WYIsGyWfVVa88nq2x2zm8jLfR+cWoj
-# ayL/ErhULSd+2DrZ8LaHlv1b0VysGMNNn3O3AamfV6peKOK5lDGCA3YwggNyAgEB
-# MHcwYzELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYD
-# VQQDEzJEaWdpQ2VydCBUcnVzdGVkIEc0IFJTQTQwOTYgU0hBMjU2IFRpbWVTdGFt
-# cGluZyBDQQIQC65mvFq6f5WHxvnpBOMzBDANBglghkgBZQMEAgEFAKCB0TAaBgkq
-# hkiG9w0BCQMxDQYLKoZIhvcNAQkQAQQwHAYJKoZIhvcNAQkFMQ8XDTI1MDIyMzIz
-# NDgzMlowKwYLKoZIhvcNAQkQAgwxHDAaMBgwFgQU29OF7mLb0j575PZxSFCHJNWG
-# W0UwLwYJKoZIhvcNAQkEMSIEIFn2MBhbwmMQptXZtpkLrdyFeyVmHn4P1ehPcFtU
-# proaMDcGCyqGSIb3DQEJEAIvMSgwJjAkMCIEIHZ2n6jyYy8fQws6IzCu1lZ1/tdz
-# 2wXWZbkFk5hDj5rbMA0GCSqGSIb3DQEBAQUABIICAKbZLYdtQ+pYtf3Aj84UN/I/
-# 8KbLy9o+Qbsp2jsvRTguvUqjzE6F9QIoi8ijkVEFDYkOzE5ywNM+xoIu1R6c5wVB
-# sojyltcv9fqwZ0luHgke3IBOKepveCc7DTpkWoQrmmrWIWYgW5lB/4Rc6Auy7pUb
-# KfremDALeU8fOttB0z5SqPX8aTNF9C1XXcvZDKNyJs793Kdb4MHX3zaRJPZuaznh
-# +AYbVKKLEfBPJoIXYpNha56Jo5DlAdDXBVIVuDLdeFCTZMD3heWyQ9Dj9iD/+98m
-# 1YATtcOxO5u5fgSQDoollMvYCd1/x4kGd2ZNNjzEE6T+yKhLxMVNDL1xGqleCr2a
-# yrWcdPlm7iYa5r4gnLknm/3XhYnTMSCAlCaH6nWlclgWYdCpq/UX51NF+OIpWooG
-# JRt1v5Ey8yVcuiHIUNRoo1y1nXeqHTXab/r9sbz4WOGdVdYfo8UMQ1VPT8KgKleU
-# vIimTmNE7zeORYfdcNfJGkVcIINqgovDLZ34qcrsSEjkChSg/O/uMCO6iOYVaPSH
-# 9SR8tN71sAV16k54jEbqcOXnxvKUzRMlUZR4euGF6LyBMPIcjAE5CuSR15GKGpcB
-# ARqZLBGxSsoloOPW2unt4DYeOPCHDsKljzHXJIF7huVYFHzFAQUauDKkvwxP/4cf
-# FMrK8MmY7WHbRehRbhtM
+# BgkqhkiG9w0BCQQxIgQgKLBBofbX2Z7/hL3SAXE+KelzN8kyu1N5KY85vARGw+gw
+# DQYJKoZIhvcNAQEBBQAEggGAujipPamX92se+tu7JCm5ixWIg8Rps3QMxoUM3k9x
+# frJp2SFfKbitJBJOPsBFknd57t3TmqnGXVWz3xgsr9nMjz5fCILpfHEw37cfPm9i
+# tDRlhGJjn9IaHYqihKBZOE+PANE4+QqR+3oYVrIrsIyPOgmymIevoqYK48ivSBqZ
+# g16mCpQVHhtf99DTLlgEtpCcYRl9Vwmi6T7N2XIOL6VKrqFEj4kXILzbMvtMnKlS
+# hWAzrthprkUw/dDtF3VLbr8t+8b7NZE8bf24xfa1/mSmJ4nAYIqFYx9IlTltONYv
+# 0whgXYwTQWEs66xD94liHZICxw7OcD4h4Gkat1P/gaE5lSXYx330JIw8sFxb8+Sv
+# PpBHsI0Hegn6uN2qZZFqGhF2fLLupDZgY6mFttg0GWOqgBefh6f6Y//jWB0G2MA6
+# DjPGIKoguxbu87yBJIV595nQ3Sa6OwvrjEtzOnEzTr8tXvQ5BLDCNzAQuu17V7e5
+# x+hKXBtUIJftZbX03f/zxru0oYIXdjCCF3IGCisGAQQBgjcDAwExghdiMIIXXgYJ
+# KoZIhvcNAQcCoIIXTzCCF0sCAQMxDzANBglghkgBZQMEAgEFADB3BgsqhkiG9w0B
+# CRABBKBoBGYwZAIBAQYJYIZIAYb9bAcBMDEwDQYJYIZIAWUDBAIBBQAEIEaO6iiF
+# xsXT/57FCKt5PS37QSn9RFJZpLghUm6fIQvXAhBUiVsEbLLWZKvwR2gKKvaXGA8y
+# MDI1MDgwNzA3MTMwNVqgghM6MIIG7TCCBNWgAwIBAgIQCoDvGEuN8QWC0cR2p5V0
+# aDANBgkqhkiG9w0BAQsFADBpMQswCQYDVQQGEwJVUzEXMBUGA1UEChMORGlnaUNl
+# cnQsIEluYy4xQTA/BgNVBAMTOERpZ2lDZXJ0IFRydXN0ZWQgRzQgVGltZVN0YW1w
+# aW5nIFJTQTQwOTYgU0hBMjU2IDIwMjUgQ0ExMB4XDTI1MDYwNDAwMDAwMFoXDTM2
+# MDkwMzIzNTk1OVowYzELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJ
+# bmMuMTswOQYDVQQDEzJEaWdpQ2VydCBTSEEyNTYgUlNBNDA5NiBUaW1lc3RhbXAg
+# UmVzcG9uZGVyIDIwMjUgMTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIB
+# ANBGrC0Sxp7Q6q5gVrMrV7pvUf+GcAoB38o3zBlCMGMyqJnfFNZx+wvA69HFTBdw
+# bHwBSOeLpvPnZ8ZN+vo8dE2/pPvOx/Vj8TchTySA2R4QKpVD7dvNZh6wW2R6kSu9
+# RJt/4QhguSssp3qome7MrxVyfQO9sMx6ZAWjFDYOzDi8SOhPUWlLnh00Cll8pjrU
+# cCV3K3E0zz09ldQ//nBZZREr4h/GI6Dxb2UoyrN0ijtUDVHRXdmncOOMA3CoB/iU
+# SROUINDT98oksouTMYFOnHoRh6+86Ltc5zjPKHW5KqCvpSduSwhwUmotuQhcg9tw
+# 2YD3w6ySSSu+3qU8DD+nigNJFmt6LAHvH3KSuNLoZLc1Hf2JNMVL4Q1OpbybpMe4
+# 6YceNA0LfNsnqcnpJeItK/DhKbPxTTuGoX7wJNdoRORVbPR1VVnDuSeHVZlc4seA
+# O+6d2sC26/PQPdP51ho1zBp+xUIZkpSFA8vWdoUoHLWnqWU3dCCyFG1roSrgHjSH
+# lq8xymLnjCbSLZ49kPmk8iyyizNDIXj//cOgrY7rlRyTlaCCfw7aSUROwnu7zER6
+# EaJ+AliL7ojTdS5PWPsWeupWs7NpChUk555K096V1hE0yZIXe+giAwW00aHzrDch
+# Ic2bQhpp0IoKRR7YufAkprxMiXAJQ1XCmnCfgPf8+3mnAgMBAAGjggGVMIIBkTAM
+# BgNVHRMBAf8EAjAAMB0GA1UdDgQWBBTkO/zyMe39/dfzkXFjGVBDz2GM6DAfBgNV
+# HSMEGDAWgBTvb1NK6eQGfHrK4pBW9i/USezLTjAOBgNVHQ8BAf8EBAMCB4AwFgYD
+# VR0lAQH/BAwwCgYIKwYBBQUHAwgwgZUGCCsGAQUFBwEBBIGIMIGFMCQGCCsGAQUF
+# BzABhhhodHRwOi8vb2NzcC5kaWdpY2VydC5jb20wXQYIKwYBBQUHMAKGUWh0dHA6
+# Ly9jYWNlcnRzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydFRydXN0ZWRHNFRpbWVTdGFt
+# cGluZ1JTQTQwOTZTSEEyNTYyMDI1Q0ExLmNydDBfBgNVHR8EWDBWMFSgUqBQhk5o
+# dHRwOi8vY3JsMy5kaWdpY2VydC5jb20vRGlnaUNlcnRUcnVzdGVkRzRUaW1lU3Rh
+# bXBpbmdSU0E0MDk2U0hBMjU2MjAyNUNBMS5jcmwwIAYDVR0gBBkwFzAIBgZngQwB
+# BAIwCwYJYIZIAYb9bAcBMA0GCSqGSIb3DQEBCwUAA4ICAQBlKq3xHCcEua5gQezR
+# CESeY0ByIfjk9iJP2zWLpQq1b4URGnwWBdEZD9gBq9fNaNmFj6Eh8/YmRDfxT7C0
+# k8FUFqNh+tshgb4O6Lgjg8K8elC4+oWCqnU/ML9lFfim8/9yJmZSe2F8AQ/UdKFO
+# tj7YMTmqPO9mzskgiC3QYIUP2S3HQvHG1FDu+WUqW4daIqToXFE/JQ/EABgfZXLW
+# U0ziTN6R3ygQBHMUBaB5bdrPbF6MRYs03h4obEMnxYOX8VBRKe1uNnzQVTeLni2n
+# HkX/QqvXnNb+YkDFkxUGtMTaiLR9wjxUxu2hECZpqyU1d0IbX6Wq8/gVutDojBIF
+# eRlqAcuEVT0cKsb+zJNEsuEB7O7/cuvTQasnM9AWcIQfVjnzrvwiCZ85EE8LUkqR
+# hoS3Y50OHgaY7T/lwd6UArb+BOVAkg2oOvol/DJgddJ35XTxfUlQ+8Hggt8l2Yv7
+# roancJIFcbojBcxlRcGG0LIhp6GvReQGgMgYxQbV1S3CrWqZzBt1R9xJgKf47Cdx
+# VRd/ndUlQ05oxYy2zRWVFjF7mcr4C34Mj3ocCVccAvlKV9jEnstrniLvUxxVZE/r
+# ptb7IRE2lskKPIJgbaP5t2nGj/ULLi49xTcBZU8atufk+EMF/cWuiC7POGT75qaL
+# 6vdCvHlshtjdNXOCIUjsarfNZzCCBrQwggScoAMCAQICEA3HrFcF/yGZLkBDIgw6
+# SYYwDQYJKoZIhvcNAQELBQAwYjELMAkGA1UEBhMCVVMxFTATBgNVBAoTDERpZ2lD
+# ZXJ0IEluYzEZMBcGA1UECxMQd3d3LmRpZ2ljZXJ0LmNvbTEhMB8GA1UEAxMYRGln
+# aUNlcnQgVHJ1c3RlZCBSb290IEc0MB4XDTI1MDUwNzAwMDAwMFoXDTM4MDExNDIz
+# NTk1OVowaTELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMUEw
+# PwYDVQQDEzhEaWdpQ2VydCBUcnVzdGVkIEc0IFRpbWVTdGFtcGluZyBSU0E0MDk2
+# IFNIQTI1NiAyMDI1IENBMTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIB
+# ALR4MdMKmEFyvjxGwBysddujRmh0tFEXnU2tjQ2UtZmWgyxU7UNqEY81FzJsQqr5
+# G7A6c+Gh/qm8Xi4aPCOo2N8S9SLrC6Kbltqn7SWCWgzbNfiR+2fkHUiljNOqnIVD
+# /gG3SYDEAd4dg2dDGpeZGKe+42DFUF0mR/vtLa4+gKPsYfwEu7EEbkC9+0F2w4QJ
+# LVSTEG8yAR2CQWIM1iI5PHg62IVwxKSpO0XaF9DPfNBKS7Zazch8NF5vp7eaZ2CV
+# NxpqumzTCNSOxm+SAWSuIr21Qomb+zzQWKhxKTVVgtmUPAW35xUUFREmDrMxSNlr
+# /NsJyUXzdtFUUt4aS4CEeIY8y9IaaGBpPNXKFifinT7zL2gdFpBP9qh8SdLnEut/
+# GcalNeJQ55IuwnKCgs+nrpuQNfVmUB5KlCX3ZA4x5HHKS+rqBvKWxdCyQEEGcbLe
+# 1b8Aw4wJkhU1JrPsFfxW1gaou30yZ46t4Y9F20HHfIY4/6vHespYMQmUiote8lad
+# jS/nJ0+k6MvqzfpzPDOy5y6gqztiT96Fv/9bH7mQyogxG9QEPHrPV6/7umw052Ak
+# yiLA6tQbZl1KhBtTasySkuJDpsZGKdlsjg4u70EwgWbVRSX1Wd4+zoFpp4Ra+MlK
+# M2baoD6x0VR4RjSpWM8o5a6D8bpfm4CLKczsG7ZrIGNTAgMBAAGjggFdMIIBWTAS
+# BgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBTvb1NK6eQGfHrK4pBW9i/USezL
+# TjAfBgNVHSMEGDAWgBTs1+OC0nFdZEzfLmc/57qYrhwPTzAOBgNVHQ8BAf8EBAMC
+# AYYwEwYDVR0lBAwwCgYIKwYBBQUHAwgwdwYIKwYBBQUHAQEEazBpMCQGCCsGAQUF
+# BzABhhhodHRwOi8vb2NzcC5kaWdpY2VydC5jb20wQQYIKwYBBQUHMAKGNWh0dHA6
+# Ly9jYWNlcnRzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydFRydXN0ZWRSb290RzQuY3J0
+# MEMGA1UdHwQ8MDowOKA2oDSGMmh0dHA6Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdp
+# Q2VydFRydXN0ZWRSb290RzQuY3JsMCAGA1UdIAQZMBcwCAYGZ4EMAQQCMAsGCWCG
+# SAGG/WwHATANBgkqhkiG9w0BAQsFAAOCAgEAF877FoAc/gc9EXZxML2+C8i1NKZ/
+# zdCHxYgaMH9Pw5tcBnPw6O6FTGNpoV2V4wzSUGvI9NAzaoQk97frPBtIj+ZLzdp+
+# yXdhOP4hCFATuNT+ReOPK0mCefSG+tXqGpYZ3essBS3q8nL2UwM+NMvEuBd/2vmd
+# YxDCvwzJv2sRUoKEfJ+nN57mQfQXwcAEGCvRR2qKtntujB71WPYAgwPyWLKu6Rna
+# ID/B0ba2H3LUiwDRAXx1Neq9ydOal95CHfmTnM4I+ZI2rVQfjXQA1WSjjf4J2a7j
+# LzWGNqNX+DF0SQzHU0pTi4dBwp9nEC8EAqoxW6q17r0z0noDjs6+BFo+z7bKSBwZ
+# XTRNivYuve3L2oiKNqetRHdqfMTCW/NmKLJ9M+MtucVGyOxiDf06VXxyKkOirv6o
+# 02OoXN4bFzK0vlNMsvhlqgF2puE6FndlENSmE+9JGYxOGLS/D284NHNboDGcmWXf
+# wXRy4kbu4QFhOm0xJuF2EZAOk5eCkhSxZON3rGlHqhpB/8MluDezooIs8CVnrpHM
+# iD2wL40mm53+/j7tFaxYKIqL0Q4ssd8xHZnIn/7GELH3IdvG2XlM9q7WP/UwgOkw
+# /HQtyRN62JK4S1C8uw3PdBunvAZapsiI5YKdvlarEvf8EA+8hcpSM9LHJmyrxaFt
+# oza2zNaQ9k+5t1wwggWNMIIEdaADAgECAhAOmxiO+dAt5+/bUOIIQBhaMA0GCSqG
+# SIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMx
+# GTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNVBAMTG0RpZ2lDZXJ0IEFz
+# c3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBaFw0zMTExMDkyMzU5NTla
+# MGIxCzAJBgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsT
+# EHd3dy5kaWdpY2VydC5jb20xITAfBgNVBAMTGERpZ2lDZXJ0IFRydXN0ZWQgUm9v
+# dCBHNDCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAL/mkHNo3rvkXUo8
+# MCIwaTPswqclLskhPfKK2FnC4SmnPVirdprNrnsbhA3EMB/zG6Q4FutWxpdtHauy
+# efLKEdLkX9YFPFIPUh/GnhWlfr6fqVcWWVVyr2iTcMKyunWZanMylNEQRBAu34Lz
+# B4TmdDttceItDBvuINXJIB1jKS3O7F5OyJP4IWGbNOsFxl7sWxq868nPzaw0QF+x
+# embud8hIqGZXV59UWI4MK7dPpzDZVu7Ke13jrclPXuU15zHL2pNe3I6PgNq2kZhA
+# kHnDeMe2scS1ahg4AxCN2NQ3pC4FfYj1gj4QkXCrVYJBMtfbBHMqbpEBfCFM1Lyu
+# GwN1XXhm2ToxRJozQL8I11pJpMLmqaBn3aQnvKFPObURWBf3JFxGj2T3wWmIdph2
+# PVldQnaHiZdpekjw4KISG2aadMreSx7nDmOu5tTvkpI6nj3cAORFJYm2mkQZK37A
+# lLTSYW3rM9nF30sEAMx9HJXDj/chsrIRt7t/8tWMcCxBYKqxYxhElRp2Yn72gLD7
+# 6GSmM9GJB+G9t+ZDpBi4pncB4Q+UDCEdslQpJYls5Q5SUUd0viastkF13nqsX40/
+# ybzTQRESW+UQUOsxxcpyFiIJ33xMdT9j7CFfxCBRa2+xq4aLT8LWRV+dIPyhHsXA
+# j6KxfgommfXkaS+YHS312amyHeUbAgMBAAGjggE6MIIBNjAPBgNVHRMBAf8EBTAD
+# AQH/MB0GA1UdDgQWBBTs1+OC0nFdZEzfLmc/57qYrhwPTzAfBgNVHSMEGDAWgBRF
+# 66Kv9JLLgjEtUYunpyGd823IDzAOBgNVHQ8BAf8EBAMCAYYweQYIKwYBBQUHAQEE
+# bTBrMCQGCCsGAQUFBzABhhhodHRwOi8vb2NzcC5kaWdpY2VydC5jb20wQwYIKwYB
+# BQUHMAKGN2h0dHA6Ly9jYWNlcnRzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEFzc3Vy
+# ZWRJRFJvb3RDQS5jcnQwRQYDVR0fBD4wPDA6oDigNoY0aHR0cDovL2NybDMuZGln
+# aWNlcnQuY29tL0RpZ2lDZXJ0QXNzdXJlZElEUm9vdENBLmNybDARBgNVHSAECjAI
+# MAYGBFUdIAAwDQYJKoZIhvcNAQEMBQADggEBAHCgv0NcVec4X6CjdBs9thbX979X
+# B72arKGHLOyFXqkauyL4hxppVCLtpIh3bb0aFPQTSnovLbc47/T/gLn4offyct4k
+# vFIDyE7QKt76LVbP+fT3rDB6mouyXtTP0UNEm0Mh65ZyoUi0mcudT6cGAxN3J0TU
+# 53/oWajwvy8LpunyNDzs9wPHh6jSTEAZNUZqaVSwuKFWjuyk1T3osdz9HNj0d1pc
+# VIxv76FQPfx2CWiEn2/K2yCNNWAcAgPLILCsWKAOQGPFmCLBsln1VWvPJ6tsds5v
+# Iy30fnFqI2si/xK4VC0nftg62fC2h5b9W9FcrBjDTZ9ztwGpn1eqXijiuZQxggN8
+# MIIDeAIBATB9MGkxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwgSW5j
+# LjFBMD8GA1UEAxM4RGlnaUNlcnQgVHJ1c3RlZCBHNCBUaW1lU3RhbXBpbmcgUlNB
+# NDA5NiBTSEEyNTYgMjAyNSBDQTECEAqA7xhLjfEFgtHEdqeVdGgwDQYJYIZIAWUD
+# BAIBBQCggdEwGgYJKoZIhvcNAQkDMQ0GCyqGSIb3DQEJEAEEMBwGCSqGSIb3DQEJ
+# BTEPFw0yNTA4MDcwNzEzMDVaMCsGCyqGSIb3DQEJEAIMMRwwGjAYMBYEFN1iMKyG
+# Ci0wa9o4sWh5UjAH+0F+MC8GCSqGSIb3DQEJBDEiBCAL/fB2uBlgJ7QpJUge/+gg
+# T/xY7ez4Y0U5Cp9Yhk8EQTA3BgsqhkiG9w0BCRACLzEoMCYwJDAiBCBKoD+iLNdc
+# hMVck4+CjmdrnK7Ksz/jbSaaozTxRhEKMzANBgkqhkiG9w0BAQEFAASCAgAXMu4e
+# XVWyJqU0uQPjbejJZFCyGsAqMuEpoLEvi303ROHrR0X8RVWc+wXVwHFgw9juF3ER
+# tJ4P/MJxi8OxcpGQ0J5iXbR5HtD2h4MFqesrp8VpzH9+FZGJfhYcY8xuc5SKgfD/
+# 3Mq4soiyqEo0yov9OavHcCtTLPYcwQZLYaD1or5uxtAlaoxgU2GYcUGcbkwhIMU2
+# wfWlRys8PCpmFdhW8E5xY4lVYG7SNmtZny+rIMrIDoD6rHjBiVioecD1jfMuTxfO
+# pHr1OLZeV3EIE+83L/AyC6qvOARPPOtCkXZDnFuqYrrHWMfQnzFPLyP5r7qodw16
+# OvVV8/r/7L7/ONgYPm3U7Je6GGJpiXycThehyDy7CDY9VW6xFRrFcvW2Uob8sJEZ
+# tJPnKHqE6oAJUFAN8EaTsj+5Z3WSg0ZNhXWBe7xU1Yno/lWp3ePVVZXVQYJpW0iI
+# WxaRtGD3yjiTgY1h1gt0bZ5CovtWPH3vu+DaV3Bt98PM6HIEZoKjTlpQKL1+6EjT
+# hCR3o49fTdVEY3B/kw5IqazfRt26Jf1bRvbN6Dgqa9wHN5Ov9qxeA6zBJHPIsejl
+# 09kAYXlxRr5l7zGWti5Lftpa1ZFLF+ePccOhuMOB1azEaan68l5DADixgAYYeDNs
+# LxDfrLULrFQPHHUa+akfa+/dPpWQUtqz2arxbA==
 # SIG # End signature block

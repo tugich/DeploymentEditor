@@ -148,6 +148,7 @@ Enumeration KeyboardShortcuts
   #MenuItem_ShowSupportFilesFolder
   #MenuItem_OpenWithISE
   #MenuItem_OpenWithNotepadPlusPlus
+  #MenuItem_OpenWithVSCode
   #MenuItem_RunInstallation
   #MenuItem_RunInstallationSandbox
   #MenuItem_RunRemoteMachine
@@ -1950,8 +1951,8 @@ Procedure StartDeploymentWithPSADT(DeploymentType.s = "Install")
     SilentSwitch = " -DeployMode Silent"
   EndIf
 
-  ;ShellExecute_(0, "RunAS", Chr(34)+Project_FolderPath+"\Invoke-AppDeployToolkit.exe"+Chr(34), "-DeploymentType '"+DeploymentType+"'"+SilentSwitch, Project_FolderPath, #SW_SHOWNORMAL)
-  RunProgram(Chr(34)+Project_FolderPath+"\Invoke-AppDeployToolkit.exe"+Chr(34), "-DeploymentType "+DeploymentType+SilentSwitch, Project_FolderPath)
+  ShellExecute_(0, "RunAS", Chr(34)+Project_FolderPath+"\Invoke-AppDeployToolkit.exe"+Chr(34), "-DeploymentType '"+DeploymentType+"'"+SilentSwitch, Project_FolderPath, #SW_SHOWNORMAL)
+  ;RunProgram(Chr(34)+Project_FolderPath+"\Invoke-AppDeployToolkit.exe"+Chr(34), "-DeploymentType "+DeploymentType+SilentSwitch, Project_FolderPath)
 EndProcedure
 
 Procedure StartInstallation(EventType)
@@ -1980,6 +1981,10 @@ EndProcedure
 
 Procedure StartNotepadPlusPlus(EventType)
   RunProgram("notepad++.exe", Chr(34) + Project_DeploymentFile + Chr(34), "")
+EndProcedure
+
+Procedure StartVSCode(EventType)
+  RunProgram("code", Chr(34) + Project_DeploymentFile + Chr(34), "")
 EndProcedure
 
 Procedure.s BuildScript(DeploymentType.s = "Installation")
@@ -2459,6 +2464,7 @@ Repeat
           Case #MenuItem_PSADT_OnlineDocumentation : ShowOnlineDocumentation(0)
           Case #MenuItem_OpenWithISE : StartPowerShellEditor(0)
           Case #MenuItem_OpenWithNotepadPlusPlus : StartNotepadPlusPlus(0)
+          Case #MenuItem_OpenWithVSCode : StartVSCode(0)
           Case #MenuItem_ShowProjectFolder : ShowProjectFolder(0)
           Case #MenuItem_ShowFilesFolder : ShowFilesFolder(0)
           Case #MenuItem_ShowSupportFilesFolder : ShowSupportFilesFolder(0)
@@ -2556,7 +2562,8 @@ Repeat
   
 Until Quit = #True
 ; IDE Options = PureBasic 6.21 (Windows - x64)
-; CursorPosition = 3
-; Folding = AAAAAAAAAAAAAAA5
+; CursorPosition = 1953
+; FirstLine = 316
+; Folding = AAAAAAAAAAAYAAAw
 ; EnableXP
 ; DPIAware

@@ -1,67 +1,159 @@
 @{
-    BalloonText = @{
-        Complete = "完成。"
-        Error = "失敗。"
-        FastRetry = "未完成。"
-        RestartRequired = "完成。需重啟。"
-        Start = "已啟動。"
+    BalloonTip = @{
+        Start = @{
+            Install = '安裝開始。'
+            Repair = '修復開始。'
+            Uninstall = '卸載開始。'
+        }
+        Complete = @{
+            Install = '安裝完成。'
+            Repair = '修復完成。'
+            Uninstall = '解除安裝完成。'
+        }
+        RestartRequired = @{
+            Install = '安裝完成。需要重新啟動。'
+            Repair = '修復完成。需要重新啟動。'
+            Uninstall = '卸載完成。需要重新啟動。'
+        }
+        FastRetry = @{
+            Install = '安裝未完成。'
+            Repair = '修復未完成。'
+            Uninstall = '解除安裝未完成。'
+        }
+        Error = @{
+            Install = '安裝失敗。'
+            Repair = '維修失敗。'
+            Uninstall = '解除安裝失敗。'
+        }
     }
-    BlockExecution = @{
-        Message = "為完成安裝過程，暫時禁止啟動本款應用程式。"
+    BlockExecutionText = @{
+        Message = @{
+            Install = '啟動此應用程式已被暫時阻止，以便完成安裝作業。'
+            Repair = '啟動此應用程式已被暫時阻止，以便完成修復操作。'
+            Uninstall = '啟動此應用程式已暫時受阻，以便完成卸載作業。'
+        }
+        Subtitle = @{
+            Install = '{Toolkit\CompanyName} - 應用程式安裝'
+            Repair = '{Toolkit\CompanyName} - 應用程式維修'
+            Uninstall = '{Toolkit\CompanyName} - 應用程式卸載'
+        }
     }
-    ClosePrompt = @{
-        ButtonClose = "關閉程序"
-        ButtonContinue = "繼續"
-        ButtonContinueTooltip = "關閉上列應用程式後才選擇`"繼續`"。"
-        ButtonDefer = "延遲"
-        CountdownMessage = "注：下列程序將自動關閉："
-        Message = "在繼續安裝前必須關閉下列程序。`n`n請保存您的工作，關閉程序，然後繼續。 或者保存您的工作，然後點擊`"關閉程序`"。"
+    DiskSpaceText = @{
+        Message = @{
+            Install = "您沒有足夠的磁碟空間來完成安裝：`n{0}`n`n所需空間： {1}MB `n 可用空間： {2}MB`n`n請釋放足夠的磁碟空間，以便繼續安裝。"
+            Repair = "您沒有足夠的磁碟空間來完成修復:`n{0}`n`n所需空間： {1}MB`n可用空間： {2}MB`n`n請釋放足夠的磁碟空間，以便繼續進行修復。"
+            Uninstall = "您沒有足夠的磁碟空間來完成卸載:`n{0}`n`n所需空間： {1}MB`n可用空間： {2}MB`n`n請釋放足夠的磁碟空間，以便繼續卸載。"
+        }
     }
-    DeferPrompt = @{
-        Deadline = "最後期限："
-        ExpiryMessage = "在延期失效前，可選擇延遲安裝："
-        RemainingDeferrals = "所剩延期："
-        WarningMessage = "延期失效後，再也無法延遲安裝。"
-        WelcomeMessage = "即將安裝下列應用程式："
+    InstallationPrompt = @{
+        Subtitle = @{
+            Install = '{Toolkit\CompanyName} - 應用程式安裝'
+            Repair = '{Toolkit\CompanyName} - 應用程式維修'
+            Uninstall = '{Toolkit\CompanyName} - 應用程式卸載'
+        }
     }
-    DeploymentType = @{
-        Install = "安裝"
-        Repair = "修復"
-        Uninstall = "卸載"
-    }
-    DiskSpace = @{
-        Message = "沒有足夠的磁盤空間來完成下列安裝：`n{0}`n`n所需空間： {1}MB`n可用空間： {2}MB`n`n請釋放足夠的磁盤空間以繼續安裝。"
-    }
-    Progress = @{
-        MessageInstall = "安裝中。請稍等。。。"
-        MessageInstallDetail = "安裝完成後，此視窗會自動關閉。。。"
-        MessageRepair = "修復中。請稍等。。。"
-        MessageRepairDetail = "修復完成後，此視窗會自動關閉。。。"
-        MessageUninstall = "卸載中。請稍等。。。"
-        MessageUninstallDetail = "卸載完成後，此視窗將自動關閉。。。"
+    ProgressPrompt = @{
+        Message = @{
+            Install = '安裝中。 請稍候…'
+            Repair = '維修中。 請稍候…'
+            Uninstall = '正在卸載。 請稍候…'
+        }
+        MessageDetail = @{
+            Install = '安裝完成後，此視窗將自動關閉。'
+            Repair = '維修完成後，此視窗將自動關閉。'
+            Uninstall = '卸載完成後，此視窗將自動關閉。'
+        }
+        Subtitle = @{
+            Install = '{Toolkit\CompanyName} - 應用程式安裝'
+            Repair = '{Toolkit\CompanyName} - 應用程式維修'
+            Uninstall = '{Toolkit\CompanyName} - 應用程式卸載'
+        }
     }
     RestartPrompt = @{
-        ButtonRestartLater = "最小化"
-        ButtonRestartNow = "現在重啟"
-        Message = "未完成安裝過程，需重啟計算機。"
-        MessageRestart = "倒計時結束後，計算機將自動重啟。"
-        MessageTime = "請保存您的工作，然後在容許時間重啟計算機。"
-        TimeRemaining = "剩餘時間："
-        Title = "需重啟"
+        ButtonRestartLater = '最小化'
+        ButtonRestartNow = '現在重新啟動'
+        Message = @{
+            Install = '為了完成安裝，您必須重新啟動電腦。'
+            Repair = '為了完成維修，您必須重新啟動電腦。'
+            Uninstall = '為了讓卸載完成，您必須重新啟動電腦。'
+        }
+        CustomMessage = ''
+        MessageRestart = '您的電腦會在倒數計時結束時自動重新啟動。'
+        MessageTime = '請儲存您的工作，並在指定時間內重新啟動。'
+        TimeRemaining = '剩餘時間：'
+        Title = '需要重新啟動'
+        Subtitle = @{
+            Install = '{Toolkit\CompanyName} - 應用程式安裝'
+            Repair = '{Toolkit\CompanyName} - 應用程式維修'
+            Uninstall = '{Toolkit\CompanyName} - 應用程式卸載'
+        }
     }
-    WelcomePrompt = @{
+    CloseAppsPrompt = @{
         Classic = @{
-            CountdownMessage = "{0}會自動繼續:"
-            CustomMessage = ""
+            WelcomeMessage = @{
+                Install = '下列應用程式即將安裝：'
+                Repair = '下列應用程式即將被修復：'
+                Uninstall = '下列應用程式即將被解除安裝：'
+            }
+            CloseAppsMessage = @{
+                Install = "在繼續安裝之前，必須關閉下列程式。`n`n請儲存您的工作，關閉程式，然後繼續。或者，保存您的工作，然後按一下`「關閉程式`」。"
+                Repair = "在進行修復之前，必須關閉下列程式。`n`n請儲存您的工作，關閉程式，然後繼續。或者，保存您的工作并单击 「关闭程序」。"
+                Uninstall = "卸載程式前，必須先關閉下列程式。或者，保存您的工作並點擊 「關閉程式」。"
+            }
+            ExpiryMessage = @{
+                Install = '您可以選擇延遲安裝，直到延遲到期:'
+                Repair = '您可以選擇延遲修復，直到延遲到期：'
+                Uninstall = '您可以選擇延遲卸載，直到延遲期限到期：'
+            }
+            DeferralsRemaining = '剩餘的延遲：'
+            DeferralDeadline = '截止日期:'
+            ExpiryWarning = '一旦延遲到期，您將無法再選擇延遲。'
+            CountdownDefer = @{
+                Install = '安裝會自動繼續：'
+                Repair = '維修會自動繼續進行：'
+                Uninstall = '卸載將自動繼續中：'
+            }
+            CountdownClose = @{
+                Install = '注意：程式會自動關閉：'
+                Repair = '注意：程式會自動關閉：'
+                Uninstall = '注意：程式會自動關閉：'
+            }
+            ButtonClose = '關閉程式'
+            ButtonDefer = '延遲'
+            ButtonContinue = '繼續'
+            ButtonContinueTooltip = '僅在關閉上述列出的應用程式後選擇 「繼續」。'
         }
         Fluent = @{
-            Subtitle = 'PSAppDeployToolkit - 應用程式 {0}'
-            DialogMessage = '由於下列應用程式將自動關閉，請先保存您的工作再繼續。'
-            DialogMessageNoProcesses = '請選擇「安裝」繼續安裝。如果您有任何延遲安裝的剩餘時間，您也可以選擇延遲安裝。'
-            ButtonDeferRemaining = '留下'
-            ButtonLeftText = '延遲'
-            ButtonRightText = '關閉應用程式並安裝'
-            ButtonRightTextNoProcesses = '安裝'
+            DialogMessage = @{
+                Install = '請先保存您的工作再繼續，因為下列應用程式會自動關閉。'
+                Repair = '請先保存您的工作再繼續，因為下列應用程式會自動關閉。'
+                Uninstall = '請先保存您的工作再繼續，因為下列應用程式會自動關閉。'
+            }
+            DialogMessageNoProcesses = @{
+                Install = '請選擇「安裝」繼續安裝。'
+                Repair = '請選擇「維修」繼續進行維修。'
+                Uninstall = '請選擇「卸載」繼續進行卸載。'
+            }
+            AutomaticStartCountdown = '自動啟動倒數計時'
+            DeferralsRemaining = '剩餘延期'
+            DeferralDeadline = '延期截止日期'
+            ButtonLeftText = @{
+                Install = '關閉應用程式並安裝'
+                Repair = '關閉應用程式與修復'
+                Uninstall = '關閉應用程式並卸載'
+            }
+            ButtonLeftNoProcessesText = @{
+                Install = '安裝'
+                Repair = '修復'
+                Uninstall = '解除安裝'
+            }
+            ButtonRightText = '延遲'
+            Subtitle = @{
+                Install = '{Toolkit\CompanyName} - 應用程式安裝'
+                Repair = '{Toolkit\CompanyName} - 應用程式維修'
+                Uninstall = '{Toolkit\CompanyName} - 應用程式卸載'
+            }
         }
+        CustomMessage = ''
     }
 }

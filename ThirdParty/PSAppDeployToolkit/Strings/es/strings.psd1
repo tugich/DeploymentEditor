@@ -1,67 +1,159 @@
 @{
-    BalloonText = @{
-        Complete = "completada."
-        Error = "fallida."
-        FastRetry = "incompleta."
-        RestartRequired = "completada. Se requiere un reinicio."
-        Start = "iniciada."
+    BalloonTip = @{
+        Start = @{
+            Install = 'Instalación iniciada.'
+            Repair = 'Reparación iniciada.'
+            Uninstall = 'Desinstalación iniciada.'
+        }
+        Complete = @{
+            Install = 'Instalación completada.'
+            Repair = 'Reparación completada.'
+            Uninstall = 'Desinstalación completada.'
+        }
+        RestartRequired = @{
+            Install = 'Instalación completada. Se requiere un reinicio.'
+            Repair = 'Reparación completada. Se requiere un reinicio.'
+            Uninstall = 'Desinstalación completada. Se requiere un reinicio.'
+        }
+        FastRetry = @{
+            Install = 'Instalación no completada.'
+            Repair = 'Reparación no completada.'
+            Uninstall = 'Desinstalación no completada.'
+        }
+        Error = @{
+            Install = 'Instalación fallida.'
+            Repair = 'Reparación fallida.'
+            Uninstall = 'Falló la desinstalación.'
+        }
     }
-    BlockExecution = @{
-        Message = "La ejecución de esta aplicación se ha bloqueado temporalmente para que se pueda completar una operación de instalación."
+    BlockExecutionText = @{
+        Message = @{
+            Install = 'Se ha bloqueado temporalmente el inicio de esta aplicación para que pueda completarse una operación de instalación.'
+            Repair = 'Se ha bloqueado temporalmente el inicio de esta aplicación para que pueda completarse una operación de reparación.'
+            Uninstall = 'Se ha bloqueado temporalmente el inicio de esta aplicación para que pueda completarse una operación de desinstalación.'
+        }
+        Subtitle = @{
+            Install = '{Toolkit\CompanyName} - Instalación de la aplicación'
+            Repair = '{Toolkit\CompanyName} - Reparación de la aplicación'
+            Uninstall = '{Toolkit\CompanyName} - Desinstalación de la aplicación'
+        }
     }
-    ClosePrompt = @{
-        ButtonClose = "Cerrar Programas"
-        ButtonContinue = "Continuar"
-        ButtonContinueTooltip = "Solo seleccione `"Continuar`" después de cerrar la(s) aplicacion(es) de la lista."
-        ButtonDefer = "Aplazar"
-        CountdownMessage = "NOTA: El/los programa(s) se cerrará(n) automáticamente en:"
-        Message = "Los siguientes programas deben estar cerrados antes de que la instalación pueda continuar.`n`nGuarde su trabajo, cierre los programas y luego continúe.`nAlternativamente, guarde su trabajo y haga clic en `"Cerrar programas`"."
+    DiskSpaceText = @{
+        Message = @{
+            Install = "No tiene suficiente espacio en disco para completar la instalación de:`n{0}`n`nespacio requerido: {1}MB`nEspacio disponible: {2}MB`n`nPor favor, libere suficiente espacio en disco para poder proceder con la instalación."
+            Repair = "No dispone de suficiente espacio en disco para completar la reparación de:`n{0}`n`nespacio necesario: {1}MB`nEspacio disponible: {2}MB`n`nPor favor, libere suficiente espacio en disco para proceder con la reparación."
+            Uninstall = "No dispone de suficiente espacio en disco para completar la desinstalación de:`n{0}`n`nespacio necesario: {1}MB`nEspacio disponible: {2}MB`n`nPor favor, libere suficiente espacio en disco para poder proceder con la desinstalación."
+        }
     }
-    DeferPrompt = @{
-        Deadline = "Fecha tope:"
-        ExpiryMessage = "Puede optar por aplazar la instalación hasta que expire el aplazamiento:"
-        RemainingDeferrals = "Aplazamientos restantes:"
-        WarningMessage = "Una vez vencido el aplazamiento, ya no tendrá la opción de aplazar."
-        WelcomeMessage = "La siguiente aplicación está a punto de instalarse:"
+    InstallationPrompt = @{
+        Subtitle = @{
+            Install = '{Toolkit\CompanyName} - Instalación de App'
+            Repair = '{Toolkit\CompanyName} - Reparación de la aplicación'
+            Uninstall = '{Toolkit\CompanyName} - Desinstalación de la aplicación'
+        }
     }
-    DeploymentType = @{
-        Install = "Instalación"
-        Repair = "Reparación"
-        Uninstall = "Desinstalación"
-    }
-    DiskSpace = @{
-        Message = "El espacio en disco es insuficiente para completar la instalación de:`n{0}`n`nEspacio requerido: {1}MB`nEspacio disponible: {2}MB`n`nPor favor, libere suficiente espacio en disco para continuar con la instalación."
-    }
-    Progress = @{
-        MessageInstall = "Instalación en curso. Por favor, espere..."
-        MessageInstallDetail = "Esta ventana se cerrará automáticamente cuando finalice la instalación."
-        MessageRepair = "Reparación en curso. Por favor, espere..."
-        MessageRepairDetail = "Esta ventana se cerrará automáticamente cuando finalice la reparación."
-        MessageUninstall = "Desinstalación en curso. Por favor, espere..."
-        MessageUninstallDetail = "Esta ventana se cerrará automáticamente cuando finalice la desinstalación."
+    ProgressPrompt = @{
+        Message = @{
+            Install = 'Instalación en curso. Por favor espere…'
+            Repair = 'Reparación en curso. Por favor espere…'
+            Uninstall = 'Desinstalación en curso. Por favor espere…'
+        }
+        MessageDetail = @{
+            Install = 'Esta ventana se cerrará automáticamente cuando finalice la instalación.'
+            Repair = 'Esta ventana se cerrará automáticamente cuando finalice la reparación.'
+            Uninstall = 'Esta ventana se cerrará automáticamente cuando finalice la desinstalación.'
+        }
+        Subtitle = @{
+            Install = '{Toolkit\CompanyName} - Instalación de la aplicación'
+            Repair = '{Toolkit\CompanyName} - Reparación de la aplicación'
+            Uninstall = '{Toolkit\CompanyName} - Desinstalación de la aplicación'
+        }
     }
     RestartPrompt = @{
-        ButtonRestartLater = "Minimizar"
-        ButtonRestartNow = "Reiniciar Ahora"
-        Message = "Para que la instalación se complete, debe reiniciar su equipo."
-        MessageRestart = "El equipo se reiniciará automáticamente al final de la cuenta regresiva."
-        MessageTime = "Por favor guarde su trabajo y reinicie dentro del tiempo asignado."
-        TimeRemaining = "Tiempo restante:"
-        Title = "Reinicio Requerido"
+        ButtonRestartLater = 'Minimizar'
+        ButtonRestartNow = 'Reiniciar ahora'
+        Message = @{
+            Install = 'Para que la instalación se complete, debe reiniciar su ordenador.'
+            Repair = 'Para que la reparación se complete, debe reiniciar su ordenador.'
+            Uninstall = 'Para que la desinstalación se complete, debe reiniciar su ordenador.'
+        }
+        CustomMessage = ''
+        MessageRestart = 'Su ordenador se reiniciará automáticamente al final de la cuenta atrás.'
+        MessageTime = 'Por favor, guarde su trabajo y reinicie dentro del tiempo asignado.'
+        TimeRemaining = 'Tiempo restante:'
+        Title = 'Es necesario reiniciar'
+        Subtitle = @{
+            Install = '{Toolkit\CompanyName} - Instalación de la aplicación'
+            Repair = '{Toolkit\CompanyName} - Reparación de la aplicación'
+            Uninstall = '{Toolkit\CompanyName} - Desinstalación de la aplicación'
+        }
     }
-    WelcomePrompt = @{
+    CloseAppsPrompt = @{
         Classic = @{
-            CountdownMessage = "La {0} continuará automáticamente en:"
-            CustomMessage = ""
+            WelcomeMessage = @{
+                Install = 'La siguiente aplicación está a punto de ser instalada:'
+                Repair = 'La siguiente aplicación está a punto de ser reparada:'
+                Uninstall = 'La siguiente aplicación está a punto de ser desinstalada:'
+            }
+            CloseAppsMessage = @{
+                Install = "Los siguientes programas deben cerrarse antes de que la instalación pueda continuar.`n`nPor favor, guarde su trabajo, cierre los programas y continúe. Alternativamente, guarde su trabajo y haga clic en «Cerrar programas»."
+                Repair = "Los siguientes programas deben cerrarse antes de proceder a la reparación.`n`nPor favor, guarde su trabajo y haga clic en «Cerrar programas»."
+                Uninstall = "Los siguientes programas deben cerrarse antes de proceder a la desinstalación.`n`nPor favor, guarde su trabajo, cierre los programas y continúe. Alternativamente, guarde su trabajo y haga clic en «Cerrar Programas»."
+            }
+            ExpiryMessage = @{
+                Install = 'Puede elegir aplazar la instalación hasta que expire el aplazamiento:'
+                Repair = 'Puede elegir aplazar la reparación hasta que expire el aplazamiento:'
+                Uninstall = 'Puede elegir aplazar la desinstalación hasta que expire el aplazamiento:'
+            }
+            DeferralsRemaining = 'Aplazamientos restantes:'
+            DeferralDeadline = 'Fecha límite:'
+            ExpiryWarning = 'Una vez que haya expirado el aplazamiento, ya no tendrá la opción de aplazarlo.'
+            CountdownDefer = @{
+                Install = 'La instalación continuará automáticamente en:'
+                Repair = 'La reparación continuará automáticamente en:'
+                Uninstall = 'La desinstalación continuará automáticamente en:'
+            }
+            CountdownClose = @{
+                Install = 'NOTA: El programa o programas se cerrarán automáticamente en:'
+                Repair = 'NOTA: El programa o programas se cerrarán automáticamente en:'
+                Uninstall = 'NOTA: El programa o programas se cerrarán automáticamente en:'
+            }
+            ButtonClose = 'Cerrar &Programas'
+            ButtonDefer = '&Defer'
+            ButtonContinue = '&Continuar'
+            ButtonContinueTooltip = 'Sólo seleccione «Continuar» después de cerrar la(s) aplicación(es) arriba indicada(s).'
         }
         Fluent = @{
-            Subtitle = 'PSAppDeployToolkit - Aplicación {0}'
-            DialogMessage = 'Guarde su trabajo antes de continuar, ya que las siguientes aplicaciones se cerrarán automáticamente.'
-            DialogMessageNoProcesses = 'Seleccione Instalar para continuar con la instalación. Si le queda algún aplazamiento, también puede optar por retrasar la instalación.'
-            ButtonDeferRemaining = 'permanezca en'
-            ButtonLeftText = 'Aplazar'
-            ButtonRightText = 'Cerrar aplicaciones e instalar'
-            ButtonRightTextNoProcesses = 'Instale'
+            DialogMessage = @{
+                Install = 'Por favor, guarde su trabajo antes de continuar ya que las siguientes aplicaciones se cerrarán automáticamente.'
+                Repair = 'Por favor, guarde su trabajo antes de continuar ya que las siguientes aplicaciones se cerrarán automáticamente.'
+                Uninstall = 'Por favor, guarde su trabajo antes de continuar ya que las siguientes aplicaciones se cerrarán automáticamente.'
+            }
+            DialogMessageNoProcesses = @{
+                Install = 'Por favor, seleccione Instalar para continuar con la instalación.'
+                Repair = 'Por favor, seleccione Reparar para continuar con la reparación.'
+                Uninstall = 'Por favor, seleccione Desinstalar para continuar con la desinstalación'
+            }
+            AutomaticStartCountdown = 'Cuenta regresiva de inicio automático'
+            DeferralsRemaining = 'Aplazamientos restantes'
+            DeferralDeadline = 'Fecha límite de aplazamiento'
+            ButtonLeftText = @{
+                Install = 'Cerrar Aplicaciones e Instalar'
+                Repair = 'Cerrar Aplicaciones y Reparar'
+                Uninstall = 'Cerrar Aplicaciones y Desinstalar'
+            }
+            ButtonLeftNoProcessesText = @{
+                Install = 'Instalar'
+                Repair = 'Reparar'
+                Uninstall = 'Desinstalar'
+            }
+            ButtonRightText = 'Aplazar'
+            Subtitle = @{
+                Install = '{Toolkit\CompanyName} - Instalación de la aplicación'
+                Repair = '{Toolkit\CompanyName} - Reparación de la aplicación'
+                Uninstall = '{Toolkit\CompanyName} - Desinstalación de App'
+            }
         }
+        CustomMessage = ''
     }
 }
