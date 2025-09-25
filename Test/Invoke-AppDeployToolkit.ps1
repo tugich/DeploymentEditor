@@ -88,8 +88,8 @@ param
 # By setting the "AppName" property, Zero-Config MSI will be disabled.
 $adtSession = @{
     # App variables.
-    AppVendor = 'Igor Pavlov'
-    AppName = '7-Zip'
+    AppVendor = '7zip'
+    AppName = '7zip'
     AppVersion = '25.01'
     AppArch = 'x64'
     AppLang = 'EN'
@@ -98,8 +98,8 @@ $adtSession = @{
     AppRebootExitCodes = @(1641, 3010)
     AppProcessesToClose = @()  # Example: @('excel', @{ Name = 'winword'; Description = 'Microsoft Word' })
     AppScriptVersion = '1.0.0'
-    AppScriptDate = '2025-08-16'
-    AppScriptAuthor = 'Tugay'
+    AppScriptDate = '2025-09-23'
+    AppScriptAuthor = 'WinGet Import by Deployment Editor'
     RequireAdmin = $true
 
     # Install Titles (Only set here to override defaults set by the toolkit).
@@ -109,7 +109,7 @@ $adtSession = @{
     # Script variables.
     DeployAppScriptFriendlyName = $MyInvocation.MyCommand.Name
     DeployAppScriptParameters = $PSBoundParameters
-    DeployAppScriptVersion = '4.1.0'
+    DeployAppScriptVersion = '4.1.5'
 }
 
 function Install-ADTDeployment
@@ -148,8 +148,7 @@ function Install-ADTDeployment
     ##================================================
     $adtSession.InstallPhase = $adtSession.DeploymentType
 
-    # Install 7-Zip with defaults
-    Start-ADTProcess -ArgumentList "/S" -FilePath "7-Zip.exe"
+    Remove-ADTFile -Path "C:\Users\Public\Desktop\VLC mia player.lnk"
 
 
     ##================================================
@@ -229,6 +228,8 @@ function Repair-ADTDeployment
     ##================================================
     $adtSession.InstallPhase = $adtSession.DeploymentType
 
+    Get-ADTFreeDiskSpace
+    Get-ADTEnvironment
 
 
     ##================================================
@@ -256,11 +257,11 @@ try
     if (Test-Path -LiteralPath "$PSScriptRoot\PSAppDeployToolkit\PSAppDeployToolkit.psd1" -PathType Leaf)
     {
         Get-ChildItem -LiteralPath "$PSScriptRoot\PSAppDeployToolkit" -Recurse -File | Unblock-File -ErrorAction Ignore
-        Import-Module -FullyQualifiedName @{ ModuleName = "$PSScriptRoot\PSAppDeployToolkit\PSAppDeployToolkit.psd1"; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.0' } -Force
+        Import-Module -FullyQualifiedName @{ ModuleName = "$PSScriptRoot\PSAppDeployToolkit\PSAppDeployToolkit.psd1"; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.5' } -Force
     }
     else
     {
-        Import-Module -FullyQualifiedName @{ ModuleName = 'PSAppDeployToolkit'; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.0' } -Force
+        Import-Module -FullyQualifiedName @{ ModuleName = 'PSAppDeployToolkit'; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.5' } -Force
     }
 
     # Open a new deployment session, replacing $adtSession with a DeploymentSession.

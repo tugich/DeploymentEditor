@@ -5101,16 +5101,16 @@ Set-StrictMode -Version 3
 $adtModule = if (Test-Path -LiteralPath "$PSScriptRoot\PSAppDeployToolkit" -PathType Container)
 {
     Get-ChildItem -LiteralPath $PSScriptRoot\PSAppDeployToolkit -Recurse -File | Unblock-File
-    Import-Module -FullyQualifiedName @{ ModuleName = "$PSScriptRoot\PSAppDeployToolkit\PSAppDeployToolkit.psd1"; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.0' } -Force -PassThru -ErrorAction Stop
+    Import-Module -FullyQualifiedName @{ ModuleName = "$PSScriptRoot\PSAppDeployToolkit\PSAppDeployToolkit.psd1"; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.5' } -Force -PassThru -ErrorAction Stop
 }
 elseif (Test-Path -LiteralPath "$PSScriptRoot\..\..\..\..\PSAppDeployToolkit" -PathType Container)
 {
     Get-ChildItem -LiteralPath $PSScriptRoot\..\..\..\..\PSAppDeployToolkit -Recurse -File | Unblock-File
-    Import-Module -FullyQualifiedName @{ ModuleName = "$PSScriptRoot\..\..\..\..\PSAppDeployToolkit\PSAppDeployToolkit.psd1"; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.0' } -Force -PassThru -ErrorAction Stop
+    Import-Module -FullyQualifiedName @{ ModuleName = "$PSScriptRoot\..\..\..\..\PSAppDeployToolkit\PSAppDeployToolkit.psd1"; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.5' } -Force -PassThru -ErrorAction Stop
 }
 else
 {
-    Import-Module -FullyQualifiedName @{ ModuleName = 'PSAppDeployToolkit'; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.0' } -Force -PassThru -ErrorAction Stop
+    Import-Module -FullyQualifiedName @{ ModuleName = 'PSAppDeployToolkit'; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.5' } -Force -PassThru -ErrorAction Stop
 }
 
 # Build out parameter hashtable and open a new deployment session.
@@ -5205,8 +5205,8 @@ if ((Test-Path -LiteralPath "$PSScriptRoot\AppDeployToolkitExtensions.ps1" -Path
 # SIG # Begin signature block
 # MIIuaAYJKoZIhvcNAQcCoIIuWTCCLlUCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAkpiH/NSYxAizp
-# H6u+Ywazl72xVCqZdmWeo2GK7rxELqCCE5UwggWQMIIDeKADAgECAhAFmxtXno4h
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCUPI7OU6Bkf/X3
+# L0lPyCBuRpF/t796htyUAlV4OWILvqCCE5UwggWQMIIDeKADAgECAhAFmxtXno4h
 # MuI5B72nd3VcMA0GCSqGSIb3DQEBDAUAMGIxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xITAfBgNV
 # BAMTGERpZ2lDZXJ0IFRydXN0ZWQgUm9vdCBHNDAeFw0xMzA4MDExMjAwMDBaFw0z
@@ -5316,20 +5316,20 @@ if ((Test-Path -LiteralPath "$PSScriptRoot\AppDeployToolkitExtensions.ps1" -Path
 # UlNBNDA5NiBTSEEzODQgMjAyMSBDQTECEAr5W7a+ogyFDpjG+46sCPkwDQYJYIZI
 # AWUDBAIBBQCggYQwGAYKKwYBBAGCNwIBDDEKMAigAoAAoQKAADAZBgkqhkiG9w0B
 # CQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3AgELMQ4wDAYKKwYBBAGCNwIBFTAv
-# BgkqhkiG9w0BCQQxIgQgD9tGio+iyJ7PKCkZhnsQaS4Fkx+jOOEpKY8zKXbIH78w
-# DQYJKoZIhvcNAQEBBQAEggGAbrSNASW6yBqBVVAhs0tJ8tOXtHXwX9mO3JYuWpy/
-# xzaUU+7LbSDp/qdm8OWFPzjncULwiGrXT2FcZXcnnKdxV0TryOSCnX3QhV94rFNm
-# FSp3H+MkG69Qo9AJbm7OSLyOSe37eLuSYkQLpzhUjWpXuE1hGkBBsdDNwg2IH1RA
-# 1YoLbcf/Fg/LT9Y0jw1Ysvjpek/WMvAcgMtH43lfqCw2FrvKiz4dxtAA8EKZMH5f
-# RId6W2a+0kqKeoEOnmllxDzbjlJRw+oduP5bhMXzcrg41bqyeQIUpWUX0R12SuZg
-# ix2j7MjVlhIBOVDRIIwuP89r1nV6ZeKVn1ZPNz4u4bFYZSVWRBlLQ+dgO47PtyOH
-# qiPbXnwjlUMY4uMKGcB2Roqlhw6/InlwERm26iImBDRv/aky6KNtQorL0ydqbS0e
-# xQrUfU7hEAmZninELDOBW5W9BemwnMl4y0vR0HbU1s1k9DY6wJtWE1izZCu3+B7Y
-# W4imu9IviFQtOe9jNHe2OpACoYIXdjCCF3IGCisGAQQBgjcDAwExghdiMIIXXgYJ
+# BgkqhkiG9w0BCQQxIgQgTIuqSywpUO56b8NsAa2VGFIbI2GMf+Wv3LBGs6EEMrgw
+# DQYJKoZIhvcNAQEBBQAEggGAj10bDa6uJ5NT4E9+UDiRIYU+BwVisvAytyoFpUHP
+# wE7i0MhXvY2BjlLEqNDUV/i6yRLjEfhMvk0ZZINkjxOwU0QnKuAmt9DSHROMRd+0
+# V9s7ynoWogm0MB65x02WUUCwMc093JZhbjNva96a4UA/VbR52FPAA5s0rSd+KEnb
+# 7NLQqrVp5DIlIn/Gzmq6reOXck+uVdSa2Xpoxj2H+0t+pF573Diu3hWa8nJKzRfW
+# 4CW+xJ4JZn5cFLxOLw0iE7fEFJnUem4faYv4aOmNtBqNwZX1p9Fo1ynQ7F167gK9
+# RErhOIDRsVQHEq7gGU9nfV/p+UCveP/jLLnSxO4AwCDiiiwN5uKXmMeLiM0BwIVK
+# DPMdiBa4mgFRZ3vJVI4pKlCf0wMAEjFsnkDwxQo9VpS3CVGx/tGVVf7dwaux24Kp
+# w+j+iPdFA6AiyOe1BfOBAb6rAIuPMbUiolYY1s64Ovo0XrqAnM9FVmLK0zOhXxv3
+# mTs8BFzLm61yiNufuxz4v68WoYIXdjCCF3IGCisGAQQBgjcDAwExghdiMIIXXgYJ
 # KoZIhvcNAQcCoIIXTzCCF0sCAQMxDzANBglghkgBZQMEAgEFADB3BgsqhkiG9w0B
-# CRABBKBoBGYwZAIBAQYJYIZIAYb9bAcBMDEwDQYJYIZIAWUDBAIBBQAEIJAQqmeN
-# HAa5PGvrSdAp4a3ZHBNCP5fi3pIQjzqO/O3OAhAkNesv6WJJ+dJBLA0SYrPdGA8y
-# MDI1MDgwNzA3MTEyMlqgghM6MIIG7TCCBNWgAwIBAgIQCoDvGEuN8QWC0cR2p5V0
+# CRABBKBoBGYwZAIBAQYJYIZIAYb9bAcBMDEwDQYJYIZIAWUDBAIBBQAEIErPY2V4
+# yg4IJuu3w0LoJTAB5j4psX/UEeZwk2MaEEbnAhAQHrNl9aEI0V0gPi4SewiQGA8y
+# MDI1MDkwNzA0MTYzMVqgghM6MIIG7TCCBNWgAwIBAgIQCoDvGEuN8QWC0cR2p5V0
 # aDANBgkqhkiG9w0BAQsFADBpMQswCQYDVQQGEwJVUzEXMBUGA1UEChMORGlnaUNl
 # cnQsIEluYy4xQTA/BgNVBAMTOERpZ2lDZXJ0IFRydXN0ZWQgRzQgVGltZVN0YW1w
 # aW5nIFJTQTQwOTYgU0hBMjU2IDIwMjUgQ0ExMB4XDTI1MDYwNDAwMDAwMFoXDTM2
@@ -5436,19 +5436,19 @@ if ((Test-Path -LiteralPath "$PSScriptRoot\AppDeployToolkitExtensions.ps1" -Path
 # LjFBMD8GA1UEAxM4RGlnaUNlcnQgVHJ1c3RlZCBHNCBUaW1lU3RhbXBpbmcgUlNB
 # NDA5NiBTSEEyNTYgMjAyNSBDQTECEAqA7xhLjfEFgtHEdqeVdGgwDQYJYIZIAWUD
 # BAIBBQCggdEwGgYJKoZIhvcNAQkDMQ0GCyqGSIb3DQEJEAEEMBwGCSqGSIb3DQEJ
-# BTEPFw0yNTA4MDcwNzExMjJaMCsGCyqGSIb3DQEJEAIMMRwwGjAYMBYEFN1iMKyG
-# Ci0wa9o4sWh5UjAH+0F+MC8GCSqGSIb3DQEJBDEiBCBVtRsefuUYODaoo0+qoyU4
-# AOOmJMdRyrM9ApwqKuB3AzA3BgsqhkiG9w0BCRACLzEoMCYwJDAiBCBKoD+iLNdc
-# hMVck4+CjmdrnK7Ksz/jbSaaozTxRhEKMzANBgkqhkiG9w0BAQEFAASCAgAyyEdA
-# 5dnWoqpeV3/4ysh/3TB1OGFtei3JrvZg7DS71eNQTHFAn4wFKnAsM2vyzmxzqeJ1
-# 0PAm4ZLEvK5IYcF4X/EH+1OOsHby8WADtoJ68uoThVdOMN5zAyeMBZncA5KTUpgF
-# 4l+zzY70HN2XxV+gcadgzpih40AZfpUzmpOPz6qaLnE8b3DWci2c2IQp1GSOLBo8
-# 3ougoTCbvMFdXpeYExzcepCm4EdCyPLIAfMnf0aeo25lO0Bh0AtvLXcw7kAGl+Kg
-# dIq1UePCRXGNQitQ+pdalXJ43Hf27HOFQjaKmCmf93yde1966Ee7+R1YOFsZSneq
-# cVVH7MD3WP+YpeiN5B/olpzBc1/9XttCzF0+hn7qIkrbzYXsBhi1H3LcL2Z6vKtT
-# aTTufxlUzyEK/35yXHQKkchzLMjgPPYT8RDcRzwLhF65O1MF9skZx/JBrcbtkYui
-# V+pcdNOqLwN2FnBbLYn9e/32DG1PrEjJP3CsNsqXcTsVqvsVZpBx3sgHJttlxKw9
-# 8EefSVBgdkxylzrzMym3YLb2ZrOPvL0Tdv3i8jWu8XHQW8b7a+0wMruNPjKwi6iC
-# XofPBG+5M/EZH0v/pNQUdNnKaJc4JNhpylBZ9Yu7HbSsLSGpKS1ZRqYW03qULDBl
-# heUFa/VwmDcD+RTgfd9zvk8ACKX8gctibX4bzg==
+# BTEPFw0yNTA5MDcwNDE2MzFaMCsGCyqGSIb3DQEJEAIMMRwwGjAYMBYEFN1iMKyG
+# Ci0wa9o4sWh5UjAH+0F+MC8GCSqGSIb3DQEJBDEiBCAsvBkLYTM/lkJppjMOC2KE
+# Nswav2rLXGgserhEXoo+NzA3BgsqhkiG9w0BCRACLzEoMCYwJDAiBCBKoD+iLNdc
+# hMVck4+CjmdrnK7Ksz/jbSaaozTxRhEKMzANBgkqhkiG9w0BAQEFAASCAgCRXwM0
+# ifukDkSnmBDxFk9vjrWZClI5ei+WE6uXOHar00Mw77aMfyMJ71fNDj8n/Q3Rx2Lp
+# SuYjQSUrzPDBbWb+nrO9ZXn0onSxm7WaPtFtqv7EOXEZAN4gbln36rFo9+rYGjtD
+# CfFiw7Q89WofqDnSkvS58G/TamjHu561ZtrF0M/yn/CeuBBu/Z/oeL19NeQNc55+
+# Y4VS+GMdCF9Uz9Rkf4FZ2KriMfR/6mITexQiTe8+2D8xsV2YHP0uDAyHj+anCc62
+# OINRWAIHrQVNeaZAE+FdS24zIF6xJKKNWsnHcouXHJ0t4kDmy+IlFMbCbBz59Krq
+# v9wb4Sd+vctIEhre6ODaVkURqYH/Fb3bH4WQPoQmPc/KX8BR48gQ5LY6i9azSitX
+# xxkXFCfMemE4YAs/eg3f45rZnTxQc4sYV/QBPdVj4BzQNk5sWgUVhxJE/XOIwWqJ
+# Q0p/mPJDbYPVfSIbtqSh5kwq4feEnenu9vop2EARnTp7GFAroLEbGY9SjsDL8Wk7
+# eB1WuDraHEzB8Q3sExfz1k5bZK09pecqpSKQfU3Gdc+CAjnBTE1V8RwtDiUU+Tl0
+# QRBPWnX1RIRxo6j9oss1RPb/ixUheK/zpvfsucsBvI0BIM5KSbaGyTt82B+/BVdF
+# 6nG5CuvP8CPOZVoPaoCtiDKyXPp0fOveshKJ7A==
 # SIG # End signature block

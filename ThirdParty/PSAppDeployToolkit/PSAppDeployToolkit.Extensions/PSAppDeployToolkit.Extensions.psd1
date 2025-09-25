@@ -9,7 +9,7 @@
     RootModule = 'PSAppDeployToolkit.Extensions.psm1'
 
     # Version number of this module.
-    ModuleVersion = '4.1.0'
+    ModuleVersion = '4.1.5'
 
     # Supported PSEditions
     # CompatiblePSEditions = @()
@@ -39,7 +39,7 @@
     # PowerShellHostVersion = ''
 
     # Minimum version of Microsoft .NET Framework required by this module. This prerequisite is valid for the PowerShell Desktop edition only.
-    DotNetFrameworkVersion = '4.6.2.0'
+    # DotNetFrameworkVersion = '4.7.2.0'
 
     # Minimum version of the common language runtime (CLR) required by this module. This prerequisite is valid for the PowerShell Desktop edition only.
     CLRVersion = '4.0.30319.42000'
@@ -49,7 +49,7 @@
 
     # Modules that must be imported into the global environment prior to importing this module
     RequiredModules = @(
-        @{ ModuleName = 'PSAppDeployToolkit'; GUID = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.0' }
+        @{ ModuleName = 'PSAppDeployToolkit'; GUID = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.5' }
     )
 
     # Assemblies that must be loaded prior to importing this module

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Monaco Editor Local Files</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    #container {
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+</head>
+<body>
+  <div id="container"></div>
+  <script>
+    // Helper to dynamically load script with Promise
+    function loadScript(url) {
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = url;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error("Failed to load " + url));
+        document.body.appendChild(script);
+      });
+    }
+
+    var editor;
+
+    function initializeMonaco() {
+      require.config({ paths: { vs: 'min/vs' } });
+      require(['vs/editor/editor.main'], function () {
+        editor = monaco.editor.create(document.getElementById('container'), {
+          value: 'No script was loaded - Please re-open the editor.',
+          language: 'powershell',
+          theme: 'vs-light',
+          automaticLayout: true
+        });
+
+        editor.onDidChangeModelContent(() => {
+          console.log('Content changed:', editor.getValue());
+          if (window.updateScript) {
+            window.updateScript(editor.getValue());
+          }
+        });
+
+        window.myMonacoEditor = editor;
+      });
+    }
+
+    // Wait for window fully loaded (including resources)
+    window.addEventListener('load', function() {
+      loadScript('min/vs/loader.js')
+        .then(() => {
+          initializeMonaco();
+        })
+        .catch(error => {
+          console.error(error);
+          // Optional: retry logic or user notification
+        });
+    });
+  </script>
+</body>
+</html>

@@ -20,7 +20,7 @@ Img_NewProjectWindow_1 = CatchImage(#PB_Any,?Img_NewProjectWindow_1)
 Img_NewProjectWindow_2 = CatchImage(#PB_Any,?Img_NewProjectWindow_2)
 Img_NewProjectWindow_3 = CatchImage(#PB_Any,?Img_NewProjectWindow_3)
 Img_NewProjectWindow_4 = CatchImage(#PB_Any,?Img_NewProjectWindow_4)
-Img_NewProjectWindow_5 = CatchImage(#PB_Any,?Img_NewProjectWindow_5)
+Img_NewProjectWindow_5 = LoadImage(#PB_Any,"C:\Users\taski\OneDrive\Projekte\Tool - Deployment Editor\Version 2.0.0_Preview\Ressources\Icon_Exclamation_24px.png")
 
 Enumeration FormFont
   #Font_NewProjectWindow_0
@@ -38,17 +38,18 @@ LoadFont(#Font_NewProjectWindow_4,"Segoe UI", 12)
 
 Declare ShowWinGetImportWindow(EventType)
 Declare ShowAboutWindow(EventType)
+Declare ShowImportExeWindow(EventType)
+Declare ShowImportMsiWindow(EventType)
 Declare OpenOtherProject(EventType)
 Declare OpenFirstRecentProject(EventType)
 Declare OpenFirstRecentFolder(EventType)
 Declare CreateNewProject(EventType)
 Declare OpenDonationUrl(EventType)
-Declare NotAvailableFeatureMessage(EventType)
 
 Procedure OpenNewProjectWindow(x = 0, y = 0, width = 900, height = 600)
-  NewProjectWindow = OpenWindow(#PB_Any, x, y, width, height, "Deployment Editor - TUGI.CH", #PB_Window_SystemMenu | #PB_Window_MinimizeGadget | #PB_Window_ScreenCentered)
+  NewProjectWindow = OpenWindow(#PB_Any, x, y, width, height, "Deployment Editor - TUGI.CH", #PB_Window_SystemMenu | #PB_Window_MinimizeGadget | #PB_Window_ScreenCentered | #PB_Window_SystemMenu | #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget | #PB_Window_SizeGadget | #PB_Window_ScreenCentered)
   SetWindowColor(NewProjectWindow, RGB(251,251,251))
-  NPW_Text_HeaderTitle = TextGadget(#PB_Any, 30, 30, 310, 60, "Deployment Editor")
+  NPW_Text_HeaderTitle = TextGadget(#PB_Any, 30, 30, 460, 60, "Deployment Editor")
   SetGadgetColor(NPW_Text_HeaderTitle, #PB_Gadget_BackColor,RGB(251,251,251))
   SetGadgetFont(NPW_Text_HeaderTitle, FontID(#Font_NewProjectWindow_0))
   NPW_Container_HeaderLine = ContainerGadget(#PB_Any, 20, 90, 860, 10)
@@ -83,7 +84,7 @@ Procedure OpenNewProjectWindow(x = 0, y = 0, width = 900, height = 600)
   CloseGadgetList()
   NPW_Container_ImportMSI = ContainerGadget(#PB_Any, 530, 170, 350, 90)
   SetGadgetColor(NPW_Container_ImportMSI, #PB_Gadget_BackColor,RGB(224,242,254))
-  NPW_ImportMSI_Image = ImageGadget(#PB_Any, 20, 20, 32, 32, ImageID(Img_NewProjectWindow_3))
+  NPW_ImportMSI_Image = ImageGadget(#PB_Any, 20, 20, 32, 32, ImageID(Img_NewProjectWindow_2))
   NPW_ImportMSI_Hyperlink = HyperLinkGadget(#PB_Any, 70, 20, 260, 25, "Import MSI", 0)
   SetGadgetColor(NPW_ImportMSI_Hyperlink, #PB_Gadget_FrontColor,RGB(14,87,174))
   SetGadgetColor(NPW_ImportMSI_Hyperlink, #PB_Gadget_BackColor,RGB(224,242,254))
@@ -94,7 +95,7 @@ Procedure OpenNewProjectWindow(x = 0, y = 0, width = 900, height = 600)
   CloseGadgetList()
   NPW_Container_ImportEXE = ContainerGadget(#PB_Any, 530, 270, 350, 90)
   SetGadgetColor(NPW_Container_ImportEXE, #PB_Gadget_BackColor,RGB(224,242,254))
-  NPW_ImportEXE_Image = ImageGadget(#PB_Any, 20, 20, 32, 32, ImageID(Img_NewProjectWindow_4))
+  NPW_ImportEXE_Image = ImageGadget(#PB_Any, 20, 20, 32, 32, ImageID(Img_NewProjectWindow_3))
   NPW_ImportEXE_Text = TextGadget(#PB_Any, 70, 50, 260, 25, "Create a new project based on a EXE.")
   SetGadgetColor(NPW_ImportEXE_Text, #PB_Gadget_FrontColor,RGB(138,138,138))
   SetGadgetColor(NPW_ImportEXE_Text, #PB_Gadget_BackColor,RGB(224,242,254))
@@ -116,13 +117,13 @@ Procedure OpenNewProjectWindow(x = 0, y = 0, width = 900, height = 600)
   CloseGadgetList()
   NPW_Container_Warning = ContainerGadget(#PB_Any, 20, 480, 860, 50)
   SetGadgetColor(NPW_Container_Warning, #PB_Gadget_BackColor,RGB(254,230,138))
-  NPW_Warning_Image = ImageGadget(#PB_Any, 15, 13, 24, 24, ImageID(Img_NewProjectWindow_2))
-  NPW_Warning_Text = TextGadget(#PB_Any, 50, 16, 800, 25, "This software is still in preview. All features will be available soon.")
+  NPW_Warning_Image = ImageGadget(#PB_Any, 15, 13, 24, 24, ImageID(Img_NewProjectWindow_5))
+  NPW_Warning_Text = TextGadget(#PB_Any, 50, 16, 800, 25, "This software is free and open-source on GitHub.")
   SetGadgetColor(NPW_Warning_Text, #PB_Gadget_BackColor,RGB(253,230,138))
   CloseGadgetList()
   NPW_Button_OpenOtherProject = ButtonGadget(#PB_Any, 20, 550, 150, 30, "Open other project")
   NPW_Button_NewEmptyProject = ButtonGadget(#PB_Any, 730, 550, 150, 30, "New empty project")
-  NPW_ButtonImage_Help = ButtonImageGadget(#PB_Any, 840, 20, 34, 30, ImageID(Img_NewProjectWindow_5))
+  NPW_ButtonImage_Help = ButtonImageGadget(#PB_Any, 840, 20, 34, 30, ImageID(Img_NewProjectWindow_4))
   Button_Donation = ButtonGadget(#PB_Any, 730, 20, 100, 30, "Donation")
 EndProcedure
 
@@ -144,9 +145,9 @@ Procedure NewProjectWindow_Events(event)
         Case NPW_Recent1_Button_OpenFolder
           OpenFirstRecentFolder(EventType())          
         Case NPW_ImportMSI_Hyperlink
-          NotAvailableFeatureMessage(EventType())          
+          ShowImportMsiWindow(EventType())          
         Case NPW_ImportEXE_Hyperlink
-          NotAvailableFeatureMessage(EventType())          
+          ShowImportExeWindow(EventType())          
         Case NPW_ImportWinGet_Hyperlink
           ShowWinGetImportWindow(EventType())          
         Case NPW_Button_OpenOtherProject
@@ -167,8 +168,7 @@ EndProcedure
 DataSection
   Img_NewProjectWindow_0: : IncludeBinary "..\Ressources\Icon_Check_24px.png"
   Img_NewProjectWindow_1: : IncludeBinary "..\Ressources\Icon_Package.png"
-  Img_NewProjectWindow_2: : IncludeBinary "..\Ressources\Icon_Exclamation_24px.png"
-  Img_NewProjectWindow_3: : IncludeBinary "..\Ressources\Icon_MSI.png"
-  Img_NewProjectWindow_4: : IncludeBinary "..\Ressources\Icon_Installer.png"
-  Img_NewProjectWindow_5: : IncludeBinary "..\Ressources\Icon_Help.png"
+  Img_NewProjectWindow_2: : IncludeBinary "..\Ressources\Icon_MSI.png"
+  Img_NewProjectWindow_3: : IncludeBinary "..\Ressources\Icon_Installer.png"
+  Img_NewProjectWindow_4: : IncludeBinary "..\Ressources\Icon_Help.png"
 EndDataSection

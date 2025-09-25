@@ -71,13 +71,22 @@ Structure WinGetPackage
   File.s
 EndStructure
 
+Structure MsiInformation
+  Productmanufacturer.s
+  Productname.s
+  Productcode.s
+  Productversion.s
+EndStructure
+
 ;------------------------------------------------------------------------------------
 ;- Variables, Enumerations and Maps
 ;------------------------------------------------------------------------------------
 Global Event = #Null, Quit = #False
-Global MainWindowTitle.s = "Deployment Editor ("+#DE_Version+") - TUGI.CH"
+Global MainWindowTitle.s = "Deployment Editor - TUGI.CH"
 Global DonationUrl.s = "https://www.paypal.com/donate/?hosted_button_id=PXABL8ESQQ4F8"
 Global PluginDirectory.s = GetCurrentDirectory() + "Plugins"
+Global SnippetsDirectory.s = GetCurrentDirectory() + "Snippets"
+Global ScriptEditorFilePath.s = GetCurrentDirectory() + "Web\MonacoEditor\editor.html"
 
 ; Templates
 Global Template_PSADT.s = GetCurrentDirectory() + "ThirdParty\PSAppDeployToolkit\"
@@ -95,6 +104,7 @@ Global IntuneWinAppUtil.s = ""
 Global Project_FolderPath.s = GetCurrentDirectory() + "Test\"
 Global Project_DeploymentFile.s = Project_FolderPath + "Invoke-AppDeployToolkit.ps1"
 Global Project_Database.s = Project_FolderPath + "Invoke-AppDeployToolkit.db"
+Global Project_PreviewMode = #False
 
 ; Windows Sandbox
 Global PSADT_SandboxTemplate.s = GetCurrentDirectory() + "Templates\Windows Sandbox.wsb"
@@ -106,16 +116,16 @@ Global CurrentDeploymentType.s = "Installation"
 Global NewMap PSADT_Parameters.PSADT_Parameter()
 Global NewMap ProjectSettings.ProjectSetting()
 
+; Dim
+Global Dim MsiInformation.MsiInformation(1)
+
 ; Lists
+Global NewList EditorPlugins.EditorPlugin()
+Global NewList WinGetPackages.WinGetPackage()
 Global NewList RecentProjects.RecentProject()
-; > Add Demo Project
 AddElement(RecentProjects())
 RecentProjects()\FileName = "Invoke-AppDeployToolkit.db"
 RecentProjects()\FolderPath = Project_FolderPath
-; Plugins
-Global NewList EditorPlugins.EditorPlugin()
-; WinGet
-Global NewList WinGetPackages.WinGetPackage()
 
 ; Action
 Global SelectedActionID.i
@@ -131,6 +141,9 @@ Global WinGet_RepositoryUrl.s = "https://github.com/microsoft/winget-pkgs/archiv
 Global WinGet_RepositoryLocalFile.s = GetTemporaryDirectory() + "WinGetRepository.zip"
 Global WinGet_ManifestTempFolder.s = GetTemporaryDirectory() + "Deployment Editor"
 Global WinGet_Identifier.s = "", WinGet_Version.s = "", WinGet_SilentSwitch.s = ""
+
+; Script Editor
+Global ScriptEditorGadget
 
 ;------------------------------------------------------------------------------------
 ;- Shortcuts
@@ -165,9 +178,13 @@ Enumeration KeyboardShortcuts
   ; Keyboard
   #Keyboard_Shortcut_Save
   #Keyboard_Shortcut_Run
+  #Keyboard_Shortcut_Exit
   
   ; WinGet
   #WinGetImport_Enter
+  
+  ; Window Exit
+  #MainWindow_Exit
   
 EndEnumeration
 
@@ -191,6 +208,9 @@ XIncludeFile "Forms/ProjectSettingsWindow.pbf"
 XIncludeFile "Forms/PluginWindow.pbf"
 XIncludeFile "Forms/WinGetImportWindow.pbf"
 XIncludeFile "Forms/ProgressWindow.pbf"
+XIncludeFile "Forms/ImportExeWindow.pbf"
+XIncludeFile "Forms/ImportMsiWindow.pbf"
+XIncludeFile "Forms/ScriptEditorWindow.pbf"
 
 ;------------------------------------------------------------------------------------
 ;- Helpers
@@ -224,6 +244,30 @@ EndProcedure
 ;------------------------------------------------------------------------------------
 ;- Functions
 ;------------------------------------------------------------------------------------
+
+Procedure DisableMainWindowGadgets(State = #False)
+  DisableGadget(ListView_Commands, State)
+  DisableGadget(Combo_DeploymentType, State)
+  DisableGadget(Tree_Sequence, State)
+  DisableGadget(Button_SaveAction, State)
+  DisableGadget(Button_AddCommand, State)
+  DisableGadget(Button_AddCustomScript, State)
+  DisableGadget(String_CommandSearch, State)
+  DisableGadget(Hyperlink_ProjectSettings, State)
+  DisableGadget(Hyperlink_ProjectSettings, State)
+  DisableGadget(ButtonImage_Go, State)
+  DisableGadget(Checkbox_SilentMode, State)
+  DisableGadget(ButtonImage_StartPowerShell, State)
+  DisableGadget(ButtonImage_Repair, State)
+  DisableGadget(ButtonImage_Uninstallation, State)
+  DisableGadget(ButtonImage_Plugins, State)
+  DisableGadget(ButtonImage_RefreshProject, State)
+  DisableGadget(ButtonImage_RunHelp, State)
+  DisableGadget(ButtonImage_AboutWindow, State)
+  DisableGadget(Hyperlink_GenerateDeployment, State)
+  DisableGadget(Button_LoadPreview, State)
+EndProcedure
+
 Procedure ShowSoftwareReadMe()
   CompilerIf #PB_Compiler_Debugger = 0
     MessageRequester("Readme", Readme, #PB_MessageRequester_Info)
@@ -231,9 +275,98 @@ Procedure ShowSoftwareReadMe()
 EndProcedure
 
 Procedure ShowMainWindow()
+  Protected ScriptFileName$
+  
   OpenMainWindow()
   WindowBounds(MainWindow, WindowWidth(MainWindow)-100, WindowHeight(MainWindow), #PB_Ignore, #PB_Ignore)
   BindEvent(#PB_Event_SizeWindow, @ResizeGadgetsMainWindow(), MainWindow)
+  AddKeyboardShortcut(MainWindow, #PB_Shortcut_Escape, #MainWindow_Exit)
+  ClearGadgetItems(ListView_Scripts)
+  EnableGadgetDrop(Tree_Sequence, #PB_Drop_Files, #PB_Drag_Copy)
+  
+  ; Fix flickering
+  ;SmartWindowRefresh(MainWindow, #False) 
+  
+  ; Add scripts
+  If ExamineDirectory(0, SnippetsDirectory, "*.ps1")
+
+    While NextDirectoryEntry(0)
+      ScriptFileName$ = DirectoryEntryName(0)
+      If DirectoryEntryType(0) = #PB_DirectoryEntry_File
+        AddGadgetItem(ListView_Scripts, -1, ScriptFileName$)
+      EndIf
+    Wend
+    
+  Else
+    MessageRequester("Error","Can't examine this directory: "+GetGadgetText(0),0)
+  EndIf
+
+EndProcedure
+
+Procedure ShowSnippetsFolder(Event)
+  RunProgram(SnippetsDirectory)
+EndProcedure
+
+Procedure AddSnippet(EventType)
+  Protected SelectedScriptFileName.s = GetGadgetText(ListView_Scripts)
+  Protected Format, ScriptContent.s
+  Protected LastStep.i = 0, NextStep.i = 0, LastID.i = 0
+  Protected Command.s = "#CustomScript"
+  Protected Query.s, LastResult
+  
+  
+  If SelectedScriptFileName <> ""
+    If ReadFile(0, SnippetsDirectory + "\" + SelectedScriptFileName)
+      Format = ReadStringFormat(0)
+      
+      While Eof(0) = 0
+        ScriptContent = ScriptContent + ReadString(0, Format) + Chr(13) + Chr(10)
+      Wend
+      
+      CloseFile(0)
+    Else
+      MessageRequester("Error", "Couldn't open the file: " + SnippetsDirectory + "\" + SelectedScriptFileName, #PB_MessageRequester_Error | #PB_MessageRequester_Ok)
+    EndIf
+  EndIf
+  
+  ; Retrieve last step
+  SetDatabaseString(1, 0, CurrentDeploymentType)
+  If DatabaseQuery(1, "SELECT MAX(Step) FROM Actions WHERE DeploymentType=? LIMIT 1")
+    If FirstDatabaseRow(1)
+      LastStep = GetDatabaseLong(1, 0)
+      Debug "[Debug: Script Custom Script Handler] Last step count: "+LastStep
+    EndIf
+  EndIf
+  
+  ; Calc next step
+  NextStep = LastStep + 1
+  
+  ; Add new action
+  If IsDatabase(1) And Command <> ""
+    
+    ; Insert action
+    Query.s = "INSERT INTO Actions (Step, Command, Name, Disabled, ContinueOnError, DeploymentType) VALUES ("+NextStep+", '"+Command+"', 'PowerShell script ("+SelectedScriptFileName+")', 0, 0, '"+CurrentDeploymentType+"')"
+    Debug "[Debug: Script Custom Script Handler] Update table: "+Query
+    CheckDatabaseUpdate(1, Query)
+    
+    ; Last row
+    SetDatabaseString(1, 0, CurrentDeploymentType)
+    If DatabaseQuery(1, "SELECT MAX(ID) FROM Actions WHERE DeploymentType=? LIMIT 1")
+      If FirstDatabaseRow(1)
+        LastID = GetDatabaseLong(1, 0)
+        Debug "[Debug: Script Custom Script Handler] Last MAX(ID) is: "+LastID
+      EndIf
+    EndIf
+    
+    ; Insert action value
+    Query.s = "INSERT INTO Actions_Values (Action, Parameter, Value) VALUES ("+LastID+", 'Script', '"+ScriptContent+"')"
+    Debug "[Debug: Script Custom Script Handler] Update table: "+Query
+    CheckDatabaseUpdate(1, Query)
+  EndIf
+  
+  FinishDatabaseQuery(1)
+  RefreshProject(0)
+
 EndProcedure
 
 Procedure UpdateProjectSettings(SettingName.s, Value.s)
@@ -483,7 +616,7 @@ Procedure SearchWinGetPackage(EventType)
 EndProcedure
 
 Procedure CloseWinGetImportWindow(EventType)
-  HideWindow(WinGetImportWindow, #True)
+  CloseWindow(WinGetImportWindow)
 EndProcedure
 
 Procedure CloseProgressWindow(EventType)
@@ -577,6 +710,53 @@ Procedure DownloadInstallerFile(Event)
     EndIf
   Else
     Debug "[Debug: Installer Download] Download error: Could not initiate download."
+  EndIf
+EndProcedure
+
+Procedure PowerShell_ReadMsi(FilePath.s)
+  Protected Compiler = #Null
+  Protected Output$ = ""
+  Protected Exitcode$ = ""
+  Protected PSExitcode.i = 1
+  Protected Productcode.s = ""
+
+  Compiler = RunProgram("powershell.exe", 
+                        "-NoProfile -NoLogo -WindowStyle Hidden -File .\Scripts\Read-Msi.ps1 -FilePath " + Chr(34) + FilePath + Chr(34) + "  -ExecutionPolicy Bypass", 
+                        "", 
+                        #PB_Program_Open | #PB_Program_Hide | #PB_Program_Read)
+  Output$ = ""
+  
+  If Compiler
+    While ProgramRunning(Compiler)
+      If AvailableProgramOutput(Compiler)
+        Output$ = ReadProgramString(Compiler)
+        
+        If FindString(Output$, "Productmanufacturer:")
+          MsiInformation(0)\Productmanufacturer = RemoveString(Output$, "Productmanufacturer: ")
+        EndIf
+        
+        If FindString(Output$, "Productname:")
+          MsiInformation(0)\Productname = RemoveString(Output$, "Productname: ")
+        EndIf
+        
+        If FindString(Output$, "Productcode:")
+          MsiInformation(0)\Productcode = RemoveString(Output$, "Productcode: ")
+        EndIf
+        
+        If FindString(Output$, "Productversion:")
+          MsiInformation(0)\Productversion = RemoveString(Output$, "Productversion: ")
+        EndIf
+      EndIf
+    Wend
+
+    PSExitcode = ProgramExitCode(Compiler)
+    CloseProgram(Compiler)
+  EndIf
+  
+  If (PSExitcode = 0)
+    Debug "[Debug: PowerShell > MSI Reader] " + Productcode
+  Else
+    MessageRequester("PowerShell Error", Output$, #PB_MessageRequester_Ok | #PB_MessageRequester_Error)
   EndIf
 EndProcedure
 
@@ -838,7 +1018,7 @@ EndProcedure
 
 Procedure CloseProjectSettingsWindow(EventType)
   If IsWindow(ProjectSettingsWindow)
-    HideWindow(ProjectSettingsWindow, #True)
+    CloseWindow(ProjectSettingsWindow)
     SetActiveWindow(MainWindow)
   EndIf
 EndProcedure
@@ -877,7 +1057,7 @@ EndProcedure
 
 Procedure CloseAboutWindow(EventType)
   If IsWindow(AboutWindow)
-    HideWindow(AboutWindow, #True)
+    CloseWindow(AboutWindow)
     
     Debug "[Debug: Close About Window] Active window ID is: "+GetActiveWindow()
     Debug "[Debug: Close About Window] New project window ID is: "+NewProjectWindow
@@ -890,12 +1070,311 @@ Procedure CloseAboutWindow(EventType)
   EndIf
 EndProcedure
 
+Procedure ShowImportExeWindow(EventType)
+  If IsWindow(ImportExeWindow)
+    HideWindow(ImportExeWindow, #False)
+    SetActiveWindow(ImportExeWindow)
+  Else
+    OpenImportExeWindow()
+  EndIf
+EndProcedure
+
+Procedure CloseImportExeWindow(EventType)
+  If IsWindow(ImportExeWindow)
+    CloseWindow(ImportExeWindow)
+    
+    Debug "[Debug: Close Import Exe Window] Active window ID is: "+GetActiveWindow()
+    Debug "[Debug: Close Import Exe Window] New project window ID is: "+NewProjectWindow
+    
+    If GetActiveWindow() = NewProjectWindow
+      SetActiveWindow(NewProjectWindow)
+    Else
+      SetActiveWindow(MainWindow)
+    EndIf
+  EndIf
+EndProcedure
+
+Procedure ImportExeWindow_SelectFilePath(EventType)
+  Protected StandardFile$ = GetCurrentDirectory()
+  Protected Pattern$ = "Windows Executable (*.exe)|*.exe|All files (*.*)|*.*"
+  Protected Pattern = 0
+  Protected ProtectedPattern = 0
+  Protected File$ = OpenFileRequester("Please choose the executable to load", StandardFile$, Pattern$, Pattern)
+  
+  If File$
+    SetGadgetText(IEW_String_FilePath, File$)
+  EndIf
+EndProcedure
+
+Procedure ImportExeWindow_SelectProjectPath(EventType)
+  Protected InitialPath$ = "C:\"
+  Protected Path$ = PathRequester("Please choose your project path", InitialPath$)
+  
+  If Path$
+    SetGadgetText(IEW_String_ProjectPath, Path$)
+  EndIf
+EndProcedure
+
+Procedure.i ImportExeWindow_CreateProject(EventType)
+  
+  ; Set destination path for the new project
+  Protected InstallerFile$ = GetGadgetText(IEW_String_FilePath)
+  Protected Path$ = GetGadgetText(IEW_String_ProjectPath)
+  
+  If Path$
+    Debug "[Debug: New Project] Choosen path is: " + Path$
+  Else
+    Debug "[Debug: New Project] Abort project creation - No folder selected."
+    ProcedureReturn 0
+  EndIf
+  
+  ; Ask user for confirmation
+  Define Confirmation = MessageRequester("Confirmation", "Please confirm the destination folder first - all files will be overwritten with the default template files: " + Path$, #PB_MessageRequester_YesNoCancel | #PB_MessageRequester_Warning)
+  If Confirmation = #PB_MessageRequester_No Or Confirmation = #PB_MessageRequester_Cancel
+    MessageRequester("Cancelled", "You have canceled the creation of a new project.", #PB_MessageRequester_Ok | #PB_MessageRequester_Info)
+    ProcedureReturn #False
+  EndIf
+  
+  ; Copy template folder from PSADT source
+  Debug "[Debug: New Project] Copy PSADT framework..."
+  Debug "[Debug: New Project] Source Template folder: " + Template_PSADT
+  Debug "[Debug: New Project] Destination folder: " + Path$
+  CopyDirectory(Template_PSADT, Path$, "", #PB_FileSystem_Recursive | #PB_FileSystem_Force)
+  
+  ; Copy empty database template to destination folder
+  Debug "[Debug: New Project] Copy empty database file..."
+  CopyFile(Template_EmptyDatabase, Path$ + "Invoke-AppDeployToolkit.db")
+  
+  ; Copy installer
+  Debug "[Debug: New Project] Copy installer file (" + InstallerFile$ + ") To: " + Path$ + "Files"
+  CopyFile(InstallerFile$, Path$ + "Files\" + GetFilePart(InstallerFile$))
+  
+  ; Set Project Folder and File
+  Project_FolderPath.s = Path$
+  Project_DeploymentFile.s = Project_FolderPath + "Invoke-AppDeployToolkit.ps1"
+  Project_Database.s = Project_FolderPath + "Invoke-AppDeployToolkit.db"
+  
+  ; Load Project and Settings
+  RefreshProject(0)
+  LoadProjectSettings()
+  
+  ; Update project settings
+  If IsDatabase(1)
+    UpdateProjectSettings("Database_Version", "1.0.4")
+    UpdateProjectSettings("Project_Name", "New Import Project")
+    UpdateProjectSettings("App_Version", "1.0")
+    UpdateProjectSettings("App_Vendor", "Your vendor")
+    UpdateProjectSettings("App_Architecture", "x64")
+    UpdateProjectSettings("App_Language", "EN")
+    UpdateProjectSettings("App_Author", "Executable Import by Deployment Editor")
+    UpdateProjectSettings("App_Name", "App name")
+    FinishDatabaseQuery(1)
+  EndIf
+  
+  If IsDatabase(1)
+    SetDatabaseString(1, 0, "Start-ADTProcess")
+    SetDatabaseString(1, 1, "Start Installer")
+    SetDatabaseString(1, 2, "Start the installer")
+    CheckDatabaseUpdate(1, "INSERT INTO Actions (ID, Step, Command, Name, Disabled, Description, DeploymentType) VALUES (1, 1, ?, ?, 0, ?, 'Installation')")
+    CheckDatabaseUpdate(1, "INSERT INTO Actions_Values (Action, Parameter, Value) VALUES (1, 'FilePath', '"+GetFilePart(InstallerFile$)+"')")
+    FinishDatabaseQuery(1)
+    RefreshProject(0)
+  EndIf
+  
+  ; Close New Project Window
+  CloseNewProjectWindow(0)
+  CloseImportExeWindow(0)
+  
+  ; Show Main Window
+  HideWindow(MainWindow, #False)
+  SetActiveWindow(MainWindow)
+  SetGadgetText(Text_ProjectName, "New Import Project")
+  
+  ; Enable GUI
+  DisableMainWindowGadgets(#False)
+  
+  ProcedureReturn #True
+EndProcedure
+
+Procedure ShowImportMsiWindow(EventType)
+  If IsWindow(ImportMsiWindow)
+    HideWindow(ImportMsiWindow, #False)
+    SetActiveWindow(ImportMsiWindow)
+  Else
+    OpenImportMsiWindow()
+  EndIf
+EndProcedure
+
+Procedure CloseImportMsiWindow(EventType)
+  If IsWindow(ImportMsiWindow)
+    CloseWindow(ImportMsiWindow)
+    
+    Debug "[Debug: Close Import Msi Window] Active window ID is: "+GetActiveWindow()
+    Debug "[Debug: Close Import Msi Window] New project window ID is: "+NewProjectWindow
+    
+    If GetActiveWindow() = NewProjectWindow
+      SetActiveWindow(NewProjectWindow)
+    Else
+      SetActiveWindow(MainWindow)
+    EndIf
+  EndIf
+EndProcedure
+
+Procedure ImportMsiWindow_SelectFilePath(EventType)
+  Protected StandardFile$ = GetCurrentDirectory()
+  Protected Pattern$ = "Windows Installer (*.msi)|*.msi|All files (*.*)|*.*"
+  Protected Pattern = 0
+  Protected ProtectedPattern = 0
+  Protected File$ = OpenFileRequester("Please choose the installer to load", StandardFile$, Pattern$, Pattern)
+  
+  If File$
+    SetGadgetText(IMW_String_FilePath, File$)
+  EndIf
+EndProcedure
+
+Procedure ImportMsiWindow_SelectProjectPath(EventType)
+  Protected InitialPath$ = "C:\"
+  Protected Path$ = PathRequester("Please choose your project path", InitialPath$)
+  
+  If Path$
+    SetGadgetText(IMW_String_ProjectPath, Path$)
+  EndIf
+EndProcedure
+
+Procedure.i ImportMsiWindow_CreateProject(EventType)
+  
+  ; Set destination path for the new project
+  Protected InstallerFile$ = GetGadgetText(IMW_String_FilePath)
+  Protected Path$ = GetGadgetText(IMW_String_ProjectPath)
+  
+  If Path$
+    Debug "[Debug: New Project] Choosen path is: " + Path$
+  Else
+    Debug "[Debug: New Project] Abort project creation - No folder selected."
+    ProcedureReturn 0
+  EndIf
+  
+  ; Read Msi
+  PowerShell_ReadMsi(InstallerFile$)
+  
+  ; Ask user for confirmation
+  Define Confirmation = MessageRequester("Confirmation", "Please confirm the destination folder first - all files will be overwritten with the default template files: " + Path$, #PB_MessageRequester_YesNoCancel | #PB_MessageRequester_Warning)
+  If Confirmation = #PB_MessageRequester_No Or Confirmation = #PB_MessageRequester_Cancel
+    MessageRequester("Cancelled", "You have canceled the creation of a new project.", #PB_MessageRequester_Ok | #PB_MessageRequester_Info)
+    ProcedureReturn #False
+  EndIf
+  
+  ; Copy template folder from PSADT source
+  Debug "[Debug: New Project] Copy PSADT framework..."
+  Debug "[Debug: New Project] Source Template folder: " + Template_PSADT
+  Debug "[Debug: New Project] Destination folder: " + Path$
+  CopyDirectory(Template_PSADT, Path$, "", #PB_FileSystem_Recursive | #PB_FileSystem_Force)
+  
+  ; Copy empty database template to destination folder
+  Debug "[Debug: New Project] Copy empty database file..."
+  CopyFile(Template_EmptyDatabase, Path$ + "Invoke-AppDeployToolkit.db")
+  
+  ; Copy installer
+  Debug "[Debug: New Project] Copy installer file (" + InstallerFile$ + ") To: " + Path$ + "Files"
+  CopyFile(InstallerFile$, Path$ + "Files\" + GetFilePart(InstallerFile$))
+  
+  ; Set Project Folder and File
+  Project_FolderPath.s = Path$
+  Project_DeploymentFile.s = Project_FolderPath + "Invoke-AppDeployToolkit.ps1"
+  Project_Database.s = Project_FolderPath + "Invoke-AppDeployToolkit.db"
+  
+  ; Load Project and Settings
+  RefreshProject(0)
+  LoadProjectSettings()
+  
+  ; Update project settings
+  If IsDatabase(1)
+    UpdateProjectSettings("Database_Version", "1.0.4")
+    UpdateProjectSettings("Project_Name", "New Import Project")
+    UpdateProjectSettings("App_Version", MsiInformation(0)\Productversion)
+    UpdateProjectSettings("App_Vendor", MsiInformation(0)\Productmanufacturer)
+    UpdateProjectSettings("App_Architecture", "x64")
+    UpdateProjectSettings("App_Language", "EN")
+    UpdateProjectSettings("App_Author", "MSI Import by Deployment Editor")
+    UpdateProjectSettings("App_Name", MsiInformation(0)\Productname)
+    FinishDatabaseQuery(1)
+  EndIf
+  
+  If IsDatabase(1)
+    SetDatabaseString(1, 0, "Start-ADTMsiProcess")
+    SetDatabaseString(1, 1, "Run MSI installer")
+    SetDatabaseString(1, 2, "Start the installer")
+    CheckDatabaseUpdate(1, "INSERT INTO Actions (ID, Step, Command, Name, Disabled, Description, DeploymentType) VALUES (1, 1, ?, ?, 0, ?, 'Installation')")
+    CheckDatabaseUpdate(1, "INSERT INTO Actions_Values (Action, Parameter, Value) VALUES (1, 'FilePath', '"+GetFilePart(InstallerFile$)+"')")
+    CheckDatabaseUpdate(1, "INSERT INTO Actions_Values (Action, Parameter, Value) VALUES (1, 'Action', 'Install')")
+    FinishDatabaseQuery(1)
+    
+    SetDatabaseString(1, 0, "Start-ADTMsiProcess")
+    SetDatabaseString(1, 1, "Run MSI uninstall")
+    SetDatabaseString(1, 2, "Start the uninstall")
+    CheckDatabaseUpdate(1, "INSERT INTO Actions (ID, Step, Command, Name, Disabled, Description, DeploymentType) VALUES (2, 1, ?, ?, 0, ?, 'Uninstall')")
+    CheckDatabaseUpdate(1, "INSERT INTO Actions_Values (Action, Parameter, Value) VALUES (2, 'ProductCode', '"+MsiInformation(0)\Productcode+"')")
+    CheckDatabaseUpdate(1, "INSERT INTO Actions_Values (Action, Parameter, Value) VALUES (2, 'Action', 'Uninstall')")
+    FinishDatabaseQuery(1)
+    
+    RefreshProject(0)
+  EndIf
+  
+  ; Close New Project Window
+  CloseNewProjectWindow(0)
+  CloseImportMsiWindow(0)
+  
+  ; Show Main Window
+  HideWindow(MainWindow, #False)
+  SetActiveWindow(MainWindow)
+  SetGadgetText(Text_ProjectName, "New Import Project")
+  
+  ; Enable GUI
+  DisableMainWindowGadgets(#False)
+  
+  ProcedureReturn #True
+EndProcedure
+
 Procedure ShowLicensing(EventType)
   RunProgram("notepad.exe", GetCurrentDirectory() + "LICENSE", GetCurrentDirectory())
 EndProcedure
 
 Procedure OpenDonationUrl(EventType)
   RunProgram(DonationUrl, "", "")
+EndProcedure
+
+Procedure UpdateScript(JsonParameters$)
+  Protected EditorContent$ = Mid(JsonParameters$, 3, Len(JsonParameters$) - 4)
+  
+  ;EditorContent$ = ReplaceString(EditorContent$, "\r", Chr(13))
+  ;EditorContent$ = ReplaceString(EditorContent$, "\n", Chr(10))
+  ;EditorContent$ = ReplaceString(EditorContent$, Chr(92) + Chr(34), Chr(34))
+  
+  SetGadgetText(ScriptEditorGadget, UnescapeString(EditorContent$))
+  ;ProcedureReturn UTF8(~"150")
+EndProcedure
+
+Procedure CloseScriptEditorWindow(EventType)
+  If IsWindow(ScriptEditorWindow)
+    HideWindow(ScriptEditorWindow, #True)
+    HideWindow(MainWindow, #False)
+    SetActiveWindow(MainWindow)
+  EndIf
+EndProcedure
+
+Procedure LoadScriptInEditor()
+  Debug "[Debug: Script Editor] Loading Monaco Editor..."
+  
+  Protected Script$ = GetGadgetText(ScriptEditorGadget)
+  HideWindow(ScriptEditorWindow, #False)
+  
+  WebViewExecuteScript(WebView_ScriptEditor, "myMonacoEditor.setValue('"+EscapeString(Script$)+"')")
+  WebViewExecuteScript(WebView_ScriptEditor, "myMonacoEditor.updateOptions({ readOnly: false });")
+  BindWebViewCallback(WebView_ScriptEditor, "updateScript", @UpdateScript())
+EndProcedure
+
+Procedure EmptyCallback(JsonParameters$)
+  Debug "[Empty Callback executed]"
 EndProcedure
 
 Procedure NotAvailableFeatureMessage(EventType)
@@ -930,6 +1409,24 @@ EndProcedure
 Procedure ShowCommandHelp(EventType)
   Protected CurrentCommand.s = GetGadgetText(String_ActionCommand)
   RunProgram(PSADT_OnlineDocumentation + "/reference/functions/"+CurrentCommand, "", "")
+EndProcedure
+
+Procedure FilterCommands(Search.s)
+  Protected PSADT_Command.s
+  ClearGadgetItems(ListView_Commands)
+  
+  ; Filter in SQL query
+  If DatabaseQuery(0, "SELECT Command,Category FROM Commands WHERE Command like '%"+Search+"%' ORDER BY Name ASC")
+    While NextDatabaseRow(0)
+      PSADT_Command = GetDatabaseString(0, 0)
+      
+      If FindString(PSADT_Command, "#", 1) = 0
+        AddGadgetItem(ListView_Commands, -1, PSADT_Command)
+      EndIf
+    Wend
+  Else
+    MessageRequester("Database Error", "Can't execute the query: " + DatabaseError(), #PB_MessageRequester_Error)
+  EndIf
 EndProcedure
 
 Procedure TreeSequence_SetFirstLevelBold()
@@ -1048,7 +1545,7 @@ Procedure LoadProjectFile()
             SetGadgetItemColor(Tree_Sequence, CountGadgetItems(Tree_Sequence) - 1, #PB_Gadget_FrontColor, RGB(99, 99, 107))
           EndIf
         Else
-          AddGadgetItem(Tree_Sequence, -1, "No values for parameters found.", 0, 1)
+          AddGadgetItem(Tree_Sequence, -1, "No values for parameters found", 0, 1)
           SetGadgetItemColor(Tree_Sequence, CountGadgetItems(Tree_Sequence) - 1, #PB_Gadget_BackColor, RGB(255, 255, 223))
         EndIf
         
@@ -1075,6 +1572,55 @@ Procedure TreeSequence_ExpandedByID(ID.i = 0)
       ProcedureReturn SetGadgetItemState(Tree_Sequence, Index, #PB_Tree_Expanded)
     EndIf
   Next
+EndProcedure
+
+Procedure TreeSequence_DropHandler(Files.s)
+  Debug "[Debug: Sequence View Drop Handler] " + Files
+  
+  Protected LastStep.i = 0, NextStep.i = 0, LastID.i = 0
+  Protected ActionName.s = "New Action by File Drop", ActionCommand.s = "Start-ADTProcess", CommandParameter.s = "FilePath"
+  
+  ; Remove project path in file path
+  Files = ReplaceString(Files, Project_FolderPath, "")
+  
+  ; Retrieve last step
+  SetDatabaseString(1, 0, CurrentDeploymentType)
+  If DatabaseQuery(1, "SELECT MAX(Step) FROM Actions WHERE DeploymentType=? LIMIT 1")
+    If FirstDatabaseRow(1)
+      LastStep = GetDatabaseLong(1, 0)
+      Debug "[Debug: Add Action Custom Script Handler] Last step count: "+LastStep
+    EndIf
+  EndIf
+  
+  ; Calc next step
+  NextStep = LastStep + 1
+  
+  ; Add new action
+  If IsDatabase(1)
+    
+    ; Check extension
+    Select GetExtensionPart(Files)
+      Case "lnk"
+        ActionName = "Remove Shortcut ("+Files+")"
+        ActionCommand = "Remove-ADTFile"
+        CommandParameter = "Path"
+    EndSelect
+    
+    ; Update database
+    CheckDatabaseUpdate(1, "INSERT INTO Actions (Step, Command, Name, Disabled, ContinueOnError, DeploymentType) VALUES ("+NextStep+", '"+ActionCommand+"', '"+ActionName+"', 0, 0, '"+CurrentDeploymentType+"')")
+    
+    If DatabaseQuery(1, "SELECT MAX(ID) FROM Actions WHERE DeploymentType='"+CurrentDeploymentType+"' LIMIT 1")
+      If FirstDatabaseRow(1)
+        LastID = GetDatabaseLong(1, 0)
+        Debug "[Debug: Last Action] Last id is: "+LastID
+      EndIf
+    EndIf
+    
+    CheckDatabaseUpdate(1, "INSERT INTO Actions_Values (Action, Parameter, Value) VALUES ("+LastID+", '"+CommandParameter+"', '"+Files+"')")
+  EndIf
+  
+  FinishDatabaseQuery(1)
+  RefreshProject(0)
 EndProcedure
 
 Procedure RefreshProject(EventType)
@@ -1343,12 +1889,7 @@ Procedure OpenFirstRecentProject(EventType)
   SetGadgetText(Text_ProjectName, GetProjectSetting("Project_Name"))
   
   ; Enable GUI
-  DisableGadget(ListView_Commands, #False)
-  DisableGadget(Combo_DeploymentType, #False)
-  DisableGadget(Tree_Sequence, #False)
-  DisableGadget(Button_SaveAction, #False)
-  DisableGadget(Button_AddCommand, #False)
-  DisableGadget(Button_AddCustomScript, #False)
+  DisableMainWindowGadgets(#False)
   
 EndProcedure
 
@@ -1384,12 +1925,7 @@ Procedure OpenOtherProject(EventType)
   SetGadgetText(Text_ProjectName, GetProjectSetting("Project_Name"))
   
   ; Enable GUI
-  DisableGadget(ListView_Commands, #False)
-  DisableGadget(Combo_DeploymentType, #False)
-  DisableGadget(Tree_Sequence, #False)
-  DisableGadget(Button_SaveAction, #False)
-  DisableGadget(Button_AddCommand, #False)
-  DisableGadget(Button_AddCustomScript, #False)
+  DisableMainWindowGadgets(#False)
   
 EndProcedure
 
@@ -1442,12 +1978,7 @@ Procedure.i CreateNewProject(EventType)
   SetGadgetText(Text_ProjectName, GetProjectSetting("Project_Name"))
   
   ; Enable GUI
-  DisableGadget(ListView_Commands, #False)
-  DisableGadget(Combo_DeploymentType, #False)
-  DisableGadget(Tree_Sequence, #False)
-  DisableGadget(Button_SaveAction, #False)
-  DisableGadget(Button_AddCommand, #False)
-  DisableGadget(Button_AddCustomScript, #False)
+  DisableMainWindowGadgets(#False)
   
   ProcedureReturn #True
 EndProcedure
@@ -1636,14 +2167,14 @@ Procedure RenderActionEditor(ID.i = -1)
       
       ; Input
       If Command = "#CustomScript"
-        Define TextGadget = TextGadget(#PB_Any, 20, GadgetPosY, 270, GadgetDefaultHeight, NamePrefix+ParameterName+" ("+ParameterType+")"+":")
-        Define InputGadget = ScintillaGadget(#PB_Any, 20, (GadgetPosY + GadgetDefaultHeight), 270, 640, 0)
+        Define TextGadget = TextGadget(#PB_Any, 20, GadgetPosY, 270, GadgetDefaultHeight, NamePrefix+ParameterName+" ("+ParameterType+") (Read-Only)"+":")
+        Define InputGadget = EditorGadget(#PB_Any, 20, (GadgetPosY + GadgetDefaultHeight), 270, 320, #PB_Editor_ReadOnly)
+        Define EditorButtonGadget = ButtonGadget(#PB_Any, 20, (GadgetPosY + GadgetDefaultHeight + 330), 270, 25, "Open Editor")
         GadgetToolTip(InputGadget, ParameterDescription)
-        
-        ; Set value for Scintilla gadget
-        Define *Text=UTF8(ParameterValue)
-        ScintillaSendMessage(InputGadget, #SCI_SETTEXT, 0, *Text)
-        FreeMemory(*Text)
+        SetGadgetText(InputGadget, ParameterValue)
+        BindGadgetEvent(EditorButtonGadget, @LoadScriptInEditor())
+        ;DisableGadget(InputGadget, #True)
+        ScriptEditorGadget = InputGadget
         
       ElseIf ControlType = "Checkbox"
         Debug "[Debug: Action Editor Renderer] Control is checkbox."
@@ -1677,13 +2208,19 @@ Procedure RenderActionEditor(ID.i = -1)
     Wend
     
     ; Set scrollbar area
-    SetGadgetAttribute(ActionScrollAreaGadget, #PB_ScrollArea_InnerHeight, (Count * 70))
+    SetGadgetAttribute(ActionScrollAreaGadget, #PB_ScrollArea_InnerHeight, (Count * 70) + (GadgetHeight(Panel_Options) / 2))
     
     CloseGadgetList()
     FinishDatabaseQuery(0)
   Else
     MessageRequester("Database Error", "Can't execute the query: " + DatabaseError(), #PB_MessageRequester_Error)
   EndIf
+EndProcedure
+
+Procedure UpdateDatabaseStepCount()
+  CheckDatabaseUpdate(1, "UPDATE Actions SET Step = (SELECT new_step FROM (SELECT ID, ROW_NUMBER() OVER (ORDER BY Step) AS new_step FROM Actions WHERE DeploymentType = 'Installation') AS ordered WHERE ordered.ID = Actions.ID) WHERE DeploymentType = 'Installation';")
+  CheckDatabaseUpdate(1, "UPDATE Actions SET Step = (SELECT new_step FROM (SELECT ID, ROW_NUMBER() OVER (ORDER BY Step) AS new_step FROM Actions WHERE DeploymentType = 'Uninstall') AS ordered WHERE ordered.ID = Actions.ID) WHERE DeploymentType = 'Uninstall';")  
+  CheckDatabaseUpdate(1, "UPDATE Actions SET Step = (SELECT new_step FROM (SELECT ID, ROW_NUMBER() OVER (ORDER BY Step) AS new_step FROM Actions WHERE DeploymentType = 'Repair') AS ordered WHERE ordered.ID = Actions.ID) WHERE DeploymentType = 'Repair';")   
 EndProcedure
 
 Procedure SaveAction(EventType)
@@ -1741,6 +2278,10 @@ Procedure SaveAction(EventType)
   If IsDatabase(1) And SelectedActionID <> 0
     CheckDatabaseUpdate(1, "UPDATE Actions SET Name='"+ActionName+"',Description='"+ActionDescription+"',Conditions='"+ActionConditions+"',VariableName='"+ActionVariable+"',Disabled="+ActionDisabled+",ContinueOnError="+ActionContinueOnError+" WHERE ID="+SelectedActionID)
   EndIf
+  
+  ; Update step counter
+  Debug "[Debug: Save Action Handler] Update step counter"
+  UpdateDatabaseStepCount()
   
   ; Finish
   FinishDatabaseQuery(1) 
@@ -1828,6 +2369,9 @@ Procedure RemoveAction(EventType)
     Protected RemoveValuesQuery.s = "DELETE FROM Actions_Values WHERE Action="+SelectedActionID
     Debug "[Debug: Remove Action Handler] Remove entry in table: "+RemoveValuesQuery
     CheckDatabaseUpdate(1, RemoveValuesQuery)
+    
+    Debug "[Debug: Remove Action Handler] Update step counter"
+    UpdateDatabaseStepCount()
   EndIf
   
   FinishDatabaseQuery(1)
@@ -2013,10 +2557,17 @@ Procedure.s BuildScript(DeploymentType.s = "Installation")
         
         ; Enclosing character by type
         ParameterType = ParameterTypeByCommand(Command, Parameter)
+        Debug "[Debug: PSADT Script Builder] "+Command+" > "+Parameter+" = "+ParameterType
+        
         If Not FindString(ParameterType, "String")
           EnclosingCharacter = ""
         EndIf
         
+        If FindString(ParameterType, "Guid")
+          EnclosingCharacter = Chr(34)
+        EndIf
+          
+        ; Description
         Description = RemoveString(Description, #CRLF$)
         
         Select Command
@@ -2367,6 +2918,17 @@ Procedure RunPlugin(EventType)
   Next
 EndProcedure
 
+Procedure LoadPreviewInEditor(EventType)
+  Debug "[Debug: Deployment File Preview] Loading Monaco Editor..."
+  
+  Protected Script$ = BuildScript(CurrentDeploymentType)
+  HideWindow(ScriptEditorWindow, #False)
+  
+  WebViewExecuteScript(WebView_ScriptEditor, "myMonacoEditor.setValue('"+EscapeString(Script$)+"')")
+  WebViewExecuteScript(WebView_ScriptEditor, "myMonacoEditor.updateOptions({ readOnly: true });")
+  BindWebViewCallback(WebView_ScriptEditor, "updateScript", @EmptyCallback())
+EndProcedure
+
 Procedure ShowPluginWindow(EventType)
   If IsWindow(PluginWindow)
     HideWindow(PluginWindow, #False)
@@ -2425,6 +2987,11 @@ ShowMainWindow()
 LoadUI()
 ShowNewProjectWindow(0)
 ShowSoftwareReadMe()
+
+; Script Editor (preload)
+OpenScriptEditorWindow()
+Delay(400)
+SetGadgetText(WebView_ScriptEditor, "file://" + GetCurrentDirectory() + "Web/MonacoEditor/editor.html")
 
 ; New Thread: Download IntuneWinAppUtil
 Debug "[Debug: IntuneWinAppUtil] Installing IntuneWinAppUtil from GitHub."
@@ -2496,6 +3063,18 @@ Repeat
           Case #PB_EventType_RightDoubleClick : Debug "Double-click with right mouse button"
         EndSelect
         
+        
+      ; GadgetDrop = Tree for Sequence View 
+      ElseIf Event = #PB_Event_GadgetDrop And EventGadget() = Tree_Sequence
+        TreeSequence_DropHandler(EventDropFiles())
+        
+      ; Gadget = Command Search
+      ElseIf Event = #PB_Event_Gadget And EventGadget() = String_CommandSearch
+        Select EventType()
+          Case #PB_EventType_Change
+            FilterCommands(GetGadgetText(String_CommandSearch))
+        EndSelect
+        
       Else
         ; Default events
         MainWindow_Events(Event)
@@ -2558,12 +3137,35 @@ Repeat
         ProgressWindow_Events(Event)
       EndIf
       
+     ;- [Import Exe Window]
+    Case ImportExeWindow
+      If Event = #PB_Event_CloseWindow
+        CloseImportExeWindow(0)
+      Else
+        ImportExeWindow_Events(Event)
+      EndIf
+      
+     ;- [Import Msi Window]
+    Case ImportMsiWindow
+      If Event = #PB_Event_CloseWindow
+        CloseImportMsiWindow(0)
+      Else
+        ImportMsiWindow_Events(Event)
+      EndIf
+      
+     ;- [Script Editor Window]
+    Case ScriptEditorWindow
+      If Event = #PB_Event_CloseWindow
+        CloseScriptEditorWindow(0)
+      Else
+        ScriptEditorWindow_Events(Event)
+      EndIf
+      
   EndSelect
   
 Until Quit = #True
 ; IDE Options = PureBasic 6.21 (Windows - x64)
-; CursorPosition = 1953
-; FirstLine = 316
-; Folding = AAAAAAAAAAAYAAAw
+; CursorPosition = 1
+; Folding = AAAAAAAAAAAAAAAAAAA9
 ; EnableXP
 ; DPIAware

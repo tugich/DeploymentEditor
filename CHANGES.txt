@@ -1,3 +1,22 @@
+ToDo's
+* Ignore IntuneWinAppUtil download if proxy
+* Drag and drop on sequence view (files like EXE, MSI, Desktop shortcuts and more)
+* More validations / and checks on UI
+(...)
+
+Version 2.0.0:
+* [Important] ThirdParty updated: PSADT and templates updated to version 4.1.5
+* Added feature: Deployment file preview mode
+* Added feature: VS Code editor (Monaco Editor) for PowerShell inline scripts
+* Added feature: Import Windows Installer
+* Added feature: Import Windows executable
+* Added GUI: Filter/search for PSADT commands
+* Added GUI: Drag-and-drop handler for Sequence View (simply drag and drop any file onto the sequence list to automatically generate the action)
+* Added Backend: PowerShell script for reading MSI files (located in the Scripts folder as Read-Msi.ps1).
+* Fixed Backend: Step counter for actions in the database
+* Fixed WinAPI: Windows are now closed rather than hidden when they are closed.
+* Fixed Generator: Guid parameter type
+
 Version 1.0.9 (Preview 9, Latest):
 * Updated PSADT and templates to v4.1.0
 * Added 'Open with VS Code' to the project menu bar (#9)
