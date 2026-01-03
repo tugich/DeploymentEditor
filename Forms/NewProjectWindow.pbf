@@ -1,4 +1,4 @@
-﻿; Form Designer for PureBasic - 6.21
+﻿; Form Designer for PureBasic - 6.30
 ; Warning: this file uses a strict syntax, if you edit it, make sure to respect the Form Designer limitation or it won't be opened again.
 
 ;
@@ -20,7 +20,7 @@ Img_NewProjectWindow_1 = CatchImage(#PB_Any,?Img_NewProjectWindow_1)
 Img_NewProjectWindow_2 = CatchImage(#PB_Any,?Img_NewProjectWindow_2)
 Img_NewProjectWindow_3 = CatchImage(#PB_Any,?Img_NewProjectWindow_3)
 Img_NewProjectWindow_4 = CatchImage(#PB_Any,?Img_NewProjectWindow_4)
-Img_NewProjectWindow_5 = LoadImage(#PB_Any,"C:\Users\taski\OneDrive\Projekte\Tool - Deployment Editor\Version 2.0.0_Preview\Ressources\Icon_Exclamation_24px.png")
+Img_NewProjectWindow_5 = CatchImage(#PB_Any,?Img_NewProjectWindow_5)
 
 Enumeration FormFont
   #Font_NewProjectWindow_0
@@ -47,7 +47,7 @@ Declare CreateNewProject(EventType)
 Declare OpenDonationUrl(EventType)
 
 Procedure OpenNewProjectWindow(x = 0, y = 0, width = 900, height = 600)
-  NewProjectWindow = OpenWindow(#PB_Any, x, y, width, height, "Deployment Editor - TUGI.CH", #PB_Window_SystemMenu | #PB_Window_MinimizeGadget | #PB_Window_ScreenCentered | #PB_Window_SystemMenu | #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget | #PB_Window_SizeGadget | #PB_Window_ScreenCentered)
+  NewProjectWindow = OpenWindow(#PB_Any, x, y, width, height, "Deployment Editor - TUGI.CH", #PB_Window_SystemMenu | #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget | #PB_Window_ScreenCentered)
   SetWindowColor(NewProjectWindow, RGB(251,251,251))
   NPW_Text_HeaderTitle = TextGadget(#PB_Any, 30, 30, 460, 60, "Deployment Editor")
   SetGadgetColor(NPW_Text_HeaderTitle, #PB_Gadget_BackColor,RGB(251,251,251))
@@ -171,4 +171,5 @@ DataSection
   Img_NewProjectWindow_2: : IncludeBinary "..\Ressources\Icon_MSI.png"
   Img_NewProjectWindow_3: : IncludeBinary "..\Ressources\Icon_Installer.png"
   Img_NewProjectWindow_4: : IncludeBinary "..\Ressources\Icon_Help.png"
+  Img_NewProjectWindow_5: : IncludeBinary "..\Ressources\Icon_Exclamation_24px.png"
 EndDataSection

@@ -242,7 +242,7 @@ function Private:Close-ADTClientServerProcess
     finally
     {
         $Script:ADT.ClientServerProcess = $null
-        & $Script:CommandTable.'Remove-ADTModuleCallback' -Hookpoint OnFinish -Callback $MyInvocation.MyCommand
+        & $Script:CommandTable.'Remove-ADTModuleCallback' -Hookpoint OnFinish -Callback $Script:CommandTable.($MyInvocation.MyCommand.Name)
     }
 }
 
@@ -439,11 +439,25 @@ function Private:Get-ADTClientServerUser
     {
         if ($Username.Value.Contains('\'))
         {
-            (& $Script:CommandTable.'Get-ADTLoggedOnUser').GetEnumerator() | & { process { if ($_.NTAccount -eq $Username) { return $_.ToRunAsActiveUser() } } } | & $Script:CommandTable.'Select-Object' -First 1
+            if ($Username -eq [PSADT.AccountManagement.AccountUtilities]::CallerUsername)
+            {
+                [PSADT.AccountManagement.AccountUtilities]::CallerRunAsActiveUser
+            }
+            else
+            {
+                & $Script:CommandTable.'Get-ADTLoggedOnUser' | & { process { if ($_.NTAccount -eq $Username) { return $_.ToRunAsActiveUser() } } } | & $Script:CommandTable.'Select-Object' -First 1
+            }
         }
         else
         {
-            (& $Script:CommandTable.'Get-ADTLoggedOnUser').GetEnumerator() | & { process { if ($_.Username -eq $Username) { return $_.ToRunAsActiveUser() } } } | & $Script:CommandTable.'Select-Object' -First 1
+            if ($Username.Value -eq [PSADT.AccountManagement.AccountUtilities]::CallerUsername.Value.Split('\')[-1])
+            {
+                [PSADT.AccountManagement.AccountUtilities]::CallerRunAsActiveUser
+            }
+            else
+            {
+                & $Script:CommandTable.'Get-ADTLoggedOnUser' | & { process { if ($_.Username -eq $Username) { return $_.ToRunAsActiveUser() } } } | & $Script:CommandTable.'Select-Object' -First 1
+            }
         }
     }
     elseif ((& $Script:CommandTable.'Test-ADTSessionActive') -or (& $Script:CommandTable.'Test-ADTModuleInitialized'))
@@ -459,14 +473,14 @@ function Private:Get-ADTClientServerUser
     if ($runAsActiveUser)
     {
         # If we're running as an interactive user that isn't the RunAsActiveUser, that's not SYSTEM, and doesn't have the permissions needed to create a process as another user, advise the caller and create an explicit RunAsActiveUser object for the caller instead.
-        if (!$runAsActiveUser.SID.Equals([PSADT.AccountManagement.AccountUtilities]::CallerSid) -and ![PSADT.AccountManagement.AccountUtilities]::CallerIsLocalSystem -and [System.Environment]::UserInteractive -and ($null -ne ($missingPermissions = [PSADT.Security.SE_PRIVILEGE]::SeDebugPrivilege, [PSADT.Security.SE_PRIVILEGE]::SeIncreaseQuotaPrivilege, [PSADT.Security.SE_PRIVILEGE]::SeAssignPrimaryTokenPrivilege | & { process { if (![PSADT.AccountManagement.AccountUtilities]::CallerPrivileges.Contains($_)) { return $_ } } })))
+        if (!$runAsActiveUser.SID.Equals([PSADT.AccountManagement.AccountUtilities]::CallerSid) -and ![PSADT.AccountManagement.AccountUtilities]::CallerIsLocalSystem -and [System.Environment]::UserInteractive -and ($null -ne ($missingPermissions = [PSADT.LibraryInterfaces.SE_PRIVILEGE]::SeDebugPrivilege, [PSADT.LibraryInterfaces.SE_PRIVILEGE]::SeIncreaseQuotaPrivilege, [PSADT.LibraryInterfaces.SE_PRIVILEGE]::SeAssignPrimaryTokenPrivilege | & { process { if (![PSADT.AccountManagement.AccountUtilities]::CallerPrivileges.Contains($_)) { return $_ } } })))
         {
             & $Script:CommandTable.'Write-ADTLogEntry' -Message "The calling account [$([PSADT.AccountManagement.AccountUtilities]::CallerUsername)] is running interactively, but not as the logged on user and is missing the permission(s) ['$([System.String]::Join("', '", $missingPermissions))'] necessary to create a process as another user. The client/server process will be created as the calling account, however PSAppDeployToolkit's client/server process is designed to operate directly as a logged on user. As such, it is recommended to either log on directly to Windows using this account you're testing with, assign this account the missing permissions, or test via the SYSTEM account just as ConfigMgr or Intune uses for its operations." -Severity Warning
             return [PSADT.AccountManagement.AccountUtilities]::CallerRunAsActiveUser
         }
 
         # Only return the calculated RunAsActiveUser if the user is still logged on and active as of right now.
-        if (($runAsUserSession = $(& $Script:CommandTable.'Get-ADTLoggedOnUser' -InformationAction SilentlyContinue) | & { process { if ($runAsActiveUser.SID.Equals($_.SID)) { return $_ } } } | & $Script:CommandTable.'Select-Object' -First 1) -and ($runAsUserSession.IsActiveUserSession -or ($AllowAnyValidSession -and $runAsUserSession.IsValidUserSession)))
+        if (($runAsActiveUser -eq [PSADT.AccountManagement.AccountUtilities]::CallerRunAsActiveUser) -or (($runAsUserSession = & $Script:CommandTable.'Get-ADTLoggedOnUser' -InformationAction SilentlyContinue | & { process { if ($runAsActiveUser.SID.Equals($_.SID)) { return $_ } } } | & $Script:CommandTable.'Select-Object' -First 1) -and ($runAsUserSession.IsActiveUserSession -or ($AllowAnyValidSession -and $runAsUserSession.IsValidUserSession))))
         {
             return $runAsActiveUser
         }
@@ -585,13 +599,13 @@ function Private:Get-ADTRunAsActiveUser
     #>
 
     # Get all active sessions for subsequent filtration. Attempting to get it from $args is to try and speed up module init.
-    $userSessions = if (!$args.Count -or $args[-1] -isnot [System.Collections.ObjectModel.ReadOnlyCollection[PSADT.TerminalServices.SessionInfo]])
+    $userSessions = if (!$args.Count -or ($args[-1] -isnot [System.Collections.ObjectModel.ReadOnlyCollection[PSADT.TerminalServices.SessionInfo]]))
     {
         & $Script:CommandTable.'Get-ADTLoggedOnUser' -InformationAction SilentlyContinue
     }
     else
     {
-        $args[-1]
+        $($args[-1])
     }
 
     # Determine the account that will be used to execute client/server commands in the user's context.
@@ -684,7 +698,7 @@ function Private:Get-ADTStringLanguage
         else
         {
             # We failed all the above, so get the actual user's $PSUICulture value.
-            $((& $Script:CommandTable.'Start-ADTProcess' -RunAsActiveUser $runAsActiveUser -FilePath powershell.exe -ArgumentList '-NonInteractive -NoProfile -NoLogo -WindowStyle Hidden -Command $PSUICulture' -MsiExecWaitTime ([System.TimeSpan]::FromSeconds($adtConfig.MSI.MutexWaitTime)) -CreateNoWindow -PassThru -InformationAction SilentlyContinue).StdOut)
+            $((& $Script:CommandTable.'Start-ADTProcess' -RunAsActiveUser $runAsActiveUser -DenyUserTermination -FilePath powershell.exe -ArgumentList '-NonInteractive -NoProfile -NoLogo -WindowStyle Hidden -Command $PSUICulture' -MsiExecWaitTime ([System.TimeSpan]::FromSeconds($adtConfig.MSI.MutexWaitTime)) -CreateNoWindow -PassThru -InformationAction SilentlyContinue).StdOut)
         }
     }
     else
@@ -1415,6 +1429,7 @@ function Private:Invoke-ADTClientServerOperation
         $sapauParams = @{
             Username = $User.NTAccount
             UseHighestAvailableToken = $true
+            DenyUserTermination = $true
             ArgumentList = $("/$($PSCmdlet.ParameterSetName)"; if ($PSBoundParameters.Count -gt 0) { $PSBoundParameters.GetEnumerator() | & { process { "-$($_.Key)"; $_.Value } } })
             WorkingDirectory = [System.Environment]::SystemDirectory
             MsiExecWaitTime = 1
@@ -1506,7 +1521,7 @@ function Private:Invoke-ADTClientServerOperation
     # Only write a result out for modes where we're expecting a result.
     if ($PSCmdlet.ParameterSetName -match '^(InitCloseAppsDialog|ProgressDialogOpen|ShowModalDialog|GetProcessWindowInfo|GetUserNotificationState|GetForegroundWindowProcessId|GetEnvironmentVariable)$')
     {
-        $PSCmdlet.WriteObject($result, $false)
+        return $result
     }
 }
 
@@ -2062,13 +2077,13 @@ function Private:New-ADTEnvironmentTable
     $variables.Add('SessionZero', $variables.IsLocalSystemAccount -or $variables.IsLocalServiceAccount -or $variables.IsNetworkServiceAccount -or $variables.IsServiceAccount)
 
     ## Variables: Logged on user information
-    $variables.Add('LoggedOnUserSessions', (& $Script:CommandTable.'Get-ADTLoggedOnUser' 4>$null))
+    $variables.Add('LoggedOnUserSessions', [System.Collections.Generic.IReadOnlyList[PSADT.TerminalServices.SessionInfo]][System.Collections.ObjectModel.ReadOnlyCollection[PSADT.TerminalServices.SessionInfo]][PSADT.TerminalServices.SessionInfo[]](& $Script:CommandTable.'Get-ADTLoggedOnUser' 4>$null))
     if ($variables.LoggedOnUserSessions)
     {
         $variables.Add('usersLoggedOn', [System.Collections.Generic.IReadOnlyList[System.Security.Principal.NTAccount]][System.Collections.ObjectModel.ReadOnlyCollection[System.Security.Principal.NTAccount]][System.Security.Principal.NTAccount[]]$variables.LoggedOnUserSessions.NTAccount)
-        $variables.Add('CurrentLoggedOnUserSession', ($variables.LoggedOnUserSessions | & { process { if ($_.IsCurrentSession) { return $_ } } } | & $Script:CommandTable.'Select-Object' -First 1))
-        $variables.Add('CurrentConsoleUserSession', ($variables.LoggedOnUserSessions | & { process { if ($_.IsConsoleSession) { return $_ } } } | & $Script:CommandTable.'Select-Object' -First 1))
-        $variables.Add('LoggedOnUserSessionsText', ($variables.LoggedOnUserSessions | & $Script:CommandTable.'Format-List' | & $Script:CommandTable.'Out-String' -Width ([System.Int32]::MaxValue)).Trim())
+        $variables.Add('CurrentLoggedOnUserSession', ($($variables.LoggedOnUserSessions) | & { process { if ($_.IsCurrentSession) { return $_ } } } | & $Script:CommandTable.'Select-Object' -First 1))
+        $variables.Add('CurrentConsoleUserSession', ($($variables.LoggedOnUserSessions) | & { process { if ($_.IsConsoleSession) { return $_ } } } | & $Script:CommandTable.'Select-Object' -First 1))
+        $variables.Add('LoggedOnUserSessionsText', ($($variables.LoggedOnUserSessions) | & $Script:CommandTable.'Format-List' | & $Script:CommandTable.'Out-String' -Width ([System.Int32]::MaxValue)).Trim())
         $variables.Add('RunAsActiveUser', (& $Script:CommandTable.'Get-ADTRunAsActiveUser' -UserSessionInfo $variables.LoggedOnUserSessions 4>$null))
     }
     else
@@ -2734,7 +2749,7 @@ function Block-ADTAppExecution
                     MinimizeWindows = $false
                     DialogExpiryDuration = [System.TimeSpan]::FromSeconds($adtConfig.UI.DefaultTimeout)
                     MessageText = $adtStrings.BlockExecutionText.Message.($adtSession.DeploymentType.ToString())
-                    ButtonRightText = [PSADT.UserInterface.Dialogs.DialogTools]::BlockExecutionButtonText
+                    ButtonRightText = [PSADT.UserInterface.Dialogs.DialogConstants]::BlockExecutionButtonText
                     Icon = [PSADT.UserInterface.Dialogs.DialogSystemIcon]::Warning
                 }
                 if ($PSBoundParameters.ContainsKey('WindowLocation'))
@@ -2983,7 +2998,7 @@ function Close-ADTInstallationProgress
                 # Call the underlying function to close the progress window.
                 & $Script:CommandTable.'Write-ADTLogEntry' -Message 'Closing the installation progress dialog.'
                 & $Script:CommandTable.'Invoke-ADTClientServerOperation' -CloseProgressDialog -User $runAsActiveUser
-                & $Script:CommandTable.'Remove-ADTModuleCallback' -Hookpoint OnFinish -Callback $MyInvocation.MyCommand
+                & $Script:CommandTable.'Remove-ADTModuleCallback' -Hookpoint OnFinish -Callback $Script:CommandTable.($MyInvocation.MyCommand.Name)
 
                 # We only send balloon tips when a session is active.
                 if (!$adtSession)
@@ -3437,15 +3452,18 @@ function Convert-ADTRegistryPath
                 # If the SID variable is specified, then convert all HKEY_CURRENT_USER key's to HKEY_USERS\$SID.
                 if ($PSBoundParameters.ContainsKey('SID'))
                 {
-                    if ($Key -match '^Microsoft\.PowerShell\.Core\\Registry::HKEY_CURRENT_USER\\')
+                    if ($Key -notmatch '^Microsoft\.PowerShell\.Core\\Registry::HKEY_CURRENT_USER\\')
                     {
-                        $Key = $Key -replace '^Microsoft\.PowerShell\.Core\\Registry::HKEY_CURRENT_USER\\', "Microsoft.PowerShell.Core\Registry::HKEY_USERS\$SID\"
+                        $naerParams = @{
+                            Exception = [System.InvalidOperationException]::new("SID parameter specified but the registry hive of the key is not HKEY_CURRENT_USER.")
+                            Category = [System.Management.Automation.ErrorCategory]::InvalidArgument
+                            ErrorId = 'SidSpecifiedForNonUserRegistryHive'
+                            TargetObject = $Key
+                            RecommendedAction = "Please confirm the supplied value is correct and try again."
+                        }
+                        throw (& $Script:CommandTable.'New-ADTErrorRecord' @naerParams)
                     }
-                    else
-                    {
-                        & $Script:CommandTable.'Write-ADTLogEntry' -Message 'SID parameter specified but the registry hive of the key is not HKEY_CURRENT_USER.' -Severity 2
-                        return
-                    }
+                    $Key = $Key -replace '^Microsoft\.PowerShell\.Core\\Registry::HKEY_CURRENT_USER\\', "Microsoft.PowerShell.Core\Registry::HKEY_USERS\$SID\"
                 }
 
                 # Check for expected key string format.
@@ -4229,23 +4247,8 @@ function Copy-ADTFile
             {
                 try
                 {
-                    if (!(& $Script:CommandTable.'Get-ChildItem' -Path $srcPath -Recurse -Force))
-                    {
-                        if (!$ContinueFileCopyOnError)
-                        {
-                            & $Script:CommandTable.'Write-ADTLogEntry' -Message "Source path [$srcPath] not found." -Severity 2
-                            $naerParams = @{
-                                Exception = [System.IO.FileNotFoundException]::new("Source path [$srcPath] not found.")
-                                Category = [System.Management.Automation.ErrorCategory]::ObjectNotFound
-                                ErrorId = 'FileNotFoundError'
-                                TargetObject = $srcPath
-                                RecommendedAction = 'Please verify that the path is accessible and try again.'
-                            }
-                            & $Script:CommandTable.'Write-Error' -ErrorRecord (& $Script:CommandTable.'New-ADTErrorRecord' @naerParams)
-                        }
-                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Source path [$srcPath] not found. Will continue due to ContinueFileCopyOnError = `$true." -Severity 2
-                        continue
-                    }
+                    # Determine whether the path exists before continuing. This will throw a suitable error for us.
+                    $null = & $Script:CommandTable.'Get-Item' -Path $srcPath
 
                     # Pre-create destination folder if it does not exist; Robocopy will auto-create non-existent destination folders, but pre-creating ensures we can use Resolve-Path.
                     if (!(& $Script:CommandTable.'Test-Path' -LiteralPath $Destination -PathType Container))
@@ -4405,11 +4408,20 @@ function Copy-ADTFile
                 }
                 catch
                 {
-                    & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorRecord $_ -LogMessage "Failed to copy file(s) in path [$srcPath] to destination [$Destination]."
-                    if (!$ContinueFileCopyOnError)
+                    $iafehParams = @{
+                        Cmdlet = $PSCmdlet
+                        SessionState = $ExecutionContext.SessionState
+                        ErrorRecord = $_
+                        LogMessage = "Failed to copy file(s) in path [$srcPath] to destination [$Destination]."
+                    }
+                    if ($ContinueFileCopyOnError)
                     {
-                        & $Script:CommandTable.'Write-ADTLogEntry' -Message 'ContinueFileCopyOnError not specified, exiting function.'
-                        return
+                        $iafehParams.Add('ErrorAction', [System.Management.Automation.ActionPreference]::SilentlyContinue)
+                    }
+                    & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' @iafehParams
+                    if ($ContinueFileCopyOnError)
+                    {
+                        & $Script:CommandTable.'Write-ADTLogEntry' -Message 'ContinueFileCopyOnError specified, processing next item.'
                     }
                 }
             }
@@ -4422,6 +4434,9 @@ function Copy-ADTFile
                 {
                     try
                     {
+                        # Determine whether the path exists before continuing. This will throw a suitable error for us.
+                        $null = & $Script:CommandTable.'Get-Item' -Path $srcPath
+
                         # If destination has no extension, or if it has an extension only and no name (e.g. a .config folder) and the destination folder does not exist.
                         if ((![System.IO.Path]::HasExtension($Destination) -or ([System.IO.Path]::HasExtension($Destination) -and ![System.IO.Path]::GetFileNameWithoutExtension($Destination))) -and !(& $Script:CommandTable.'Test-Path' -LiteralPath $Destination -PathType Container))
                         {
@@ -4468,7 +4483,7 @@ function Copy-ADTFile
                         }
 
                         # Measure success.
-                        if ($ContinueFileCopyOnError -and $FileCopyError.Count)
+                        if ($ContinueFileCopyOnError -and (& $Script:CommandTable.'Test-Path' -LiteralPath Microsoft.PowerShell.Core\Variable::FileCopyError) -and $FileCopyError -and $FileCopyError.Count)
                         {
                             & $Script:CommandTable.'Write-ADTLogEntry' -Message "The following warnings were detected while copying file(s) in path [$srcPath] to destination [$Destination].`n`n$([System.String]::Join("`n", $FileCopyError.Exception.Message))" -Severity 2
                         }
@@ -4484,11 +4499,20 @@ function Copy-ADTFile
                 }
                 catch
                 {
-                    & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorRecord $_ -LogMessage "Failed to copy file(s) in path [$srcPath] to destination [$Destination]."
-                    if (!$ContinueFileCopyOnError)
+                    $iafehParams = @{
+                        Cmdlet = $PSCmdlet
+                        SessionState = $ExecutionContext.SessionState
+                        ErrorRecord = $_
+                        LogMessage = "Failed to copy file(s) in path [$srcPath] to destination [$Destination]."
+                    }
+                    if ($ContinueFileCopyOnError)
                     {
-                        & $Script:CommandTable.'Write-ADTLogEntry' -Message 'ContinueFileCopyOnError not specified, exiting function.'
-                        return
+                        $iafehParams.Add('ErrorAction', [System.Management.Automation.ActionPreference]::SilentlyContinue)
+                    }
+                    & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' @iafehParams
+                    if ($ContinueFileCopyOnError)
+                    {
+                        & $Script:CommandTable.'Write-ADTLogEntry' -Message 'ContinueFileCopyOnError specified, processing next item.'
                     }
                 }
             }
@@ -4795,7 +4819,6 @@ function Disable-ADTTerminalServerInstallMode
             try
             {
                 & $Script:CommandTable.'Invoke-ADTTerminalServerModeChange' -Mode Execute
-                $Script:ADT.TerminalServerMode = $false
             }
             catch
             {
@@ -4910,7 +4933,7 @@ function Dismount-ADTWimFile
                         }
 
                         # Get all open file handles for our path.
-                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "The directory could not be completely unmounted. Checking for any open file handles that can be closed."
+                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Checking for any open file handles that can be closed."
                         $pathHandles = [PSADT.FileSystem.FileHandleManager]::GetOpenHandles($wimFile.Path)
 
                         # Throw if we have no handles to close, it means we don't know why the WIM didn't dismount.
@@ -4927,6 +4950,7 @@ function Dismount-ADTWimFile
                         }
 
                         # Attempt the dismount again.
+                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Dismounting WIM file at path [$($wimFile.Path)]."
                         $null = & $Script:CommandTable.'Invoke-ADTCommandWithRetries' -Command $Script:CommandTable.'Dismount-WindowsImage' -Path $wimFile.Path -Discard
                     }
                     & $Script:CommandTable.'Write-ADTLogEntry' -Message "Successfully dismounted WIM file."
@@ -5016,7 +5040,6 @@ function Enable-ADTTerminalServerInstallMode
             try
             {
                 & $Script:CommandTable.'Invoke-ADTTerminalServerModeChange' -Mode Install
-                $Script:ADT.TerminalServerMode = $true
             }
             catch
             {
@@ -5305,6 +5328,9 @@ function Get-ADTApplication
                 }
             }
         }
+
+        # Define compiled regex for use throughout main loop.
+        $updatesAndHotFixesRegex = [System.Text.RegularExpressions.Regex]::new('((?i)kb\d+|(Cumulative|Security) Update|Hotfix)', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Compiled)
     }
 
     process
@@ -5335,14 +5361,30 @@ function Get-ADTApplication
                     }
 
                     # Bypass any updates or hotfixes.
-                    if (!$IncludeUpdatesAndHotfixes -and ($appDisplayName -match '((?i)kb\d+|(Cumulative|Security) Update|Hotfix)'))
+                    if (!$IncludeUpdatesAndHotfixes -and $updatesAndHotFixesRegex.Matches($appDisplayName).Count)
                     {
                         $updatesSkippedCounter++
                         continue
                     }
 
+                    # Apply name filter if specified.
+                    if ($nameFilterScript -and !(& $nameFilterScript))
+                    {
+                        continue
+                    }
+
+                    # Grab all available uninstall string.
+                    if (($uninstallString = $item.GetValue('UninstallString', $null)) -and [System.String]::IsNullOrWhiteSpace($uninstallString.Replace('"', $null)))
+                    {
+                        $uninstallString = $null
+                    }
+                    if (($quietUninstallString = $item.GetValue('QuietUninstallString', $null)) -and [System.String]::IsNullOrWhiteSpace($quietUninstallString.Replace('"', $null)))
+                    {
+                        $quietUninstallString = $null
+                    }
+
                     # Apply application type filter if specified.
-                    $windowsInstaller = $item.GetValue('WindowsInstaller', $false)
+                    $windowsInstaller = $item.GetValue('WindowsInstaller', $false) -or ($uninstallString -match 'msiexec') -or ($quietUninstallString -match 'msiexec')
                     if ((($ApplicationType -eq 'MSI') -and !$windowsInstaller) -or (($ApplicationType -eq 'EXE') -and $windowsInstaller))
                     {
                         continue
@@ -5355,16 +5397,38 @@ function Get-ADTApplication
                         continue
                     }
 
-                    # Apply name filter if specified.
-                    if ($nameFilterScript -and !(& $nameFilterScript))
-                    {
-                        continue
-                    }
-
                     # Determine the install date. If the key has a valid property, we use it. If not, we get the LastWriteDate for the key from the registry.
                     if (![System.DateTime]::TryParseExact($item.GetValue('InstallDate', $null), 'yyyyMMdd', [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::None, [ref]$installDate))
                     {
                         $installDate = [PSADT.RegistryManagement.RegistryUtilities]::GetRegistryKeyLastWriteTime($item.PSPath).Date
+                    }
+
+                    # Build hashtable of calculated properties based on their presence in the registry and the value's validity.
+                    $appProperties = @{}; 'DisplayVersion', 'Publisher', 'EstimatedSize' | & {
+                        process
+                        {
+                            if (![System.String]::IsNullOrWhiteSpace(($value = $item.GetValue($_, $null))))
+                            {
+                                $appProperties.Add($_, $value)
+                            }
+                        }
+                    }
+
+                    # Process the source/location directory paths.
+                    'InstallSource', 'InstallLocation' | & {
+                        process
+                        {
+                            if (![System.String]::IsNullOrWhiteSpace(($value = $item.GetValue($_, [System.String]::Empty).TrimStart('"').TrimEnd('"'))) -and [PSADT.FileSystem.FileSystemUtilities]::IsValidFilePath($value))
+                            {
+                                $appProperties.Add($_, $value)
+                            }
+                        }
+                    }
+
+                    # Process the HelpLink, accepting only valid URLs.
+                    if ([System.Uri]::TryCreate($item.GetValue('HelpLink', [System.String]::Empty), [System.UriKind]::Absolute, [ref]$defUriValue))
+                    {
+                        $appProperties.Add('HelpLink', $defUriValue)
                     }
 
                     # Build out the app object here before we filter as the caller needs to be able to filter on the object's properties.
@@ -5374,15 +5438,15 @@ function Get-ADTApplication
                         $item.PSChildName,
                         $appMsiGuid,
                         $appDisplayName,
-                        $(if (($appDisplayVersion = $item.GetValue('DisplayVersion', $null)) -and ![System.String]::IsNullOrWhiteSpace($appDisplayVersion)) { $appDisplayVersion }),
-                        $(if (($appUninstallString = $item.GetValue('UninstallString', $null)) -and ![System.String]::IsNullOrWhiteSpace($appUninstallString)) { $appUninstallString }),
-                        $(if (($appQuietUninstallString = $item.GetValue('QuietUninstallString', $null)) -and ![System.String]::IsNullOrWhiteSpace($appQuietUninstallString)) { $appQuietUninstallString }),
-                        $(if (($appInstallSource = $item.GetValue('InstallSource', $null)) -and ![System.String]::IsNullOrWhiteSpace($appInstallSource)) { $appInstallSource.TrimStart('"').TrimEnd('"') }),
-                        $(if (($appInstallLocation = $item.GetValue('InstallLocation', $null)) -and ![System.String]::IsNullOrWhiteSpace($appInstallLocation)) { $appInstallLocation.TrimStart('"').TrimEnd('"') }),
+                        $appProperties['DisplayVersion'],
+                        $uninstallString,
+                        $quietUninstallString,
+                        $appProperties['InstallSource'],
+                        $appProperties['InstallLocation'],
                         $installDate,
-                        $(if (($appPublisher = $item.GetValue('Publisher', $null)) -and ![System.String]::IsNullOrWhiteSpace($appPublisher)) { $appPublisher }),
-                        $(if ([System.Uri]::TryCreate($item.GetValue('HelpLink', [System.String]::Empty), [System.UriKind]::Absolute, [ref]$defUriValue)) { $defUriValue }),
-                        $(if (($appEstimatedSize = $item.GetValue('EstimatedSize', $null)) -and ![System.String]::IsNullOrWhiteSpace($appEstimatedSize)) { $appEstimatedSize }),
+                        $appProperties['Publisher'],
+                        $appProperties['HelpLink'],
+                        $appProperties['EstimatedSize'],
                         $item.GetValue('SystemComponent', $false),
                         $windowsInstaller,
                         ([System.Environment]::Is64BitProcess -and ($item.PSPath -notmatch '^Microsoft\.PowerShell\.Core\\Registry::HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node'))
@@ -5391,7 +5455,7 @@ function Get-ADTApplication
                     # Build out an object and return it to the pipeline if there's no filterscript or the filterscript returns something.
                     if (!$FilterScript -or (& $Script:CommandTable.'ForEach-Object' -InputObject $app -Process $FilterScript -ErrorAction Ignore))
                     {
-                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Found installed application [$($app.DisplayName)]$(if ($app.DisplayVersion) {" version [$($app.DisplayVersion)]"})."
+                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Found installed application [$($app.DisplayName)$(if ($app.DisplayVersion -and !$app.DisplayName.Contains($app.DisplayVersion)) {" $($app.DisplayVersion)"})]."
                         $app
                     }
                 }
@@ -6155,7 +6219,7 @@ function Get-ADTExecutableInfo
 
         Tags: psadt<br />
         Website: https://psappdeploytoolkit.com<br />
-        Copyright: © 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
+        Copyright: (C) 2025 PSAppDeployToolkit Team (Sean Lillis, Dan Cunningham, Muhammad Mashwani, Mitch Richters, Dan Gough).<br />
         License: https://opensource.org/license/lgpl-3-0
 
     .LINK
@@ -6733,6 +6797,7 @@ function Get-ADTLoggedOnUser
     #>
 
     [CmdletBinding()]
+    [OutputType([System.Collections.Generic.IReadOnlyList[PSADT.TerminalServices.SessionInfo]])]
     param
     (
     )
@@ -6772,7 +6837,7 @@ function Get-ADTLoggedOnUser
                             }
                         }
                     }
-                    $PSCmdlet.WriteObject($sessionInfo, $false)
+                    return $sessionInfo
                 }
             }
             catch
@@ -6861,10 +6926,7 @@ function Get-ADTModuleCallback
     # Directly clear the backend list.
     try
     {
-        if (($callbackList = $Script:ADT.Callbacks.$Hookpoint))
-        {
-            $PSCmdlet.WriteObject([System.Collections.Generic.IReadOnlyList[System.Management.Automation.CommandInfo]]$callbackList.AsReadOnly(), $false)
-        }
+        $PSCmdlet.WriteObject([System.Collections.Generic.IReadOnlyList[System.Management.Automation.CommandInfo]]$Script:ADT.Callbacks.$Hookpoint.AsReadOnly(), $false)
     }
     catch
     {
@@ -7854,27 +7916,27 @@ function Get-ADTRegistryKey
         Returns the value of the registry key or value.
 
     .EXAMPLE
-        Get-ADTRegistryKey -Key 'HKLM:SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\VLC media player'
+        Get-ADTRegistryKey -LiteralPath 'HKLM:SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\VLC media player'
 
         This example retrieves all value names and data for the specified registry key.
 
     .EXAMPLE
-        Get-ADTRegistryKey -Key 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\iexplore.exe'
+        Get-ADTRegistryKey -LiteralPath 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\iexplore.exe'
 
         This example retrieves all value names and data for the specified registry key.
 
     .EXAMPLE
-        Get-ADTRegistryKey -Key 'HKLM:Software\Wow6432Node\Microsoft\Microsoft SQL Server Compact Edition\v3.5' -Name 'Version'
+        Get-ADTRegistryKey -LiteralPath 'HKLM:Software\Wow6432Node\Microsoft\Microsoft SQL Server Compact Edition\v3.5' -Name 'Version'
 
         This example retrieves the 'Version' value data for the specified registry key.
 
     .EXAMPLE
-        Get-ADTRegistryKey -Key 'HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment' -Name 'Path' -DoNotExpandEnvironmentNames
+        Get-ADTRegistryKey -LiteralPath 'HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment' -Name 'Path' -DoNotExpandEnvironmentNames
 
         This example retrieves the 'Path' value data without expanding environment variables.
 
     .EXAMPLE
-        Get-ADTRegistryKey -Key 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Example' -Name '(Default)'
+        Get-ADTRegistryKey -LiteralPath 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Example' -Name '(Default)'
 
         This example retrieves the default value data for the specified registry key.
 
@@ -8070,6 +8132,7 @@ function Get-ADTRunningProcesses
     #>
 
     [CmdletBinding()]
+    [OutputType([System.Collections.Generic.IReadOnlyList[PSADT.ProcessManagement.RunningProcess]])]
     param
     (
         [Parameter(Mandatory = $true)]
@@ -8085,7 +8148,7 @@ function Get-ADTRunningProcesses
         return
     }
     & $Script:CommandTable.'Write-ADTLogEntry' -Message "The following processes are running: ['$([System.String]::Join("', '", ($runningProcesses.Process.ProcessName | & $Script:CommandTable.'Select-Object' -Unique)))']."
-    $PSCmdlet.WriteObject($runningProcesses, $false)
+    return $runningProcesses
 }
 
 
@@ -9060,10 +9123,7 @@ function Get-ADTWindowTitle
         {
             try
             {
-                if (($windowInfo = & $Script:CommandTable.'Invoke-ADTClientServerOperation' -GetProcessWindowInfo -User $runAsActiveUser -Options ([PSADT.WindowManagement.WindowInfoOptions]::new($WindowTitle, $WindowHandle, $ParentProcess))))
-                {
-                    $PSCmdlet.WriteObject($windowInfo, $false)
-                }
+                return & $Script:CommandTable.'Invoke-ADTClientServerOperation' -GetProcessWindowInfo -User $runAsActiveUser -Options ([PSADT.WindowManagement.WindowInfoOptions]::new($WindowTitle, $WindowHandle, $ParentProcess))
             }
             catch
             {
@@ -9715,24 +9775,24 @@ function Invoke-ADTAllUsersRegistryAction
 
     .EXAMPLE
         Invoke-ADTAllUsersRegistryAction -ScriptBlock {
-            Set-ADTRegistryKey -Key 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'qmenable' -Value 0 -Type DWord -SID $_.SID
-            Set-ADTRegistryKey -Key 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'updatereliabilitydata' -Value 1 -Type DWord -SID $_.SID
+            Set-ADTRegistryKey -SID $_.SID -Key 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'qmenable' -Value 0 -Type DWord
+            Set-ADTRegistryKey -SID $_.SID -Key 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'updatereliabilitydata' -Value 1 -Type DWord
         }
 
         Example demonstrating the setting of two values within each user's HKEY_CURRENT_USER hive.
 
     .EXAMPLE
         Invoke-ADTAllUsersRegistryAction {
-            Set-ADTRegistryKey -Key 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'qmenable' -Value 0 -Type DWord -SID $_.SID
-            Set-ADTRegistryKey -Key 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'updatereliabilitydata' -Value 1 -Type DWord -SID $_.SID
+            Set-ADTRegistryKey -SID $_.SID -Key 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'qmenable' -Value 0 -Type DWord
+            Set-ADTRegistryKey -SID $_.SID -Key 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'updatereliabilitydata' -Value 1 -Type DWord
         }
 
         As the previous example, but showing how to use ScriptBlock as a positional parameter with no name specified.
 
     .EXAMPLE
         Invoke-ADTAllUsersRegistryAction -UserProfiles (Get-ADTUserProfiles -ExcludeDefaultUser) -ScriptBlock {
-            Set-ADTRegistryKey -Key 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'qmenable' -Value 0 -Type DWord -SID $_.SID
-            Set-ADTRegistryKey -Key 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'updatereliabilitydata' -Value 1 -Type DWord -SID $_.SID
+            Set-ADTRegistryKey -SID $_.SID -Key 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'qmenable' -Value 0 -Type DWord
+            Set-ADTRegistryKey -SID $_.SID -Key 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'updatereliabilitydata' -Value 1 -Type DWord
         }
 
         As the previous example, but sending specific user profiles through to exclude the Default profile.
@@ -10088,7 +10148,7 @@ function Invoke-ADTCommandWithRetries
         catch
         {
             # Process the caught error, log it and throw depending on the specified ErrorAction.
-            & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorRecord $_
+            & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorRecord $_ -Silent
         }
     }
 
@@ -10241,7 +10301,7 @@ function Invoke-ADTFunctionErrorHandler
     }
 
     # Write out the error to the log file.
-    if ($OriginalErrorAction -notmatch '^(SilentlyContinue|Ignore)$' -and (!$PSBoundParameters.ContainsKey('DisableErrorResolving') -or !$PSBoundParameters.DisableErrorResolving))
+    if (($OriginalErrorAction -notmatch '^(SilentlyContinue|Ignore)$') -or ($PSBoundParameters.ContainsKey('DisableErrorResolving') -and !$PSBoundParameters.DisableErrorResolving))
     {
         $raerProps = @{ ErrorRecord = $ErrorRecord }; if ($PSCmdlet.ParameterSetName.Equals('AdditionalResolveErrorProperties'))
         {
@@ -11995,7 +12055,7 @@ function New-ADTValidateScriptErrorRecord
         Category = [System.Management.Automation.ErrorCategory]::InvalidArgument
         ErrorId = "Invalid$($ParameterName)ParameterValue"
         TargetObject = $ProvidedValue
-        TargetName = $ProvidedValue
+        TargetName = $ProvidedValue.ToString()
         TargetType = $(if ($null -ne $ProvidedValue) { $ProvidedValue.GetType().Name })
         RecommendedAction = "Review the supplied $($ParameterName) parameter value and try again."
     }
@@ -12102,21 +12162,8 @@ function New-ADTZipFile
 
     begin
     {
-        # Remove invalid characters from the supplied filename.
-        & $Script:CommandTable.'Initialize-ADTFunction' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState
-        if (($DestinationArchiveFileName = & $Script:CommandTable.'Remove-ADTInvalidFileNameChars' -Name $DestinationArchiveFileName).Length -eq 0)
-        {
-            $naerParams = @{
-                Exception = [System.ArgumentException]::new('Invalid filename characters replacement resulted into an empty string.', $_)
-                Category = [System.Management.Automation.ErrorCategory]::InvalidArgument
-                ErrorId = 'DestinationArchiveFileNameInvalid'
-                TargetObject = $DestinationArchiveFileName
-                RecommendedAction = "Please review the supplied value to '-DestinationArchiveFileName' and try again."
-            }
-            $PSCmdlet.ThrowTerminatingError((& $Script:CommandTable.'New-ADTErrorRecord' @naerParams))
-        }
-
         # Remove parameters from PSBoundParameters that don't apply to Compress-Archive.
+        & $Script:CommandTable.'Initialize-ADTFunction' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState
         if ($PSBoundParameters.ContainsKey('RemoveSourceAfterArchiving'))
         {
             $null = $PSBoundParameters.Remove('RemoveSourceAfterArchiving')
@@ -12135,8 +12182,8 @@ function New-ADTZipFile
                 # Get the full destination path where the archive will be stored.
                 & $Script:CommandTable.'Write-ADTLogEntry' -Message "Creating a zip archive with the requested content at destination path [$DestinationPath]."
 
-                # If the destination archive already exists, delete it if the -OverwriteArchive option was selected.
-                if ((& $Script:CommandTable.'Test-Path' -LiteralPath $DestinationPath -PathType Leaf) -and $OverwriteArchive)
+                # If the destination archive already exists, delete it if the -Force option was selected.
+                if ((& $Script:CommandTable.'Test-Path' -LiteralPath $DestinationPath -PathType Leaf) -and $Force)
                 {
                     & $Script:CommandTable.'Write-ADTLogEntry' -Message "An archive at the destination path already exists, deleting file [$DestinationPath]."
                     $null = & $Script:CommandTable.'Remove-Item' -LiteralPath $DestinationPath -Force
@@ -12156,21 +12203,20 @@ function New-ADTZipFile
                     }
                     catch
                     {
-                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Failed to recursively delete [$sourcePath].`n$(& $Script:CommandTable.'Resolve-ADTErrorRecord' -ErrorRecord $_)" -Severity 2
+                        & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorRecord $_ -LogMessage "Failed to recursively delete [$sourcePath]." -ErrorAction SilentlyContinue
                     }
                 }
 
                 # If the archive was created in session 0 or by an Admin, then it may only be readable by elevated users.
                 # Apply the parent folder's permissions to the archive file to fix the problem.
                 $parentPath = [System.IO.Path]::GetDirectoryName($DestinationPath)
-                & $Script:CommandTable.'Write-ADTLogEntry' -Message "If the archive was created in session 0 or by an Admin, then it may only be readable by elevated users. Apply permissions from parent folder [$parentPath] to file [$DestinationPath]."
                 try
                 {
                     & $Script:CommandTable.'Set-Acl' -LiteralPath $DestinationPath -AclObject (& $Script:CommandTable.'Get-Acl' -LiteralPath $parentPath)
                 }
                 catch
                 {
-                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Failed to apply parent folder's [$parentPath] permissions to file [$DestinationPath].`n$(& $Script:CommandTable.'Resolve-ADTErrorRecord' -ErrorRecord $_)" -Severity 2
+                    & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorRecord $_ -LogMessage "Failed to apply parent folder's [$parentPath] permissions to file [$DestinationPath]." -ErrorAction SilentlyContinue
                 }
             }
             catch
@@ -13198,11 +13244,11 @@ function Remove-ADTEnvironmentVariable
                         return;
                     }
                     & $Script:CommandTable.'Write-ADTLogEntry' -Message "Removing $(($logSuffix = "the environment variable [$Variable] for [$Target]"))."
-                    [System.Environment]::SetEnvironmentVariable($Variable, $null, $Target)
+                    [System.Environment]::SetEnvironmentVariable($Variable, [System.Management.Automation.Language.NullString]::Value, $Target)
                     return;
                 }
                 & $Script:CommandTable.'Write-ADTLogEntry' -Message "Removing $(($logSuffix = "the environment variable [$Variable]"))."
-                [System.Environment]::SetEnvironmentVariable($Variable, $null)
+                [System.Environment]::SetEnvironmentVariable($Variable, [System.Management.Automation.Language.NullString]::Value)
                 return;
             }
             catch
@@ -14230,19 +14276,29 @@ function Remove-ADTRegistryKey
         This function does not generate any output.
 
     .EXAMPLE
-        Remove-ADTRegistryKey -Key 'HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\RunOnce'
+        Remove-ADTRegistryKey -LiteralPath 'HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\RunOnce'
 
         Deletes the specified registry key.
 
     .EXAMPLE
-        Remove-ADTRegistryKey -Key 'HKLM:SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -Name 'RunAppInstall'
+        Remove-ADTRegistryKey -LiteralPath 'HKLM:SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -Name 'RunAppInstall'
 
         Deletes the specified registry value.
 
     .EXAMPLE
-        Remove-ADTRegistryKey -Key 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Example' -Name '(Default)'
+        Remove-ADTRegistryKey -LiteralPath 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Example' -Name '(Default)'
 
         Deletes the default registry value in the specified key.
+
+    .EXAMPLE
+        Remove-ADTRegistryKey -Path 'HKEY_LOCAL_MACHINE\SOFTWARE\MyCustomKey\*' -Recurse
+
+        Removes all subkeys from `HKEY_LOCAL_MACHINE\SOFTWARE\MyCustomKey` as requested.
+
+    .EXAMPLE
+        Remove-ADTRegistryKey -Path 'HKEY_LOCAL_MACHINE\SOFTWARE\MyCustomKey\*' -Name 'PropertyName'
+
+        Removes `PropertyName` from all subkeys of `HKEY_LOCAL_MACHINE\SOFTWARE\MyCustomKey`.
 
     .NOTES
         An active ADT session is NOT required to use this function.
@@ -15034,6 +15090,7 @@ function Set-ADTActiveSetup
         $paramDictionary.Add('Description', [System.Management.Automation.RuntimeDefinedParameter]::new(
                 'Description', [System.String], $(
                     [System.Management.Automation.ParameterAttribute]@{ Mandatory = !$adtSession; HelpMessage = 'Description for the Active Setup. Users will see "Setting up personalized settings for: $Description" at logon. Defaults to active session InstallName.'; ParameterSetName = 'Create' }
+                    [System.Management.Automation.ParameterAttribute]@{ Mandatory = !$adtSession; HelpMessage = 'Description for the Active Setup. Users will see "Setting up personalized settings for: $Description" at logon. Defaults to active session InstallName.'; ParameterSetName = 'CreateNoExecute' }
                     [System.Management.Automation.ValidateNotNullOrEmptyAttribute]::new()
                 )
             ))
@@ -16661,27 +16718,27 @@ function Set-ADTRegistryKey
         This function does not return any output.
 
     .EXAMPLE
-        Set-ADTRegistryKey -Key $blockedAppPath -Name 'Debugger' -Value $blockedAppDebuggerValue
+        Set-ADTRegistryKey -LiteralPath $blockedAppPath -Name 'Debugger' -Value $blockedAppDebuggerValue
 
         Creates or sets the 'Debugger' value in the specified registry key.
 
     .EXAMPLE
-        Set-ADTRegistryKey -Key 'HKEY_LOCAL_MACHINE\SOFTWARE' -Name 'Application' -Type 'DWord' -Value '1'
+        Set-ADTRegistryKey -LiteralPath 'HKEY_LOCAL_MACHINE\SOFTWARE' -Name 'Application' -Type 'DWord' -Value '1'
 
         Creates or sets a DWord value in the specified registry key.
 
     .EXAMPLE
-        Set-ADTRegistryKey -Key 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce' -Name 'Debugger' -Value $blockedAppDebuggerValue -Type String
+        Set-ADTRegistryKey -LiteralPath 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce' -Name 'Debugger' -Value $blockedAppDebuggerValue -Type String
 
         Creates or sets a String value in the specified registry key.
 
     .EXAMPLE
-        Set-ADTRegistryKey -Key 'HKCU\Software\Microsoft\Example' -Name 'Data' -Value (0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x02,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x02,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x01,0x01,0x01,0x02,0x02,0x02) -Type 'Binary'
+        Set-ADTRegistryKey -LiteralPath 'HKCU\Software\Microsoft\Example' -Name 'Data' -Value (0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x02,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x02,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x01,0x01,0x01,0x02,0x02,0x02) -Type 'Binary'
 
         Creates or sets a Binary value in the specified registry key.
 
     .EXAMPLE
-        Set-ADTRegistryKey -Key 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Example' -Name '(Default)' -Value "Text"
+        Set-ADTRegistryKey -LiteralPath 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Example' -Name '(Default)' -Value "Text"
 
         Creates or sets the default value in the specified registry key.
 
@@ -16931,7 +16988,7 @@ function Set-ADTServiceStartMode
         }
         catch
         {
-            & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState
+            & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorRecord $_
         }
     }
 
@@ -17348,6 +17405,11 @@ function Show-ADTBalloonTip
                     }
                     $forced = $true
                 }
+                if (!($runAsActiveUser = & $Script:CommandTable.'Get-ADTClientServerUser' -AllowSystemFallback))
+                {
+                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Bypassing $($MyInvocation.MyCommand.Name) as there is no active user logged onto the system."
+                    return
+                }
                 if (& $Script:CommandTable.'Test-ADTUserIsBusy')
                 {
                     if (!$Force)
@@ -17356,11 +17418,6 @@ function Show-ADTBalloonTip
                         return
                     }
                     $forced = $true
-                }
-                if (!($runAsActiveUser = & $Script:CommandTable.'Get-ADTClientServerUser' -AllowSystemFallback))
-                {
-                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Bypassing $($MyInvocation.MyCommand.Name) as there is no active user logged onto the system."
-                    return
                 }
 
                 # Establish options class for displaying the balloon tip.
@@ -17453,7 +17510,7 @@ function Show-ADTDialogBox
         Returns the text of the button that was clicked.
 
     .EXAMPLE
-        Show-ADTDialogBox -Title 'Installation Notice' -Text 'Installation will take approximately 30 minutes. Do you wish to proceed?' -Buttons 'OKCancel' -DefaultButton 'Second' -Icon 'Exclamation' -Timeout 600 -Topmost $false
+        Show-ADTDialogBox -Title 'Installation Notice' -Text 'Installation will take approximately 30 minutes. Do you wish to proceed?' -Buttons 'OKCancel' -DefaultButton 'Second' -Icon 'Exclamation' -Timeout 600 -NotTopMost
 
     .NOTES
         An active ADT session is NOT required to use this function.
@@ -18073,6 +18130,9 @@ function Show-ADTInstallationPrompt
     .PARAMETER AllowMove
         Specifies that the user can move the dialog on the screen.
 
+    .PARAMETER Force
+        Specifies whether the message box should appear irrespective of an ongoing DeploymentSession's DeployMode.
+
     .INPUTS
         None
 
@@ -18175,7 +18235,10 @@ function Show-ADTInstallationPrompt
         [System.Management.Automation.SwitchParameter]$NotTopMost,
 
         [Parameter(Mandatory = $false)]
-        [System.Management.Automation.SwitchParameter]$AllowMove
+        [System.Management.Automation.SwitchParameter]$AllowMove,
+
+        [Parameter(Mandatory = $false)]
+        [System.Management.Automation.SwitchParameter]$Force
     )
 
     dynamicparam
@@ -18271,7 +18334,7 @@ function Show-ADTInstallationPrompt
             try
             {
                 # Bypass if in non-interactive mode.
-                if ($adtSession -and $adtSession.IsNonInteractive())
+                if ($adtSession -and $adtSession.IsNonInteractive() -and !$Force)
                 {
                     & $Script:CommandTable.'Write-ADTLogEntry' -Message "Bypassing $($MyInvocation.MyCommand.Name) [Mode: $($adtSession.DeployMode)]. Message: $Message"
                     return
@@ -18305,6 +18368,14 @@ function Show-ADTInstallationPrompt
                     }
                     $dialogOptions.MessageAlignment = $MessageAlignment
                 }
+                if ($Icon)
+                {
+                    if ($adtConfig.UI.DialogStyle -eq 'Fluent')
+                    {
+                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "The parameter [-Icon] is not supported with Fluent dialogs and has no effect." -Severity 2
+                    }
+                    $dialogOptions.Add('Icon', $Icon)
+                }
                 if ($PSBoundParameters.ContainsKey('DefaultValue'))
                 {
                     $dialogOptions.InitialInputText = $DefaultValue
@@ -18320,10 +18391,6 @@ function Show-ADTInstallationPrompt
                 if ($ButtonMiddleText)
                 {
                     $dialogOptions.Add('ButtonMiddleText', $ButtonMiddleText)
-                }
-                if ($Icon)
-                {
-                    $dialogOptions.Add('Icon', $Icon)
                 }
                 if ($PSBoundParameters.ContainsKey('WindowLocation'))
                 {
@@ -18486,7 +18553,7 @@ function Show-ADTInstallationRestartPrompt
     .EXAMPLE
         Show-ADTInstallationRestartPrompt -CountdownSeconds 600 -CountdownNoHideSeconds 60
 
-        Displays a restart prompt with a 600-second countdown and triggers a silent restart with a 60-second countdown in silent mode.
+        Displays a restart prompt with a 600-second countdown, removing the ability to hide/minimise the dialog for the last 60 seconds.
 
     .NOTES
         Be mindful of the countdown you specify for the reboot as code directly after this function might NOT be able to execute - that includes logging.
@@ -19831,11 +19898,12 @@ function Show-ADTInstallationWelcome
                         elseif ($promptResult.Equals([PSADT.UserInterface.DialogResults.CloseAppsDialogResult]::Close))
                         {
                             # Force the applications to close. Update the process list right before closing, in case it changed.
-                            & $Script:CommandTable.'Write-ADTLogEntry' -Message 'The user selected to force the application(s) to close...'
+                            & $Script:CommandTable.'Write-ADTLogEntry' -Message 'The user selected to close the application(s)...'
                             if (($runningApps = if ($CloseProcesses) { & $Script:CommandTable.'Get-ADTRunningProcesses' -ProcessObjects $CloseProcesses -InformationAction Ignore }))
                             {
                                 if (!$PromptToSave)
                                 {
+                                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "The parameter [-PromptToSave] not specified, force closing the application(s)."
                                     foreach ($runningApp in $runningApps)
                                     {
                                         & $Script:CommandTable.'Write-ADTLogEntry' -Message "Stopping process [$($runningApp.Process.ProcessName)]..."
@@ -19844,6 +19912,7 @@ function Show-ADTInstallationWelcome
                                 }
                                 else
                                 {
+                                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "The parameter [-PromptToSave] was specified, prompting user to close the application(s)."
                                     & $Script:CommandTable.'Invoke-ADTClientServerOperation' -PromptToCloseApps -User $runAsActiveUser -PromptToCloseTimeout ([System.TimeSpan]::FromSeconds($adtConfig.UI.PromptToSaveTimeout))
                                 }
 
@@ -19866,6 +19935,7 @@ function Show-ADTInstallationWelcome
                             }
                             else
                             {
+                                & $Script:CommandTable.'Write-ADTLogEntry' -Message "All running application(s) were already closed."
                                 break
                             }
                         }
@@ -19887,6 +19957,10 @@ function Show-ADTInstallationWelcome
                                 Update-ADTDeferHistory
                                 & $Script:CommandTable.'Close-ADTSession' -ExitCode $adtConfig.UI.DefaultExitCode
                             }
+                            else
+                            {
+                                return
+                            }
                         }
                         elseif ($promptResult.Equals([PSADT.UserInterface.DialogResults.CloseAppsDialogResult]::Defer))
                         {
@@ -19905,6 +19979,10 @@ function Show-ADTInstallationWelcome
                             {
                                 Update-ADTDeferHistory
                                 & $Script:CommandTable.'Close-ADTSession' -ExitCode $adtConfig.UI.DeferExitCode
+                            }
+                            else
+                            {
+                                return
                             }
                         }
                         elseif (!$promptResult.Equals('TerminatedTryAgain'))
@@ -19930,7 +20008,7 @@ function Show-ADTInstallationWelcome
                 }
 
                 # If block execution switch is true, call the function to block execution of these processes.
-                if ($BlockExecution -and $CloseProcesses)
+                if ($adtSession -and $BlockExecution -and $CloseProcesses)
                 {
                     $baaeParams = @{ ProcessName = $CloseProcesses.Name }
                     if ($PSBoundParameters.ContainsKey('WindowLocation'))
@@ -20028,6 +20106,9 @@ function Start-ADTMsiProcess
 
     .PARAMETER InheritEnvironmentVariables
         Specifies whether the process running as a user should inherit the SYSTEM account's environment variables.
+
+    .PARAMETER DenyUserTermination
+        Specifies that users cannot terminate the process started in their context. The user will still be able to terminate the process if they're an administrator, though.
 
     .PARAMETER UseUnelevatedToken
         If the current process is elevated, starts the new process unelevated using the user's unelevated linked token.
@@ -20226,6 +20307,14 @@ function Start-ADTMsiProcess
         [Parameter(Mandatory = $false, ParameterSetName = 'RunAsActiveUser_InstalledApplication_NoWait')]
         [System.Management.Automation.SwitchParameter]$InheritEnvironmentVariables,
 
+        [Parameter(Mandatory = $false, ParameterSetName = 'RunAsActiveUser_FilePath')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'RunAsActiveUser_FilePath_NoWait')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'RunAsActiveUser_ProductCode')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'RunAsActiveUser_ProductCode_NoWait')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'RunAsActiveUser_InstalledApplication')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'RunAsActiveUser_InstalledApplication_NoWait')]
+        [System.Management.Automation.SwitchParameter]$DenyUserTermination,
+
         [Parameter(Mandatory = $true, ParameterSetName = 'UseUnelevatedToken_FilePath')]
         [Parameter(Mandatory = $true, ParameterSetName = 'UseUnelevatedToken_FilePath_NoWait')]
         [Parameter(Mandatory = $true, ParameterSetName = 'UseUnelevatedToken_ProductCode')]
@@ -20370,13 +20459,12 @@ function Start-ADTMsiProcess
                         {
                             (& $Script:CommandTable.'Get-Item' -LiteralPath $FilePath).FullName
                         }
-                        elseif ($adtSession -and (& $Script:CommandTable.'Test-Path' -LiteralPath ($dirFilesPath = (& $Script:CommandTable.'Join-Path' -Path $adtSession.DirFiles -ChildPath $FilePath).Trim()) -PathType Leaf))
+                        elseif ($adtSession -and ![System.String]::IsNullOrWhiteSpace($adtSession.DirFiles) -and (& $Script:CommandTable.'Test-Path' -LiteralPath ($dirFilesPath = (& $Script:CommandTable.'Join-Path' -Path $adtSession.DirFiles -ChildPath $FilePath).Trim()) -PathType Leaf))
                         {
                             $dirFilesPath
                         }
                         else
                         {
-                            & $Script:CommandTable.'Write-ADTLogEntry' -Message "Failed to find the file [$FilePath]." -Severity 3
                             $naerParams = @{
                                 Exception = [System.IO.FileNotFoundException]::new("Failed to find the file [$FilePath].")
                                 Category = [System.Management.Automation.ErrorCategory]::ObjectNotFound
@@ -20808,6 +20896,9 @@ function Start-ADTMsiProcessAsUser
     .PARAMETER ExpandEnvironmentVariables
         Specifies whether to expand any Windows/DOS-style environment variables in the specified FilePath/ArgumentList.
 
+    .PARAMETER DenyUserTermination
+        Specifies that users cannot terminate the process started in their context. The user will still be able to terminate the process if they're an administrator, though.
+
     .PARAMETER LoggingOptions
         Overrides the default logging options specified in the config.psd1 file.
 
@@ -20907,6 +20998,7 @@ function Start-ADTMsiProcessAsUser
     (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
+        [PSDefaultValue(Help = '$RunAsActiveUser.UserName')]
         [System.Security.Principal.NTAccount]$Username,
 
         [Parameter(Mandatory = $false)]
@@ -20969,6 +21061,9 @@ function Start-ADTMsiProcessAsUser
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$ExpandEnvironmentVariables,
+
+        [Parameter(Mandatory = $false)]
+        [System.Management.Automation.SwitchParameter]$DenyUserTermination,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -21127,6 +21222,9 @@ function Start-ADTMspProcess
     .PARAMETER InheritEnvironmentVariables
         Specifies whether the process running as a user should inherit the SYSTEM account's environment variables.
 
+    .PARAMETER DenyUserTermination
+        Specifies that users cannot terminate the process started in their context. The user will still be able to terminate the process if they're an administrator, though.
+
     .PARAMETER UseUnelevatedToken
         If the current process is elevated, starts the new process unelevated using the user's unelevated linked token.
 
@@ -21196,6 +21294,9 @@ function Start-ADTMspProcess
         [Parameter(Mandatory = $false, ParameterSetName = 'RunAsActiveUser')]
         [System.Management.Automation.SwitchParameter]$InheritEnvironmentVariables,
 
+        [Parameter(Mandatory = $false, ParameterSetName = 'RunAsActiveUser')]
+        [System.Management.Automation.SwitchParameter]$DenyUserTermination,
+
         [Parameter(Mandatory = $true, ParameterSetName = 'UseUnelevatedToken')]
         [System.Management.Automation.SwitchParameter]$UseUnelevatedToken,
 
@@ -21216,7 +21317,7 @@ function Start-ADTMspProcess
             try
             {
                 # If the MSP is in the Files directory, set the full path to the MSP.
-                $mspFile = if ($adtSession -and (& $Script:CommandTable.'Test-Path' -LiteralPath ($dirFilesPath = (& $Script:CommandTable.'Join-Path' -Path $adtSession.DirFiles -ChildPath $FilePath).Trim()) -PathType Leaf))
+                $mspFile = if ($adtSession -and ![System.String]::IsNullOrWhiteSpace($adtSession.DirFiles) -and (& $Script:CommandTable.'Test-Path' -LiteralPath ($dirFilesPath = (& $Script:CommandTable.'Join-Path' -Path $adtSession.DirFiles -ChildPath $FilePath).Trim()) -PathType Leaf))
                 {
                     $dirFilesPath
                 }
@@ -21226,11 +21327,10 @@ function Start-ADTMspProcess
                 }
                 else
                 {
-                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Failed to find MSP file [$FilePath]." -Severity 3
                     $naerParams = @{
                         Exception = [System.IO.FileNotFoundException]::new("Failed to find MSP file [$FilePath].")
                         Category = [System.Management.Automation.ErrorCategory]::ObjectNotFound
-                        ErrorId = 'MsiFileNotFound'
+                        ErrorId = 'MspFileNotFound'
                         TargetObject = $FilePath
                         RecommendedAction = "Please confirm the path of the MSP file and try again."
                     }
@@ -21313,6 +21413,9 @@ function Start-ADTMspProcessAsUser
     .PARAMETER ExpandEnvironmentVariables
         Specifies whether to expand any Windows/DOS-style environment variables in the specified FilePath/ArgumentList.
 
+    .PARAMETER DenyUserTermination
+        Specifies that users cannot terminate the process started in their context. The user will still be able to terminate the process if they're an administrator, though.
+
     .INPUTS
         None
 
@@ -21351,6 +21454,7 @@ function Start-ADTMspProcessAsUser
     (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
+        [PSDefaultValue(Help = '$RunAsActiveUser.UserName')]
         [System.Security.Principal.NTAccount]$Username,
 
         [Parameter(Mandatory = $true, HelpMessage = 'Please supply the path to the MSP file to process.')]
@@ -21377,7 +21481,10 @@ function Start-ADTMspProcessAsUser
         [System.Management.Automation.SwitchParameter]$InheritEnvironmentVariables,
 
         [Parameter(Mandatory = $false)]
-        [System.Management.Automation.SwitchParameter]$ExpandEnvironmentVariables
+        [System.Management.Automation.SwitchParameter]$ExpandEnvironmentVariables,
+
+        [Parameter(Mandatory = $false)]
+        [System.Management.Automation.SwitchParameter]$DenyUserTermination
     )
 
     begin
@@ -21472,6 +21579,9 @@ function Start-ADTProcess
 
     .PARAMETER InheritEnvironmentVariables
         Specifies whether the process running as a user should inherit the SYSTEM account's environment variables.
+
+    .PARAMETER DenyUserTermination
+        Specifies that users cannot terminate the process started in their context. The user will still be able to terminate the process if they're an administrator, though.
 
     .PARAMETER UseUnelevatedToken
         If the current process is elevated, starts the new process unelevated using the user's unelevated linked token.
@@ -21573,21 +21683,9 @@ function Start-ADTProcess
         Launch InstallShield "setup.exe" with embedded MSI and force log files to the logging folder.
 
     .EXAMPLE
-        ```powershell
-        $result = Start-ADTProcess -FilePath "setup.exe" -ArgumentList "-i -f `"$($adtSession.dirFiles)\$($adtSession.LicenseFile)`"" -ErrorAction SilentlyContinue -PassThru
-        if ($result.ExitCode -ne 0)
-        {
-            Write-ADTLogEntry -Message "Installation failed with exit code [$($result.ExitCode)]." -Severity 3
-            Write-ADTLogEntry -Message "Standard Out [$($result.StdOut)]." -Severity 3
-            Write-ADTLogEntry -Message "Standard Error [$($result.StdErr)]." -Severity 3
-        }
-        else
-        {
-            Write-ADTLogEntry -Message "Installation was successful." -Severity 0
-        }
-        ```
+        $result = Start-ADTProcess -FilePath "setup.exe" -ArgumentList "-i -f `"$($adtSession.DirFiles)\licenseFile.lic`"" -CreateNoWindow -ErrorAction SilentlyContinue -PassThru
 
-        Launch "setup.exe" with -PassThru so we can write out the result to the log file.
+        Launch "setup.exe" with -PassThru so we can capture the exit code and stdout/stderr from the executable if it's a console application.
 
     .INPUTS
         None
@@ -21681,6 +21779,17 @@ function Start-ADTProcess
         [Parameter(Mandatory = $false, ParameterSetName = 'RunAsActiveUser_CreateNoWindow_NoWait')]
         [Parameter(Mandatory = $false, ParameterSetName = 'RunAsActiveUser_CreateNoWindow_Timeout')]
         [System.Management.Automation.SwitchParameter]$InheritEnvironmentVariables,
+
+        [Parameter(Mandatory = $false, ParameterSetName = 'RunAsActiveUser_CreateWindow_Wait')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'RunAsActiveUser_CreateWindow_NoWait')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'RunAsActiveUser_CreateWindow_Timeout')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'RunAsActiveUser_WindowStyle_Wait')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'RunAsActiveUser_WindowStyle_NoWait')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'RunAsActiveUser_WindowStyle_Timeout')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'RunAsActiveUser_CreateNoWindow_Wait')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'RunAsActiveUser_CreateNoWindow_NoWait')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'RunAsActiveUser_CreateNoWindow_Timeout')]
+        [System.Management.Automation.SwitchParameter]$DenyUserTermination,
 
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_CreateWindow_Wait')]
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_CreateWindow_NoWait')]
@@ -22069,13 +22178,13 @@ function Start-ADTProcess
                 # We don't do this when a session isn't running so `Start-ADTProcess` works the way one should expect (i.e. like `Start-Process`).
                 if ($adtSession -and !$PSBoundParameters.ContainsKey('WorkingDirectory'))
                 {
-                    $WorkingDirectory = if ([System.IO.Path]::HasExtension($FilePath) -and [System.IO.Path]::IsPathRooted($FilePath) -and ($FilePath -notmatch 'msiexec'))
+                    if ([System.IO.Path]::HasExtension($FilePath) -and [System.IO.Path]::IsPathRooted($FilePath) -and ($FilePath -notmatch 'msiexec'))
                     {
-                        [System.IO.Path]::GetDirectoryName($FilePath)
+                        $WorkingDirectory = [System.IO.Path]::GetDirectoryName($FilePath)
                     }
                     elseif (![System.String]::IsNullOrWhiteSpace($adtSession.DirFiles))
                     {
-                        $adtSession.DirFiles
+                        $WorkingDirectory = $adtSession.DirFiles
                     }
                 }
 
@@ -22089,6 +22198,7 @@ function Start-ADTProcess
                     $UseHighestAvailableToken,
                     $InheritEnvironmentVariables,
                     $ExpandEnvironmentVariables,
+                    $DenyUserTermination,
                     $false,
                     $UseUnelevatedToken,
                     $UseShellExecute,
@@ -22350,7 +22460,7 @@ function Start-ADTProcess
                 default
                 {
                     # This is the handler for any other error/exception that may occur.
-                    & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' @iafehParams -LogMessage "Error occurred while attempting to start the specified process."
+                    & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' @iafehParams -LogMessage "Error occurred while attempting to start the specified process." -DisableErrorResolving:$false -ErrorAction Stop
                     break
                 }
             }
@@ -22428,6 +22538,9 @@ function Start-ADTProcessAsUser
 
     .PARAMETER ExpandEnvironmentVariables
         Specifies whether to expand any Windows/DOS-style environment variables in the specified FilePath/ArgumentList.
+
+    .PARAMETER DenyUserTermination
+        Specifies that users cannot terminate the process started in their context. The user will still be able to terminate the process if they're an administrator, though.
 
     .PARAMETER WindowStyle
         Style of the window of the process executed. Options: Normal, Hidden, Maximized, Minimized. Only works for native Windows GUI applications. If the WindowStyle is set to Hidden, UseShellExecute should be set to $true.
@@ -22543,6 +22656,7 @@ function Start-ADTProcessAsUser
     (
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
+        [PSDefaultValue(Help = '$RunAsActiveUser.UserName')]
         [System.Security.Principal.NTAccount]$Username,
 
         [Parameter(Mandatory = $true)]
@@ -22571,6 +22685,9 @@ function Start-ADTProcessAsUser
 
         [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$ExpandEnvironmentVariables,
+
+        [Parameter(Mandatory = $false)]
+        [System.Management.Automation.SwitchParameter]$DenyUserTermination,
 
         # Window Option: WindowStyle (only in sets where window is "WindowStyle")
         [Parameter(Mandatory = $true, ParameterSetName = 'Default_WindowStyle_Wait')]
@@ -23258,6 +23375,7 @@ function Test-ADTEspActive
     process
     {
         # Perform the device ESP tests, followed by the user ESP tests.
+        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Testing whether Windows is currently in a device or user ESP state."
         try
         {
             try
@@ -23265,44 +23383,49 @@ function Test-ADTEspActive
                 # Test whether the device is Autopilot-enrolled.
                 if (![Microsoft.Win32.Registry]::GetValue("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Provisioning\Diagnostics\AutoPilot", "CloudAssignedTenantId", $null))
                 {
+                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Current ESP state is [$false]. Reason: [Device has no Autopilot cloud-assigned tenant Id]."
                     return $false
                 }
 
                 # Test whether wwahost.exe is running. This is responsible for displaying the ESP.
                 if (!($wwaHostProcess = [System.Diagnostics.Process]::GetProcessesByName('wwahost')).Length)
                 {
+                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Current ESP state is [$false]. Reason: [There is no wwahost process currently running]."
                     return $false
                 }
 
                 # Return early if the device is actively within the OOBE according to the system.
                 if (!(& $Script:CommandTable.'Test-ADTOobeCompleted'))
                 {
+                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Current ESP state is [$true]. Reason: [Device is still within the OOBE phase]."
                     return $true
                 }
 
                 # Confirm that there's an actively logged on user.
                 if (!($runAsActiveUser = & $Script:CommandTable.'Get-ADTClientServerUser'))
                 {
+                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Current ESP state is [$false]. Reason: [There is actively logged on user]."
                     return $false
                 }
 
                 # Return early if the wwahost process is not owned by the currently logged on user.
                 if (!($wwaHostProcess | & { process { if ($_.SessionId -eq $runAsActiveUser.SessionId) { return $_ } } } | & $Script:CommandTable.'Select-Object' -First 1))
                 {
+                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Current ESP state is [$false]. Reason: [The current wwahost process is not running as the actively logged on user]."
                     return $false
                 }
 
                 # Test whether there's active ESP data for the current user.
                 if (!($espData = & $Script:CommandTable.'Get-ItemProperty' -Path "Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Enrollments\*\FirstSync\$($runAsActiveUser.SID)"))
                 {
+                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Current ESP state is [$false]. Reason: [There is no ESP data for the actively logged on user]."
                     return $false
                 }
 
-                # Locate the IsSyncDone property and coerce it into a bool for return. If the value is null, we return null here to indicate indetermination.
-                if (($isSyncDone = $espData | & $Script:CommandTable.'Select-Object' -ExpandProperty IsSyncDone -ErrorAction Ignore) -is [System.Int32])
-                {
-                    return !!$isSyncDone
-                }
+                # Locate the IsSyncDone property and coerce it into a bool for return. If the value is null, we consider that false.
+                $isEspActive = !($espData | & $Script:CommandTable.'Select-Object' -ExpandProperty IsSyncDone -ErrorAction Ignore)
+                & $Script:CommandTable.'Write-ADTLogEntry' -Message "Current ESP state is [$isEspActive]. Reason: [Based on IsSyncDone flag within the registry]."
+                return $isEspActive
             }
             catch
             {
@@ -23656,7 +23779,7 @@ function Test-ADTMutexAvailability
         }
         $IsUnhandledException = $false
         $IsMutexFree = $false
-        [System.Threading.Mutex]$OpenExistingMutex = $null
+        $OpenExistingMutex = $null
     }
 
     process
@@ -24072,7 +24195,7 @@ function Test-ADTRegistryValue
         Returns $true if the registry value exists, $false if it does not.
 
     .EXAMPLE
-        Test-ADTRegistryValue -Key 'HKLM:SYSTEM\CurrentControlSet\Control\Session Manager' -Name 'PendingFileRenameOperations'
+        Test-ADTRegistryValue -Key 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -Name 'PendingFileRenameOperations'
 
         Checks if the registry value 'PendingFileRenameOperations' exists under the specified key.
 
@@ -24473,7 +24596,7 @@ function Unblock-ADTAppExecution
             try
             {
                 & $Script:CommandTable.'Unblock-ADTAppExecutionInternal' @uaaeiParams -Verbose 4>&1 | & $Script:CommandTable.'Write-ADTLogEntry'
-                & $Script:CommandTable.'Remove-ADTModuleCallback' -Hookpoint OnFinish -Callback $MyInvocation.MyCommand
+                & $Script:CommandTable.'Remove-ADTModuleCallback' -Hookpoint OnFinish -Callback $Script:CommandTable.($MyInvocation.MyCommand.Name)
             }
             catch
             {
@@ -24768,7 +24891,7 @@ function Uninstall-ADTApplication
                         & $Script:CommandTable.'Write-ADTLogEntry' -Message "No ProductCode found for MSI application [$($removeApplication.DisplayName) $($removeApplication.DisplayVersion)]. Skipping removal."
                         continue
                     }
-                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Removing MSI application [$($removeApplication.DisplayName) $($removeApplication.DisplayVersion)] with ProductCode [$($removeApplication.ProductCode.ToString('B'))]."
+                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Removing MSI application [$($removeApplication.DisplayName)$(if ($removeApplication.DisplayVersion -and !$removeApplication.DisplayName.Contains($removeApplication.DisplayVersion)) { " $($removeApplication.DisplayVersion)" })] with ProductCode [$($removeApplication.ProductCode.ToString('B'))]."
                     try
                     {
                         if ($sampParams.ContainsKey('FilePath'))
@@ -24795,7 +24918,7 @@ function Uninstall-ADTApplication
                     }
                     else
                     {
-                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "No UninstallString found for EXE application [$($removeApplication.DisplayName) $($removeApplication.DisplayVersion)]. Skipping removal."
+                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "No UninstallString found for EXE application [$($removeApplication.DisplayName)$(if ($removeApplication.DisplayVersion -and !$removeApplication.DisplayName.Contains($removeApplication.DisplayVersion)) { " $($removeApplication.DisplayVersion)" })]. Skipping removal."
                         continue
                     }
                     $sapParams.FilePath = $removeApplication."$($uninstallProperty)FilePath"
@@ -24838,7 +24961,7 @@ function Uninstall-ADTApplication
                         }
                     }
 
-                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Removing EXE application [$($removeApplication.DisplayName) $($removeApplication.DisplayVersion)]."
+                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Removing EXE application [$($removeApplication.DisplayName)$(if ($removeApplication.DisplayVersion -and !$removeApplication.DisplayName.Contains($removeApplication.DisplayVersion)) { " $($removeApplication.DisplayVersion)" })]."
                     try
                     {
                         & $Script:CommandTable.'Start-ADTProcess' @sapParams -ErrorAction $OriginalErrorAction
@@ -25408,9 +25531,9 @@ function Write-ADTLogEntry
         }
 
         # If we don't have an active session, write the message to the verbose stream (4).
-        if (!$bypassSession -and (& $Script:CommandTable.'Test-ADTSessionActive'))
+        $logEntries = if (!$bypassSession -and (& $Script:CommandTable.'Test-ADTSessionActive'))
         {
-            $logEntries = (& $Script:CommandTable.'Get-ADTSession').WriteLogEntry(
+            (& $Script:CommandTable.'Get-ADTSession').WriteLogEntry(
                 $messages,
                 $DebugMessage,
                 $(if ($PSBoundParameters.ContainsKey('Severity')) { $Severity }),
@@ -25421,10 +25544,6 @@ function Write-ADTLogEntry
                 $(if ($PSBoundParameters.ContainsKey('LogType')) { $LogType }),
                 $HostLogStream
             )
-            if ($PassThru -and $logEntries)
-            {
-                $PSCmdlet.WriteObject($logEntries, $false)
-            }
         }
         elseif (!$DebugMessage)
         {
@@ -25432,7 +25551,7 @@ function Write-ADTLogEntry
             {
                 & $Script:CommandTable.'Initialize-ADTModule'
             }
-            $logEntries = [PSADT.Module.LogUtilities]::WriteLogEntry(
+            [PSADT.Module.LogUtilities]::WriteLogEntry(
                 $messages,
                 $(if ($PSBoundParameters.ContainsKey('HostLogStream')) { $HostLogStream } else { ([PSADT.Module.HostLogStream]::None, [PSADT.Module.HostLogStream]::Verbose)[$VerbosePreference.Equals([System.Management.Automation.ActionPreference]::Continue)] }),
                 $false,
@@ -25443,10 +25562,10 @@ function Write-ADTLogEntry
                 $(if ($PSBoundParameters.ContainsKey('LogFileName')) { $LogFileName }),
                 $(if ($PSBoundParameters.ContainsKey('LogType')) { $LogType })
             )
-            if ($PassThru -and $logEntries)
-            {
-                $PSCmdlet.WriteObject($logEntries, $false)
-            }
+        }
+        if ($PassThru -and $logEntries)
+        {
+            return $logEntries
         }
     }
 }
@@ -25566,8 +25685,8 @@ $ADT.Durations.ModuleImport = [System.DateTime]::Now - $ModuleImportStart
 # SIG # Begin signature block
 # MIIuaQYJKoZIhvcNAQcCoIIuWjCCLlYCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDNPQSO1T0MQ9ix
-# fhPJG0saGVNSzzb4zDi0WQynvDN0tqCCE5UwggWQMIIDeKADAgECAhAFmxtXno4h
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAun0VIr2QjCo93
+# MLKGvk15DkW6AwcuBMlngAYRZWtejqCCE5UwggWQMIIDeKADAgECAhAFmxtXno4h
 # MuI5B72nd3VcMA0GCSqGSIb3DQEBDAUAMGIxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xITAfBgNV
 # BAMTGERpZ2lDZXJ0IFRydXN0ZWQgUm9vdCBHNDAeFw0xMzA4MDExMjAwMDBaFw0z
@@ -25677,20 +25796,20 @@ $ADT.Durations.ModuleImport = [System.DateTime]::Now - $ModuleImportStart
 # UlNBNDA5NiBTSEEzODQgMjAyMSBDQTECEAr5W7a+ogyFDpjG+46sCPkwDQYJYIZI
 # AWUDBAIBBQCggYQwGAYKKwYBBAGCNwIBDDEKMAigAoAAoQKAADAZBgkqhkiG9w0B
 # CQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3AgELMQ4wDAYKKwYBBAGCNwIBFTAv
-# BgkqhkiG9w0BCQQxIgQgFT2IAlbHF44Ypp6WdRyCa/55wu9Z2/c5t1Ig7SDFgqIw
-# DQYJKoZIhvcNAQEBBQAEggGAQRk6LFpGmJYPJLh8LFTSbqev/Yvsyx+hrUFmniC+
-# b2AZjLEZYCTGm2NtnTLM5hemJOr4OGoNRp/C4oZ7DlJyBl3pD9LIpS2DlZOSocq7
-# lJ/IMjfqTxWfQ/l1wwk7b8ytg8APmu7s2oFCiKKbkdV1+5sAAA0+GF6rE7vdLF8M
-# gNiIvRiMo/cRTuyiCSN+mLUTubqbN1VSaun8YaZ82ZhGXZnD+qDCdtYGU/YPX8t0
-# QNjlTjWZYe32Bo3+2v2DZXnXvnLI4g81DBRccnaUm6FbD7WJjpzycxqKRvzwBOg1
-# avpiY4ZKA/WVwLHH9wQyvq/gyvwVLSpOBWGLRyqknxPOh+cRnsEhjNkx/IuRLpMp
-# tTd3MsoukXSvCZupiL9IOTLJhYuszXiiWU/k7FStDNpzXWgHDjsinSUUKYFcYJ8O
-# 1uHMl2C4MPN1DVZL05Jt5j3rQSe9YGwp+/72LAKOxhSSTp00mcb58WdcbUqwcAbl
-# +Hr2LHwT734GGda5ncbnphUNoYIXdzCCF3MGCisGAQQBgjcDAwExghdjMIIXXwYJ
+# BgkqhkiG9w0BCQQxIgQgQwqDiQfs//Fn/RNNDUQG7nOkWSoIQcd+8KZjCXxcsz0w
+# DQYJKoZIhvcNAQEBBQAEggGAbyxejVUeNFxOq5eamHvpbW8Ojf7E845LWQh2aTdU
+# 0CeQVYbhh+K2hNqb8zylRcmo/btAkSv7BcyX2cp5obfUVlA63RahWobpKsemrsnM
+# davpoWRolS7tcNO8iTv7T5kTD6pTh7RRdRygDCEuFQpcUJAZ1Q3Bl3eIjiOPX6UU
+# UDgw8UYP/peBButCGc5HbY0KLOGIfLjaLJUmNI7VOjV6m/k36dI4YlJiiqsc4os+
+# S9BtcdHRGgCXTaR3Z1alKQQZH3GJZU/8DDVD9g0q5C++PI8Hf96eZDmaCWnfxBw3
+# NEzzGyzx9pjLuMNpiCZxjnCiJh7pE9+tsct/b7JiDPJx3Cq7pwot9IOPJ30l6EAA
+# DQyFsAhlc6NGSy6FcVH9rmeZjaRDehrU7m6NcwvMC6i9ar7HYi26cqlmFxcVLApT
+# M3pmf1/jPSlmoN6GkRUI/kTmtoF1E7FRxbgK8O1x0hb/Me6tDHavNb8cpa+VlfG9
+# RrJ9xnWyN+2vkV/yhf0iZYpdoYIXdzCCF3MGCisGAQQBgjcDAwExghdjMIIXXwYJ
 # KoZIhvcNAQcCoIIXUDCCF0wCAQMxDzANBglghkgBZQMEAgEFADB4BgsqhkiG9w0B
-# CRABBKBpBGcwZQIBAQYJYIZIAYb9bAcBMDEwDQYJYIZIAWUDBAIBBQAEICBJNjkO
-# JDjrdoFWXKFGOiQyWiNZ2o1fnmfkviI28KoSAhEAwGR7IWM3ZTN9FeV5hkAgCxgP
-# MjAyNTA5MDcwNDIzMDdaoIITOjCCBu0wggTVoAMCAQICEAqA7xhLjfEFgtHEdqeV
+# CRABBKBpBGcwZQIBAQYJYIZIAYb9bAcBMDEwDQYJYIZIAWUDBAIBBQAEIIEOKEw3
+# 4yftRU9ROdYh/cVrb1Bcy2mwXapTDZc4diwPAhEA/aged4eSuxFh5Yk/N+KYuxgP
+# MjAyNTEwMjEwODE2MDBaoIITOjCCBu0wggTVoAMCAQICEAqA7xhLjfEFgtHEdqeV
 # dGgwDQYJKoZIhvcNAQELBQAwaTELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lD
 # ZXJ0LCBJbmMuMUEwPwYDVQQDEzhEaWdpQ2VydCBUcnVzdGVkIEc0IFRpbWVTdGFt
 # cGluZyBSU0E0MDk2IFNIQTI1NiAyMDI1IENBMTAeFw0yNTA2MDQwMDAwMDBaFw0z
@@ -25797,19 +25916,19 @@ $ADT.Durations.ModuleImport = [System.DateTime]::Now - $ModuleImportStart
 # Yy4xQTA/BgNVBAMTOERpZ2lDZXJ0IFRydXN0ZWQgRzQgVGltZVN0YW1waW5nIFJT
 # QTQwOTYgU0hBMjU2IDIwMjUgQ0ExAhAKgO8YS43xBYLRxHanlXRoMA0GCWCGSAFl
 # AwQCAQUAoIHRMBoGCSqGSIb3DQEJAzENBgsqhkiG9w0BCRABBDAcBgkqhkiG9w0B
-# CQUxDxcNMjUwOTA3MDQyMzA3WjArBgsqhkiG9w0BCRACDDEcMBowGDAWBBTdYjCs
-# hgotMGvaOLFoeVIwB/tBfjAvBgkqhkiG9w0BCQQxIgQgvJob7xpNIS1LHTnaSwbn
-# S7QUQGDlITEN1HDtW2hYI/EwNwYLKoZIhvcNAQkQAi8xKDAmMCQwIgQgSqA/oizX
-# XITFXJOPgo5na5yuyrM/420mmqM08UYRCjMwDQYJKoZIhvcNAQEBBQAEggIAnMM2
-# 5I0NtVK1eRkvR+JHhK/jVQvqjgQUXgx55q0A/CNB66+/7MQDFGbDBZ52ZSyp+nqe
-# g+55Y0qAK1hwYxqEXQyu+/RcrvUVPuVitwI0HmbalR7LCSnHt9XRiSBrhMSAapIH
-# F4coz8QeERtT2Mm8gKm75iFZ9SEd020FKzabKCvwLpG/OvufBX1Jdc38x+A9+QWX
-# atBOpBY8P+Ea2pq3oZtFv9znSzUnf0GlZe8t17lg/l+5vSCaRqAIbv/zSqfFmQYI
-# jWP+6NQ4XBlz7MFwfYv0SnIlHKlH9AuPVFmxcIUFbn/uDIcUnaqyDZjALQGFllmD
-# PfidbXDEbrvu1LDciw2mrM8TBi8BEsL9trJR5V6MYMvvXMKMrdnoRIsjL9KKe/Wr
-# r6DYCx0EFejrHwVVnshx0uHnnksPWrXSyfD3jWqVVdzmSyIB2sxDUoclz+jtDnW3
-# 4L1zrd7cWV5Md1UXvgQPC97ENcY8K1v8u1x1s1Galh9mU2K4++cLkew7HQdC0J+T
-# vIU34m1PL0cCIx4sArUt/NzmAhl5FrAho61lUbeyoR9+vOugQEoT2lLRe2EFKsaL
-# j/U7awAhog2T7xSyOTom0iy0UBMMXantPQNYGDkouNiI6XfB4qv89HqbNY4s8Bk4
-# gbefJ7SUfsCsqWqR+7fwka2MGARURSGljyaFkPM=
+# CQUxDxcNMjUxMDIxMDgxNjAwWjArBgsqhkiG9w0BCRACDDEcMBowGDAWBBTdYjCs
+# hgotMGvaOLFoeVIwB/tBfjAvBgkqhkiG9w0BCQQxIgQgPxRmNYjmu2j8/xP8hiwX
+# 3Vrok6pOi91bugCtfOlaXGQwNwYLKoZIhvcNAQkQAi8xKDAmMCQwIgQgSqA/oizX
+# XITFXJOPgo5na5yuyrM/420mmqM08UYRCjMwDQYJKoZIhvcNAQEBBQAEggIAg3My
+# 8ptYRlybgwp2fy1DF9WiOI+wG2esASOrM2jITXIqUtNZ5wlaYXiFEDECKjg3+mYB
+# FAS+Tn/8CGQevmWBJ7Zzzsedi+/n2FgHxuZKHD2nGYfRQo56yPVR4g1wApjON+SK
+# 1iNLbbGC0c+K3G/rFJpxXv3A89PJTezpH0I71I6Lf1pvc2af89/xUGHce5RVBdnU
+# as2he+4p1x0gVfqP6VBC4z09MGzvL115ec4GRBFBZ/w/fqh/KRIC4IT1zLZOujSz
+# pr8lL8KkIfRfjYmGKFLVp21jHxw1fOxpaB3vnG83h6RhlBT6HudmGzTA+ziiNLAo
+# HdJrai4KXGMQiRDaK5Wncwh7jgleCyUjyEXrjkGSKWy0uiyB+c0hnPz3ph0sLOU1
+# CQVtyiblvvZqrKjHjT5HW3aEFFXclVxJ9sPLEoPDu7rnCxWPy1VshUZvv9/chdoM
+# ipr24fq/G2i/Z+waCfJpTFgmEWht4O/Z7cpesPO/PgPq3zg9r8ZTiAUWmHYt8XAl
+# nLVuvEllMp2y/YFoxJIksmIr7ENIcYm4dkmbPGhW4tkIBsr9LOMYBAImCLqNlQzB
+# AF49p+Thqyn/Kmlk8Edk5DKNzOvw8nMnnlfCr+wxfG87P3t4/Qe0ITZAnAhOomLN
+# 1u2EplBsSq+S/eXA3GK3TujzzbSgsshkagzw83c=
 # SIG # End signature block

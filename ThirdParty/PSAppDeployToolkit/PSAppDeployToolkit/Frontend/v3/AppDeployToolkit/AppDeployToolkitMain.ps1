@@ -1099,7 +1099,7 @@ function Show-InstallationPrompt
         [System.Management.Automation.SwitchParameter]$PersistPrompt,
 
         [Parameter(Mandatory = $false)]
-        [System.Management.Automation.SwitchParameter]$MinimizeWindows,
+        [System.Boolean]$MinimizeWindows = $false,
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
@@ -5101,26 +5101,20 @@ Set-StrictMode -Version 3
 $adtModule = if (Test-Path -LiteralPath "$PSScriptRoot\PSAppDeployToolkit" -PathType Container)
 {
     Get-ChildItem -LiteralPath $PSScriptRoot\PSAppDeployToolkit -Recurse -File | Unblock-File
-    Import-Module -FullyQualifiedName @{ ModuleName = "$PSScriptRoot\PSAppDeployToolkit\PSAppDeployToolkit.psd1"; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.5' } -Force -PassThru -ErrorAction Stop
+    Import-Module -FullyQualifiedName @{ ModuleName = "$PSScriptRoot\PSAppDeployToolkit\PSAppDeployToolkit.psd1"; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.7' } -Force -PassThru -ErrorAction Stop
 }
 elseif (Test-Path -LiteralPath "$PSScriptRoot\..\..\..\..\PSAppDeployToolkit" -PathType Container)
 {
     Get-ChildItem -LiteralPath $PSScriptRoot\..\..\..\..\PSAppDeployToolkit -Recurse -File | Unblock-File
-    Import-Module -FullyQualifiedName @{ ModuleName = "$PSScriptRoot\..\..\..\..\PSAppDeployToolkit\PSAppDeployToolkit.psd1"; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.5' } -Force -PassThru -ErrorAction Stop
+    Import-Module -FullyQualifiedName @{ ModuleName = "$PSScriptRoot\..\..\..\..\PSAppDeployToolkit\PSAppDeployToolkit.psd1"; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.7' } -Force -PassThru -ErrorAction Stop
 }
 else
 {
-    Import-Module -FullyQualifiedName @{ ModuleName = 'PSAppDeployToolkit'; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.5' } -Force -PassThru -ErrorAction Stop
+    Import-Module -FullyQualifiedName @{ ModuleName = 'PSAppDeployToolkit'; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.7' } -Force -PassThru -ErrorAction Stop
 }
 
-# Build out parameter hashtable and open a new deployment session.
-$sessionParams = $adtModule.ExportedCommands.'Open-ADTSession'.Parameters.Values | & {
-    begin
-    {
-        # Open collector to hold valid parameters.
-        $sessionParams = @{}
-    }
-
+# Build out parameter hashtable.
+$sessionParams = @{}; $adtModule.ExportedCommands.'Open-ADTSession'.Parameters.Values | & {
     process
     {
         # Skip any Open-ADTSession params that are considered frontend params/variables.
@@ -5141,32 +5135,28 @@ $sessionParams = $adtModule.ExportedCommands.'Open-ADTSession'.Parameters.Values
             $sessionParams.Add($variable.Name, $variable.Value)
         }
     }
+}
 
-    end
+# Remove dates if they fail to parse using local culture settings.
+if ($sessionParams.ContainsKey('AppScriptDate'))
+{
+    try
     {
-        # Remove dates if they fail to parse using local culture settings.
-        if ($sessionParams.ContainsKey('AppScriptDate'))
-        {
-            try
-            {
-                $sessionParams.AppScriptDate = [System.DateTime]::Parse($sessionParams.AppScriptDate, $Host.CurrentCulture)
-            }
-            catch
-            {
-                $null = $sessionParams.Remove('AppScriptDate')
-            }
-        }
-
-        # Redefine DeployAppScriptParameters due bad casting in Deploy-Application.ps1.
-        if ($sessionParams.ContainsKey('DeployAppScriptParameters'))
-        {
-            $sessionParams.DeployAppScriptParameters = (Get-PSCallStack)[1].InvocationInfo.BoundParameters
-        }
-
-        # Return the dictionary to the caller.
-        return $sessionParams
+        $sessionParams.AppScriptDate = [System.DateTime]::Parse($sessionParams.AppScriptDate, $Host.CurrentCulture)
+    }
+    catch
+    {
+        $null = $sessionParams.Remove('AppScriptDate')
     }
 }
+
+# Redefine DeployAppScriptParameters due bad casting in Deploy-Application.ps1.
+if ($sessionParams.ContainsKey('DeployAppScriptParameters'))
+{
+    $sessionParams.DeployAppScriptParameters = (Get-PSCallStack)[1].InvocationInfo.BoundParameters
+}
+
+# Open a new deployment session.
 Open-ADTSession -SessionState $ExecutionContext.SessionState @sessionParams
 
 # Define aliases for some functions to maintain backwards compatibility.
@@ -5205,8 +5195,8 @@ if ((Test-Path -LiteralPath "$PSScriptRoot\AppDeployToolkitExtensions.ps1" -Path
 # SIG # Begin signature block
 # MIIuaAYJKoZIhvcNAQcCoIIuWTCCLlUCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCUPI7OU6Bkf/X3
-# L0lPyCBuRpF/t796htyUAlV4OWILvqCCE5UwggWQMIIDeKADAgECAhAFmxtXno4h
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBq5vGifLnogUrs
+# P6bBSmNmNR58/aKaStQAc1+VWyNCpKCCE5UwggWQMIIDeKADAgECAhAFmxtXno4h
 # MuI5B72nd3VcMA0GCSqGSIb3DQEBDAUAMGIxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xITAfBgNV
 # BAMTGERpZ2lDZXJ0IFRydXN0ZWQgUm9vdCBHNDAeFw0xMzA4MDExMjAwMDBaFw0z
@@ -5316,20 +5306,20 @@ if ((Test-Path -LiteralPath "$PSScriptRoot\AppDeployToolkitExtensions.ps1" -Path
 # UlNBNDA5NiBTSEEzODQgMjAyMSBDQTECEAr5W7a+ogyFDpjG+46sCPkwDQYJYIZI
 # AWUDBAIBBQCggYQwGAYKKwYBBAGCNwIBDDEKMAigAoAAoQKAADAZBgkqhkiG9w0B
 # CQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3AgELMQ4wDAYKKwYBBAGCNwIBFTAv
-# BgkqhkiG9w0BCQQxIgQgTIuqSywpUO56b8NsAa2VGFIbI2GMf+Wv3LBGs6EEMrgw
-# DQYJKoZIhvcNAQEBBQAEggGAj10bDa6uJ5NT4E9+UDiRIYU+BwVisvAytyoFpUHP
-# wE7i0MhXvY2BjlLEqNDUV/i6yRLjEfhMvk0ZZINkjxOwU0QnKuAmt9DSHROMRd+0
-# V9s7ynoWogm0MB65x02WUUCwMc093JZhbjNva96a4UA/VbR52FPAA5s0rSd+KEnb
-# 7NLQqrVp5DIlIn/Gzmq6reOXck+uVdSa2Xpoxj2H+0t+pF573Diu3hWa8nJKzRfW
-# 4CW+xJ4JZn5cFLxOLw0iE7fEFJnUem4faYv4aOmNtBqNwZX1p9Fo1ynQ7F167gK9
-# RErhOIDRsVQHEq7gGU9nfV/p+UCveP/jLLnSxO4AwCDiiiwN5uKXmMeLiM0BwIVK
-# DPMdiBa4mgFRZ3vJVI4pKlCf0wMAEjFsnkDwxQo9VpS3CVGx/tGVVf7dwaux24Kp
-# w+j+iPdFA6AiyOe1BfOBAb6rAIuPMbUiolYY1s64Ovo0XrqAnM9FVmLK0zOhXxv3
-# mTs8BFzLm61yiNufuxz4v68WoYIXdjCCF3IGCisGAQQBgjcDAwExghdiMIIXXgYJ
+# BgkqhkiG9w0BCQQxIgQgSn8CDJCxtBWTWouQfXwinFhEzUiVuqXb4FsSsHi9Ocgw
+# DQYJKoZIhvcNAQEBBQAEggGAkG1+7ptmsY/OswkgV7wGjkqt7onnfZo3fU1jO3YP
+# NN525JzQea5oBmnOu21LCInF5hJwoVcew/++dsDT+IIZtrU1nmDrax3DFgEVU31a
+# NSQVGq0jyXm+05gH0nkPIOUNMJPjCsLZ7/DhdqEHqBuK170gq1oiNgMW73oL/chn
+# iM5QKntxu1ZIPmQ+8U1HAxNVc03yr2l98twa7wuaZfuD8jbqrzCvESYlSMXl5Ap+
+# Xtz4WA8zVIh/+qw/AjXd+Q/66BLDRbMpEpYLcCc/CIRcYH/0HrMwPw9alPnaA7r2
+# VKlbk5zlwNbdiGVAb7MIqZE7TnF6Vh+xhS7LjZtsULVuTkfSH1fEvVxTI/hslfLW
+# lNvToA/rMmENshe/yy7N0a47agM+CL+pn1VKo0N2fkoIZuUjdQ/+nlVk++d7gW/a
+# ZkB/K/0lZrGe2y/ChZ4+vBZ+YfmKzGUCAJCPpV65THFXl2kmk9n21ViRfxvNAC6j
+# tINrhl6NKwrSUBjLPxVLN6xzoYIXdjCCF3IGCisGAQQBgjcDAwExghdiMIIXXgYJ
 # KoZIhvcNAQcCoIIXTzCCF0sCAQMxDzANBglghkgBZQMEAgEFADB3BgsqhkiG9w0B
-# CRABBKBoBGYwZAIBAQYJYIZIAYb9bAcBMDEwDQYJYIZIAWUDBAIBBQAEIErPY2V4
-# yg4IJuu3w0LoJTAB5j4psX/UEeZwk2MaEEbnAhAQHrNl9aEI0V0gPi4SewiQGA8y
-# MDI1MDkwNzA0MTYzMVqgghM6MIIG7TCCBNWgAwIBAgIQCoDvGEuN8QWC0cR2p5V0
+# CRABBKBoBGYwZAIBAQYJYIZIAYb9bAcBMDEwDQYJYIZIAWUDBAIBBQAEIGkrEOuZ
+# b9Xc0CMkfGoP7BNMZRi60w12pxU9XsSk1YMsAhBezVFthIWfdQEO9cttmh1WGA8y
+# MDI1MTAyMTA4MDg1NlqgghM6MIIG7TCCBNWgAwIBAgIQCoDvGEuN8QWC0cR2p5V0
 # aDANBgkqhkiG9w0BAQsFADBpMQswCQYDVQQGEwJVUzEXMBUGA1UEChMORGlnaUNl
 # cnQsIEluYy4xQTA/BgNVBAMTOERpZ2lDZXJ0IFRydXN0ZWQgRzQgVGltZVN0YW1w
 # aW5nIFJTQTQwOTYgU0hBMjU2IDIwMjUgQ0ExMB4XDTI1MDYwNDAwMDAwMFoXDTM2
@@ -5436,19 +5426,19 @@ if ((Test-Path -LiteralPath "$PSScriptRoot\AppDeployToolkitExtensions.ps1" -Path
 # LjFBMD8GA1UEAxM4RGlnaUNlcnQgVHJ1c3RlZCBHNCBUaW1lU3RhbXBpbmcgUlNB
 # NDA5NiBTSEEyNTYgMjAyNSBDQTECEAqA7xhLjfEFgtHEdqeVdGgwDQYJYIZIAWUD
 # BAIBBQCggdEwGgYJKoZIhvcNAQkDMQ0GCyqGSIb3DQEJEAEEMBwGCSqGSIb3DQEJ
-# BTEPFw0yNTA5MDcwNDE2MzFaMCsGCyqGSIb3DQEJEAIMMRwwGjAYMBYEFN1iMKyG
-# Ci0wa9o4sWh5UjAH+0F+MC8GCSqGSIb3DQEJBDEiBCAsvBkLYTM/lkJppjMOC2KE
-# Nswav2rLXGgserhEXoo+NzA3BgsqhkiG9w0BCRACLzEoMCYwJDAiBCBKoD+iLNdc
-# hMVck4+CjmdrnK7Ksz/jbSaaozTxRhEKMzANBgkqhkiG9w0BAQEFAASCAgCRXwM0
-# ifukDkSnmBDxFk9vjrWZClI5ei+WE6uXOHar00Mw77aMfyMJ71fNDj8n/Q3Rx2Lp
-# SuYjQSUrzPDBbWb+nrO9ZXn0onSxm7WaPtFtqv7EOXEZAN4gbln36rFo9+rYGjtD
-# CfFiw7Q89WofqDnSkvS58G/TamjHu561ZtrF0M/yn/CeuBBu/Z/oeL19NeQNc55+
-# Y4VS+GMdCF9Uz9Rkf4FZ2KriMfR/6mITexQiTe8+2D8xsV2YHP0uDAyHj+anCc62
-# OINRWAIHrQVNeaZAE+FdS24zIF6xJKKNWsnHcouXHJ0t4kDmy+IlFMbCbBz59Krq
-# v9wb4Sd+vctIEhre6ODaVkURqYH/Fb3bH4WQPoQmPc/KX8BR48gQ5LY6i9azSitX
-# xxkXFCfMemE4YAs/eg3f45rZnTxQc4sYV/QBPdVj4BzQNk5sWgUVhxJE/XOIwWqJ
-# Q0p/mPJDbYPVfSIbtqSh5kwq4feEnenu9vop2EARnTp7GFAroLEbGY9SjsDL8Wk7
-# eB1WuDraHEzB8Q3sExfz1k5bZK09pecqpSKQfU3Gdc+CAjnBTE1V8RwtDiUU+Tl0
-# QRBPWnX1RIRxo6j9oss1RPb/ixUheK/zpvfsucsBvI0BIM5KSbaGyTt82B+/BVdF
-# 6nG5CuvP8CPOZVoPaoCtiDKyXPp0fOveshKJ7A==
+# BTEPFw0yNTEwMjEwODA4NTZaMCsGCyqGSIb3DQEJEAIMMRwwGjAYMBYEFN1iMKyG
+# Ci0wa9o4sWh5UjAH+0F+MC8GCSqGSIb3DQEJBDEiBCBb/T4n7+YYYkMq3sacWeE8
+# laRLrRG/KRc3vsELeR7GATA3BgsqhkiG9w0BCRACLzEoMCYwJDAiBCBKoD+iLNdc
+# hMVck4+CjmdrnK7Ksz/jbSaaozTxRhEKMzANBgkqhkiG9w0BAQEFAASCAgC+UX93
+# xTm3r6XCRGgGCQN8J0DVbYmPqmXC/G9xIFqBgHz53i7EqDRAoNpe2vbagguewwWT
+# oC4N21i7iOONo30J0G3iejnNcgZAaDMvXC5bJFZarfZC2q+8g/nIe8tHsV+oGytP
+# sf6OiwMKlecFgedRV6nCYgxFnXVui4bdaWUhBe9lt8hOlNowUkocNj6Qmwh1BEpK
+# t5szjl/AWHrQRbK0W7IlJyM4EBI3B5nlRKa8i6UYwtnEha4bRyiNrIRumQzorkrp
+# ljk5qf1xos7QT1jcFMiVpkgF/0qc3+CS4xudypGT+EZifuBm/tZ0a0AglyX/cY6l
+# ByPhy/527rt2iYZboqbWJwXIOcx1VYZAk7jYariqA3YjV0YTKpG7PlbLW9CqTbPN
+# 0m9u4h8v8t+g4nn1EJHxy6ZSYegY6SkyofMST/JpfpHBN/VBg3z+an6vy5740aey
+# 75LMenKDPTfOtcdgFAHmH43PgWghtV5np5WIMrPXpX8u0zSo6STGH+/WqXQYOicw
+# tkwBhLMTZnTKz0ArHK7bn7uyzJbNVUDF9nhCqLZSq6AI4hL6d6AzET7G+FhzmByQ
+# BPSqsM+BWjYnNVfp811wVu6/L66yRJRaBHO5q9fOlvDfq/o7tHwU2PElehxaHpwL
+# fVebnecjoonFOWE49Mtd2lbcyPXMn9THrew5cw==
 # SIG # End signature block

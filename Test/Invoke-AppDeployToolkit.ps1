@@ -88,8 +88,8 @@ param
 # By setting the "AppName" property, Zero-Config MSI will be disabled.
 $adtSession = @{
     # App variables.
-    AppVendor = '7zip'
-    AppName = '7zip'
+    AppVendor = 'Igor Pavlov'
+    AppName = '7-Zip'
     AppVersion = '25.01'
     AppArch = 'x64'
     AppLang = 'EN'
@@ -98,7 +98,7 @@ $adtSession = @{
     AppRebootExitCodes = @(1641, 3010)
     AppProcessesToClose = @()  # Example: @('excel', @{ Name = 'winword'; Description = 'Microsoft Word' })
     AppScriptVersion = '1.0.0'
-    AppScriptDate = '2025-09-23'
+    AppScriptDate = '2026-01-02'
     AppScriptAuthor = 'WinGet Import by Deployment Editor'
     RequireAdmin = $true
 
@@ -109,7 +109,7 @@ $adtSession = @{
     # Script variables.
     DeployAppScriptFriendlyName = $MyInvocation.MyCommand.Name
     DeployAppScriptParameters = $PSBoundParameters
-    DeployAppScriptVersion = '4.1.5'
+    DeployAppScriptVersion = '4.1.7'
 }
 
 function Install-ADTDeployment
@@ -148,7 +148,8 @@ function Install-ADTDeployment
     ##================================================
     $adtSession.InstallPhase = $adtSession.DeploymentType
 
-    Remove-ADTFile -Path "C:\Users\Public\Desktop\VLC mia player.lnk"
+    # Execute installer in silent mode
+    Start-ADTProcess -ArgumentList "/S" -FilePath "Installer.exe"
 
 
     ##================================================
@@ -188,7 +189,8 @@ function Uninstall-ADTDeployment
     ##================================================
     $adtSession.InstallPhase = $adtSession.DeploymentType
 
-    Uninstall-ADTApplication -Name "7-Zip"
+    # Execute uninstaller in silent mode
+    Start-ADTProcess -ArgumentList "/S" -FilePath "$envProgramFiles\7-Zip\Uninstall.exe"
 
 
     ##================================================
@@ -228,8 +230,6 @@ function Repair-ADTDeployment
     ##================================================
     $adtSession.InstallPhase = $adtSession.DeploymentType
 
-    Get-ADTFreeDiskSpace
-    Get-ADTEnvironment
 
 
     ##================================================
@@ -257,11 +257,11 @@ try
     if (Test-Path -LiteralPath "$PSScriptRoot\PSAppDeployToolkit\PSAppDeployToolkit.psd1" -PathType Leaf)
     {
         Get-ChildItem -LiteralPath "$PSScriptRoot\PSAppDeployToolkit" -Recurse -File | Unblock-File -ErrorAction Ignore
-        Import-Module -FullyQualifiedName @{ ModuleName = "$PSScriptRoot\PSAppDeployToolkit\PSAppDeployToolkit.psd1"; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.5' } -Force
+        Import-Module -FullyQualifiedName @{ ModuleName = "$PSScriptRoot\PSAppDeployToolkit\PSAppDeployToolkit.psd1"; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.7' } -Force
     }
     else
     {
-        Import-Module -FullyQualifiedName @{ ModuleName = 'PSAppDeployToolkit'; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.5' } -Force
+        Import-Module -FullyQualifiedName @{ ModuleName = 'PSAppDeployToolkit'; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.1.7' } -Force
     }
 
     # Open a new deployment session, replacing $adtSession with a DeploymentSession.
@@ -309,7 +309,7 @@ catch
     # Show-ADTDialogBox -Text $mainErrorMessage -Icon Stop -NoWait
 
     ## Or, a themed dialog with basic error message:
-    # Show-ADTInstallationPrompt -Message "$($adtSession.DeploymentType) failed at line $($_.InvocationInfo.ScriptLineNumber), char $($_.InvocationInfo.OffsetInLine):`n$($_.InvocationInfo.Line.Trim())`n`nMessage:`n$($_.Exception.Message)" -MessageAlignment Left -ButtonRightText OK -Icon Error -NoWait
+    # Show-ADTInstallationPrompt -Message "$($adtSession.DeploymentType) failed at line $($_.InvocationInfo.ScriptLineNumber), char $($_.InvocationInfo.OffsetInLine):`n$($_.InvocationInfo.Line.Trim())`n`nMessage:`n$($_.Exception.Message)" -ButtonRightText OK -Icon Error -NoWait
 
     Close-ADTSession -ExitCode 60001
 }

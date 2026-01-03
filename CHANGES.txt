@@ -4,17 +4,25 @@ ToDo's
 * More validations / and checks on UI
 (...)
 
+Version 2.1.0:
+* [Important] PSADT and templates updated to version 4.1.7
+* Added Feature: New Plugin - Microsoft Intune Upload
+* Updated Backend: Plugin.ini - Added the UnloadProject parameter to the [Script] section
+* Updated Backend: WinGet Import - Added local repository file date and time to the message popup
+* Fixed Backend: WinGet Import - Deployment file is now generated automatically after a successful import
+* Fixed GUI: Fixed button event handling – windows are now hidden instead of being fully closed/destroyed
+
 Version 2.0.0:
-* [Important] ThirdParty updated: PSADT and templates updated to version 4.1.5
-* Added feature: Deployment file preview mode
-* Added feature: VS Code editor (Monaco Editor) for PowerShell inline scripts
-* Added feature: Import Windows Installer
-* Added feature: Import Windows executable
+* [Important] PSADT and templates updated to version 4.1.5
+* Added Feature: Deployment file preview mode
+* Added Feature: VS Code editor (Monaco Editor) for PowerShell inline scripts
+* Added Feature: Import Windows Installer
+* Added Feature: Import Windows executable
 * Added GUI: Filter/search for PSADT commands
 * Added GUI: Drag-and-drop handler for Sequence View (simply drag and drop any file onto the sequence list to automatically generate the action)
-* Added Backend: PowerShell script for reading MSI files (located in the Scripts folder as Read-Msi.ps1).
+* Added Backend: PowerShell script for reading MSI files (located in the Scripts folder as Read-Msi.ps1)
 * Fixed Backend: Step counter for actions in the database
-* Fixed WinAPI: Windows are now closed rather than hidden when they are closed.
+* Fixed WinAPI: Windows are now closed rather than hidden when they are closed
 * Fixed Generator: Guid parameter type
 
 Version 1.0.9 (Preview 9, Latest):

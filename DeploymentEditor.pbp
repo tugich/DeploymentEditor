@@ -1,22 +1,30 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<project xmlns="http://www.purebasic.com/namespace" version="1.0" creator="PureBasic 6.21 (Windows - x64)">
+<project xmlns="http://www.purebasic.com/namespace" version="1.0" creator="PureBasic 6.30 beta 6 (Windows - x64)">
   <section name="config">
     <options closefiles="1" openmode="0" name="Deployment Editor"/>
   </section>
   <section name="data">
     <explorer view="C:\ProgramData\PureBasic\Examples\" pattern="0"/>
     <log show="1"/>
-    <lastopen date="2025-09-25 11:59" user="taski" host="TUGI-FUSIONVM"/>
+    <lastopen date="2026-01-03 13:27" user="taski" host="TUGI-FUSIONVM"/>
   </section>
   <section name="files">
     <file name="DeploymentEditor.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="1" panelstate="+"/>
-      <fingerprint md5="af1921fae433e93472a1d59ba065b2fc"/>
+      <fingerprint md5="1690317664562aaec179d00a3319e0e9"/>
     </file>
     <file name="CHANGES.txt">
       <config load="0" scan="0" panel="1" warn="1" lastopen="1" sortindex="2" panelstate="+"/>
-      <fingerprint md5="3d1db3c46ee2d8d754dcef1393bdf73b"/>
+      <fingerprint md5="5eaeea5d433bb5a224fc1c631a37d122"/>
+    </file>
+    <file name="Forms\AboutWindow.pbf">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="3" panelstate="++"/>
+      <fingerprint md5="7b94e6bce6f4678114980ac2514fbd0b"/>
+    </file>
+    <file name="Forms\NewProjectWindow.pbf">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="++"/>
+      <fingerprint md5="3e756ce6bcc4f85b0badb9ddf8ec65a1"/>
     </file>
     <file name="Forms\MainWindow.pbf">
       <config load="0" scan="1" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="++"/>
@@ -26,10 +34,6 @@
       <config load="0" scan="1" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="++"/>
       <fingerprint md5="0a324d014c8029cc8700f6c4ebbc2330"/>
     </file>
-    <file name="Forms\AboutWindow.pbf">
-      <config load="0" scan="1" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="++"/>
-      <fingerprint md5="30410efd09834568e808dfb1bbaecbf2"/>
-    </file>
     <file name="Forms\ImportExeWindow.pbf">
       <config load="0" scan="1" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="++"/>
       <fingerprint md5="60cd9cc8e71e48ca1f202a3bd273b8ec"/>
@@ -37,10 +41,6 @@
     <file name="Forms\ImportMsiWindow.pbf">
       <config load="0" scan="1" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="++"/>
       <fingerprint md5="e1f97556067c6f52f0ed0e1866eb5027"/>
-    </file>
-    <file name="Forms\NewProjectWindow.pbf">
-      <config load="0" scan="1" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="++"/>
-      <fingerprint md5="3d98797d9101ddd9f43ee42fd9284116"/>
     </file>
     <file name="Forms\WinGetImportWindow.pbf">
       <config load="0" scan="1" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="++"/>
@@ -87,10 +87,10 @@
       <options thread="1" xpskin="1" dpiaware="1" debug="1" optimizer="1"/>
       <icon enable="1">Icon.ico</icon>
       <versioninfo enable="1">
-        <field0 value="2.0.0.0"/>
-        <field1 value="2.0.0.0"/>
-        <field4 value="2.0.0.0"/>
-        <field5 value="2.0.0.0"/>
+        <field0 value="2.1.0.0"/>
+        <field1 value="2.1.0.0"/>
+        <field4 value="2.1.0.0"/>
+        <field5 value="2.1.0.0"/>
       </versioninfo>
     </target>
   </section>

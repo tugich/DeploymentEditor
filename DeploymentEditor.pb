@@ -61,6 +61,7 @@ Structure EditorPlugin
   Path.s
   File.s
   Parameter.s
+  UnloadProject.s
 EndStructure
 
 Structure WinGetPackage
@@ -451,7 +452,9 @@ Procedure.i UpdateLocalWinGetRepository()
     EndIf
   Else
     ; Repo exists already
-    If MessageRequester("WinGet Repository", "You already have a local copy of the WinGet repository. Do you want to update or download the latest version from the internet?", #PB_MessageRequester_Info | #PB_MessageRequester_YesNo) = #PB_MessageRequester_Yes
+    Protected WinGet_RepositoryFileDate = GetFileDate(WinGet_RepositoryLocalFile, #PB_Date_Modified)
+    
+    If MessageRequester("WinGet Repository", "You already have a local copy of the WinGet repository ("+FormatDate("%dd.%mm.%yyyy %hh:%ii", WinGet_RepositoryFileDate)+"). Do you want to update or download the latest version from the internet?", #PB_MessageRequester_Info | #PB_MessageRequester_YesNo) = #PB_MessageRequester_Yes
       Debug "[Debug: WinGet Repository Downloader] Updating master on local filesystem"
       DownloadInternetFile(WinGet_RepositoryUrl, WinGet_RepositoryLocalFile, Text_WinGetStatus)
       ProcedureReturn #True
@@ -616,7 +619,7 @@ Procedure SearchWinGetPackage(EventType)
 EndProcedure
 
 Procedure CloseWinGetImportWindow(EventType)
-  CloseWindow(WinGetImportWindow)
+  HideWindow(WinGetImportWindow, #True)
 EndProcedure
 
 Procedure CloseProgressWindow(EventType)
@@ -800,143 +803,14 @@ Procedure.s GetProjectSetting(Key.s = "")
   ProcedureReturn Value
 EndProcedure
 
-Procedure CreateWinGetProject(EventType)
-  Protected SelectedWinGetYaml.s, WinGetManifest_FilePath.s
-  Protected TargetArchitecture.s = GetGadgetText(Combo_TargetArchitecture)
-  Protected Format, Line.s
-  Protected FoundArchitecture = #False, FoundInstallerUrl = #False, FoundSilentSwitch = #False
-  Protected Identifier.s = "", Version.s = "", InstallerUrl.s = "", Silent.s = ""
-  
-  ; Find installer url and silent switch in manifest 
-  SelectedWinGetYaml = GetGadgetItemText(WinGetImport_ListIcon, GetGadgetState(WinGetImport_ListIcon), 4)
-  WinGetManifest_FilePath = WinGet_ManifestTempFolder + "\" + SelectedWinGetYaml
-  
-  If ReadFile(0, WinGetManifest_FilePath)
-    Format = ReadStringFormat(0)
-    While Eof(0) = 0
-      ; Read current line
-      Line = ReadString(0, Format)
-      
-      ; Search and extract informations
-      If FindString(Line, "PackageIdentifier:")
-        Identifier = ReplaceString(Line, "PackageIdentifier:", "")
-        Identifier = Trim(Identifier)
-        Identifier = RemoveString(RemoveString(Identifier, Chr(34)), Chr(39))
-        
-        Debug "[Debug: YAML] Package Identifier: " + Identifier
-      EndIf
-   
-      If FindString(Line, "PackageVersion:")
-        Version = ReplaceString(Line, "PackageVersion:", "")
-        Version = Trim(Version)
-        Version = RemoveString(RemoveString(Version, Chr(34)), Chr(39))
-        
-        Debug "[Debug: YAML] Version: " + Version
-      EndIf
-      
-      If FindString(Line, "InstallerType:") And FindString(Line, "nullsoft")
-        Silent = "/S"
-        FoundSilentSwitch = #True
-        
-        Debug "[Debug: YAML] Installer is Nullsoft"
-      EndIf
-      
-      If FindString(Line, "Silent:") And FoundArchitecture = #False And FoundInstallerUrl = #False
-        Silent = ReplaceString(Line, "Silent:", "")
-        Silent = LTrim(Silent)
-        
-        Debug "[Debug: YAML] Found main silent switch for all architectures: " + Silent
-        FoundSilentSwitch = #True
-      EndIf
-      
-      If FindString(Line, "- Architecture:") And FindString(Line, TargetArchitecture) And FoundInstallerUrl = #False
-        Debug "[Debug: YAML] Found target architecture: " + TargetArchitecture
-        FoundArchitecture = #True
-      EndIf
-      
-      If FoundArchitecture And FoundInstallerUrl = #False And FindString(Line, "InstallerUrl:")
-        InstallerUrl = ReplaceString(Line, "InstallerUrl:", "")
-        InstallerUrl = Trim(InstallerUrl)
-        
-        Debug "[Debug: YAML] Installer url: " + InstallerUrl
-        FoundInstallerUrl = #True
-      EndIf
-      
-      If FoundArchitecture And FoundInstallerUrl And FoundSilentSwitch = #False And FindString(Line, "Silent:")
-        Silent = ReplaceString(Line, "Silent:", "")
-        Silent = LTrim(Silent)
-        
-        Debug "[Debug: YAML] Found silent switch: " + Silent
-        FoundSilentSwitch = #True
-      EndIf
-      
-      If FoundArchitecture And FoundInstallerUrl And FoundSilentSwitch
-        Debug "[Debug: YAML] Found all details to create the project."
-        Break
-      EndIf
-    Wend
-    
-    ; Check for prereqs
-    If FoundArchitecture = #False Or FoundInstallerUrl = #False
-      ProcedureReturn MessageRequester("WinGet Import", "The WinGet package cannot be imported. The installer with "+TargetArchitecture+" support is missing.", #PB_MessageRequester_Error | #PB_MessageRequester_Ok)
-    EndIf
-    
-    CloseFile(0)
-  Else
-    MessageRequester("Information", "Couldn't open the manifest file: " + WinGetManifest_FilePath)
-  EndIf
-  
-  ; Open progress window
-  CloseWinGetImportWindow(0)
-
-  ; Create the new project by the user
-  If Not CreateNewProject(0)
-    ProcedureReturn
-  EndIf
-  
-  ; Download installer file
-  OpenProgressWindow()
-  
-  ; Start the asynchronous download to a file
-  Download_Url = InstallerUrl
-  Download_OutputFile = Project_FolderPath + "Files\Installer." + GetExtensionPart(Download_Url)
-  WinGet_Identifier = Identifier
-  WinGet_Version = Version
-  WinGet_SilentSwitch = Silent
-  CreateThread(@DownloadInstallerFile(), 0)
-  
-  ;RedrawWindow_(MainWindow, #Null, #Null, #RDW_INVALIDATE | #RDW_UPDATENOW)
-  UpdateWindow_(MainWindow)
-  
-  ; App name and vendor
-  Protected CompanyCharactersLength.i = FindString(WinGet_Identifier, ".", 0)
-
-  ; Update project settings
-  If IsDatabase(1)
-    UpdateProjectSettings("Database_Version", "1.0.4")
-    UpdateProjectSettings("Project_Name", "WinGet Project")
-    UpdateProjectSettings("App_Version", WinGet_Version)
-    UpdateProjectSettings("App_Vendor", StringField(WinGet_Identifier, 1, "."))
-    UpdateProjectSettings("App_Architecture", TargetArchitecture)
-    UpdateProjectSettings("App_Language", "EN")
-    UpdateProjectSettings("App_Author", "WinGet Import by Deployment Editor")
-    UpdateProjectSettings("App_Name", ReplaceString(Right(WinGet_Identifier, Len(WinGet_Identifier) - CompanyCharactersLength), ".", " "))
-    FinishDatabaseQuery(1)
-  EndIf
-  
-  ; Load new values
-  LoadProjectSettings()
-  
-  ; Update Main Window
-  SetGadgetText(Text_ProjectName, GetProjectSetting("Project_Name"))
-  
-  ; Message to the user
-  MessageRequester("WinGet Import", "Once the installer has been successfully downloaded in the background, the action/parameter for silent installation will be added automatically.", #PB_MessageRequester_Info | #PB_MessageRequester_Ok)
-  
-EndProcedure
-
 Procedure ShowWinGetImportWindow(EventType)
-  OpenWinGetImportWindow()
+  If IsWindow(WinGetImportWindow)
+    HideWindow(WinGetImportWindow, #False)
+    SetActiveWindow(WinGetImportWindow)
+  Else
+    OpenWinGetImportWindow()
+  EndIf
+  
   AddKeyboardShortcut(WinGetImportWindow, #PB_Shortcut_Return, #WinGetImport_Enter)
   SetGadgetText(Combo_TargetArchitecture, "x64")
   
@@ -1057,7 +931,7 @@ EndProcedure
 
 Procedure CloseAboutWindow(EventType)
   If IsWindow(AboutWindow)
-    CloseWindow(AboutWindow)
+    HideWindow(AboutWindow, #True)
     
     Debug "[Debug: Close About Window] Active window ID is: "+GetActiveWindow()
     Debug "[Debug: Close About Window] New project window ID is: "+NewProjectWindow
@@ -1081,7 +955,7 @@ EndProcedure
 
 Procedure CloseImportExeWindow(EventType)
   If IsWindow(ImportExeWindow)
-    CloseWindow(ImportExeWindow)
+    HideWindow(ImportExeWindow, #True)
     
     Debug "[Debug: Close Import Exe Window] Active window ID is: "+GetActiveWindow()
     Debug "[Debug: Close Import Exe Window] New project window ID is: "+NewProjectWindow
@@ -1207,7 +1081,7 @@ EndProcedure
 
 Procedure CloseImportMsiWindow(EventType)
   If IsWindow(ImportMsiWindow)
-    CloseWindow(ImportMsiWindow)
+    HideWindow(ImportMsiWindow, #True)
     
     Debug "[Debug: Close Import Msi Window] Active window ID is: "+GetActiveWindow()
     Debug "[Debug: Close Import Msi Window] New project window ID is: "+NewProjectWindow
@@ -2701,6 +2575,144 @@ Procedure GenerateDeploymentFile()
   EndIf
 EndProcedure
 
+Procedure CreateWinGetProject(EventType)
+  Protected SelectedWinGetYaml.s, WinGetManifest_FilePath.s
+  Protected TargetArchitecture.s = GetGadgetText(Combo_TargetArchitecture)
+  Protected Format, Line.s
+  Protected FoundArchitecture = #False, FoundInstallerUrl = #False, FoundSilentSwitch = #False
+  Protected Identifier.s = "", Version.s = "", InstallerUrl.s = "", Silent.s = ""
+  
+  ; Find installer url and silent switch in manifest 
+  SelectedWinGetYaml = GetGadgetItemText(WinGetImport_ListIcon, GetGadgetState(WinGetImport_ListIcon), 4)
+  WinGetManifest_FilePath = WinGet_ManifestTempFolder + "\" + SelectedWinGetYaml
+  
+  If ReadFile(0, WinGetManifest_FilePath)
+    Format = ReadStringFormat(0)
+    While Eof(0) = 0
+      ; Read current line
+      Line = ReadString(0, Format)
+      
+      ; Search and extract informations
+      If FindString(Line, "PackageIdentifier:")
+        Identifier = ReplaceString(Line, "PackageIdentifier:", "")
+        Identifier = Trim(Identifier)
+        Identifier = RemoveString(RemoveString(Identifier, Chr(34)), Chr(39))
+        
+        Debug "[Debug: YAML] Package Identifier: " + Identifier
+      EndIf
+   
+      If FindString(Line, "PackageVersion:")
+        Version = ReplaceString(Line, "PackageVersion:", "")
+        Version = Trim(Version)
+        Version = RemoveString(RemoveString(Version, Chr(34)), Chr(39))
+        
+        Debug "[Debug: YAML] Version: " + Version
+      EndIf
+      
+      If FindString(Line, "InstallerType:") And FindString(Line, "nullsoft")
+        Silent = "/S"
+        FoundSilentSwitch = #True
+        
+        Debug "[Debug: YAML] Installer is Nullsoft"
+      EndIf
+      
+      If FindString(Line, "Silent:") And FoundArchitecture = #False And FoundInstallerUrl = #False
+        Silent = ReplaceString(Line, "Silent:", "")
+        Silent = LTrim(Silent)
+        
+        Debug "[Debug: YAML] Found main silent switch for all architectures: " + Silent
+        FoundSilentSwitch = #True
+      EndIf
+      
+      If FindString(Line, "- Architecture:") And FindString(Line, TargetArchitecture) And FoundInstallerUrl = #False
+        Debug "[Debug: YAML] Found target architecture: " + TargetArchitecture
+        FoundArchitecture = #True
+      EndIf
+      
+      If FoundArchitecture And FoundInstallerUrl = #False And FindString(Line, "InstallerUrl:")
+        InstallerUrl = ReplaceString(Line, "InstallerUrl:", "")
+        InstallerUrl = Trim(InstallerUrl)
+        
+        Debug "[Debug: YAML] Installer url: " + InstallerUrl
+        FoundInstallerUrl = #True
+      EndIf
+      
+      If FoundArchitecture And FoundInstallerUrl And FoundSilentSwitch = #False And FindString(Line, "Silent:")
+        Silent = ReplaceString(Line, "Silent:", "")
+        Silent = LTrim(Silent)
+        
+        Debug "[Debug: YAML] Found silent switch: " + Silent
+        FoundSilentSwitch = #True
+      EndIf
+      
+      If FoundArchitecture And FoundInstallerUrl And FoundSilentSwitch
+        Debug "[Debug: YAML] Found all details to create the project."
+        Break
+      EndIf
+    Wend
+    
+    ; Check for prereqs
+    If FoundArchitecture = #False Or FoundInstallerUrl = #False
+      ProcedureReturn MessageRequester("WinGet Import", "The WinGet package cannot be imported. The installer with "+TargetArchitecture+" support is missing.", #PB_MessageRequester_Error | #PB_MessageRequester_Ok)
+    EndIf
+    
+    CloseFile(0)
+  Else
+    MessageRequester("Information", "Couldn't open the manifest file: " + WinGetManifest_FilePath)
+  EndIf
+  
+  ; Open progress window
+  CloseWinGetImportWindow(0)
+
+  ; Create the new project by the user
+  If Not CreateNewProject(0)
+    ProcedureReturn
+  EndIf
+  
+  ; Download installer file
+  OpenProgressWindow()
+  
+  ; Start the asynchronous download to a file
+  Download_Url = InstallerUrl
+  Download_OutputFile = Project_FolderPath + "Files\Installer." + GetExtensionPart(Download_Url)
+  WinGet_Identifier = Identifier
+  WinGet_Version = Version
+  WinGet_SilentSwitch = Silent
+  CreateThread(@DownloadInstallerFile(), 0)
+  
+  ;RedrawWindow_(MainWindow, #Null, #Null, #RDW_INVALIDATE | #RDW_UPDATENOW)
+  UpdateWindow_(MainWindow)
+  
+  ; App name and vendor
+  Protected CompanyCharactersLength.i = FindString(WinGet_Identifier, ".", 0)
+
+  ; Update project settings
+  If IsDatabase(1)
+    UpdateProjectSettings("Database_Version", "1.0.4")
+    UpdateProjectSettings("Project_Name", "WinGet Project")
+    UpdateProjectSettings("App_Version", WinGet_Version)
+    UpdateProjectSettings("App_Vendor", StringField(WinGet_Identifier, 1, "."))
+    UpdateProjectSettings("App_Architecture", TargetArchitecture)
+    UpdateProjectSettings("App_Language", "EN")
+    UpdateProjectSettings("App_Author", "WinGet Import by Deployment Editor")
+    UpdateProjectSettings("App_Name", ReplaceString(Right(WinGet_Identifier, Len(WinGet_Identifier) - CompanyCharactersLength), ".", " "))
+    FinishDatabaseQuery(1)
+  EndIf
+  
+  ; Load new values
+  LoadProjectSettings()
+  
+  ; Generate new deployment file
+  GenerateDeploymentFile()
+  
+  ; Update Main Window
+  SetGadgetText(Text_ProjectName, GetProjectSetting("Project_Name"))
+  
+  ; Message to the user
+  MessageRequester("WinGet Import", "Once the installer has been successfully downloaded in the background, the action/parameter for silent installation will be added automatically.", #PB_MessageRequester_Info | #PB_MessageRequester_Ok)
+  
+EndProcedure
+
 Procedure GenerateAndStartInstallation(EventType)
   ; Save first the current action options
   SaveAction(0)
@@ -2820,11 +2832,11 @@ Procedure DownloadIntuneWinAppUtil(Event)
       IntuneWinAppUtil = DestinationPath
     Else
       Debug "[Debug: IntuneWinAppUtil] Failed to download IntuneWinAppUtil - Wrong file size."
-      MessageRequester("Error", "Unfortunately, something went wrong during the download of IntuneWinAppUtil. Please check your internet connection.", #PB_MessageRequester_Ok | #PB_MessageRequester_Error)
+      MessageRequester("Error", "Unfortunately, something went wrong during the download of IntuneWinAppUtil. Please check your internet connection or place the file here: " + DestinationPath, #PB_MessageRequester_Ok | #PB_MessageRequester_Error)
     EndIf
   Else
     Debug "[Debug: IntuneWinAppUtil] Failed to download IntuneWinAppUtil - Network issue"
-    MessageRequester("Download Error", "Unfortunately, something went wrong during the download of IntuneWinAppUtil. Please check your internet connection.", #PB_MessageRequester_Ok | #PB_MessageRequester_Error)
+    MessageRequester("Download Error", "Unfortunately, something went wrong during the download of IntuneWinAppUtil. Please check your internet connection or place the file here: " + DestinationPath, #PB_MessageRequester_Ok | #PB_MessageRequester_Error)
   EndIf
   
 EndProcedure
@@ -2868,6 +2880,7 @@ Procedure LoadPlugins(Event)
           EditorPlugins()\Path = PluginFolder
           EditorPlugins()\File = ReadPreferenceString("File", "")
           EditorPlugins()\Parameter = ReadPreferenceString("Parameter", "")
+          EditorPlugins()\UnloadProject = ReadPreferenceString("UnloadProject", "")
         Else
           Continue
         EndIf
@@ -2895,6 +2908,12 @@ Procedure RenderPluginDetails(Event)
   Next
 EndProcedure
 
+Procedure CloseProject(Event)
+  CloseDatabase(1)
+  DisableMainWindowGadgets(#True)
+  ClearGadgetItems(Tree_Sequence)
+EndProcedure
+
 Procedure RunPlugin(EventType)
   Protected SelectedPluginID.s = GetGadgetText(ListView_Plugins)
   
@@ -2907,6 +2926,20 @@ Procedure RunPlugin(EventType)
       Debug "[Debug: Plugin Loader] Found the plugin! Lets run it."
       Protected FilePath.s = EditorPlugins()\Path + "\" + EditorPlugins()\File
       
+      ; Check if the project need to be closed
+      If EditorPlugins()\UnloadProject = "Yes"
+        Protected UnloadProjectRequester = MessageRequester("Unload Project to Continue", "To continue and execute the plugin script, the project must be unloaded from the Deployment Editor. Do you want to save all actions and continue?", #PB_MessageRequester_YesNo | #PB_MessageRequester_Info)
+        
+        If UnloadProjectRequester = #PB_MessageRequester_Yes
+          CloseProject(0)
+          ClosePluginWindow(0)
+          HideWindow(MainWindow, #True)
+          ShowNewProjectWindow(0)
+        Else
+          ProcedureReturn 0
+        EndIf
+      EndIf
+
       ; Run process
       Protected PowerShell_Parameter.s = "-ExecutionPolicy ByPass -File "+Chr(34)+FilePath+Chr(34)+" -ProjectPath "+Chr(34)+Project_FolderPath
       Debug "[Debug: Plugin Loader] PowerShell parameter: " + PowerShell_Parameter
@@ -3164,8 +3197,9 @@ Repeat
   EndSelect
   
 Until Quit = #True
-; IDE Options = PureBasic 6.21 (Windows - x64)
-; CursorPosition = 1
-; Folding = AAAAAAAAAAAAAAAAAAA9
+; IDE Options = PureBasic 6.30 beta 6 (Windows - x64)
+; CursorPosition = 2935
+; FirstLine = 2902
+; Folding = --------------------
 ; EnableXP
 ; DPIAware
