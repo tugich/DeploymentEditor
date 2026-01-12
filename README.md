@@ -35,6 +35,10 @@ DeploymentEditor is ideal for:
 - Fully compatible with **ARM-based Windows** via the Microsoft x64 translation layer  
 - **PureBasic IDE** (only required if you want to compile the source yourself; precompiled binaries are provided)
 
+### ⚠️ Important: PowerShell Execution Policy (Windows Settings)
+DeploymentEditor generates and executes PowerShell scripts based on PSAppDeployToolkit (PSADT).
+For this reason, PowerShell script execution must be enabled on the system where packages are built or tested.
+
 ### Prerequisites
 There are **no external prerequisites**.  
 All required components, templates, databases, and resources are included directly in this repository or the release packages.
