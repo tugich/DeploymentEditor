@@ -1,4 +1,4 @@
-﻿; Form Designer for PureBasic - 6.21
+﻿; Form Designer for PureBasic - 6.30
 ; Warning: this file uses a strict syntax, if you edit it, make sure to respect the Form Designer limitation or it won't be opened again.
 
 ;
@@ -22,6 +22,7 @@ Enumeration FormMenu
   #MenuItem_ShowProjectFolder
   #MenuItem_ShowFilesFolder
   #MenuItem_ShowSupportFilesFolder
+  #MenuItem_ShowLogs
   #MenuItem_OpenWithISE
   #MenuItem_OpenWithNotepadPlusPlus
   #MenuItem_OpenWithVSCode
@@ -31,8 +32,8 @@ Enumeration FormMenu
   #MenuItem_RunUninstall
   #MenuItem_RunRepair
   #MenuItem_CreateIntunePackage
-  #MenuItem_ShowLogs
   #MenuItem_GenerateExecutablesList
+  #MenuItem_SoftwareLogReader
   #MenuItem_ShowPlugins
   #MenuItem_PSADT_OnlineDocumentation
   #MenuItem_PSADT_OnlineVariablesOverview
@@ -111,6 +112,8 @@ Procedure OpenMainWindow(x = 0, y = 0, width = 1400, height = 945)
   MenuItem(#MenuItem_ShowFilesFolder, "Show Files Folder")
   MenuItem(#MenuItem_ShowSupportFilesFolder, "Show Support Files Folder")
   MenuBar()
+  MenuItem(#MenuItem_ShowLogs, "Show Software Logs Folder")
+  MenuBar()
   MenuItem(#MenuItem_OpenWithISE, "Open Deployment File with PS ISE")
   MenuItem(#MenuItem_OpenWithNotepadPlusPlus, "Open Deployment File with Notepad++")
   MenuItem(#MenuItem_OpenWithVSCode, "Open Deployment File with VS Code")
@@ -125,8 +128,8 @@ Procedure OpenMainWindow(x = 0, y = 0, width = 1400, height = 945)
   MenuTitle("Export")
   MenuItem(#MenuItem_CreateIntunePackage, "Create Intune Package")
   MenuTitle("Tools")
-  MenuItem(#MenuItem_ShowLogs, "Show Software Logs Folder")
   MenuItem(#MenuItem_GenerateExecutablesList, "Generate Executables List")
+  MenuItem(#MenuItem_SoftwareLogReader, "Software Log Reader")
   MenuTitle("Plugins")
   MenuItem(#MenuItem_ShowPlugins, "Show Plugins")
   MenuTitle("Help")
@@ -288,6 +291,7 @@ Procedure MainWindow_Events(event)
         Case #MenuItem_ShowProjectFolder
         Case #MenuItem_ShowFilesFolder
         Case #MenuItem_ShowSupportFilesFolder
+        Case #MenuItem_ShowLogs
         Case #MenuItem_OpenWithISE
         Case #MenuItem_OpenWithNotepadPlusPlus
         Case #MenuItem_OpenWithVSCode
@@ -297,8 +301,8 @@ Procedure MainWindow_Events(event)
         Case #MenuItem_RunUninstall
         Case #MenuItem_RunRepair
         Case #MenuItem_CreateIntunePackage
-        Case #MenuItem_ShowLogs
         Case #MenuItem_GenerateExecutablesList
+        Case #MenuItem_SoftwareLogReader
         Case #MenuItem_ShowPlugins
         Case #MenuItem_PSADT_OnlineDocumentation
         Case #MenuItem_PSADT_OnlineVariablesOverview

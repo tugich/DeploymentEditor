@@ -1,4 +1,4 @@
-﻿; Form Designer for PureBasic - 6.21
+﻿; Form Designer for PureBasic - 6.30
 ; Warning: this file uses a strict syntax, if you edit it, make sure to respect the Form Designer limitation or it won't be opened again.
 
 ;
@@ -9,13 +9,28 @@
 
 Global LogReaderWindow
 
+Global WebView_LogReader
+
+Declare ResizeGadgetsLogReaderWindow()
+
 
 Procedure OpenLogReaderWindow(x = 0, y = 0, width = 1000, height = 800)
   LogReaderWindow = OpenWindow(#PB_Any, x, y, width, height, "Software Log Reader", #PB_Window_SystemMenu | #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget | #PB_Window_SizeGadget | #PB_Window_ScreenCentered)
+  SetWindowColor(LogReaderWindow, RGB(255,255,255))
+  WebView_LogReader = WebViewGadget(#PB_Any, 0, 0, 1000, 800)
+EndProcedure
+
+Procedure ResizeGadgetsLogReaderWindow()
+  Protected FormWindowWidth, FormWindowHeight
+  FormWindowWidth = WindowWidth(LogReaderWindow)
+  FormWindowHeight = WindowHeight(LogReaderWindow)
+  ResizeGadget(WebView_LogReader, 0, 0, FormWindowWidth - 0, FormWindowHeight - 0)
 EndProcedure
 
 Procedure LogReaderWindow_Events(event)
   Select event
+    Case #PB_Event_SizeWindow
+      ResizeGadgetsLogReaderWindow()
     Case #PB_Event_CloseWindow
       ProcedureReturn #False
 

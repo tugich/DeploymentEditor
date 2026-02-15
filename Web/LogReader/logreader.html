@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Software Log Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .app-container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 16px;
+            gap: 16px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .header-card {
+            padding: 20px 24px;
+        }
+
+        .main-card {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: 500;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+            outline: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn-secondary:hover {
+            background: #f8f9ff;
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: #64748b;
+            border: 1px solid #e2e8f0;
+        }
+
+        .btn-ghost:hover {
+            background: #f1f5f9;
+        }
+
+        .input {
+            padding: 10px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            outline: none;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .select {
+            padding: 10px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            outline: none;
+            cursor: pointer;
+            background: white;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .select:focus {
+            border-color: #667eea;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-info {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .badge-warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge-error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .log-table-container {
+            flex: 1;
+            overflow: auto;
+            padding: 16px;
+        }
+
+        .log-table-container::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        .log-table-container::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+
+        .log-table-container::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+
+        .log-table-container::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        .log-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 4px;
+        }
+
+        .log-table thead th {
+            position: sticky;
+            top: 0;
+            background: #f8fafc;
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #475569;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #e2e8f0;
+            z-index: 10;
+        }
+
+        .log-row {
+            background: white;
+            cursor: pointer;
+        }
+
+        .log-row:hover {
+            background: #f8fafc;
+        }
+
+        .log-row.selected {
+            background: linear-gradient(135deg, #e0e7ff 0%, #ede9fe 100%);
+        }
+
+        .log-row td {
+            padding: 12px 16px;
+            border-top: 1px solid #f1f5f9;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+
+        .log-row td:first-child {
+            border-left: 1px solid #f1f5f9;
+            border-top-left-radius: 8px;
+            border-bottom-left-radius: 8px;
+        }
+
+        .log-row td:last-child {
+            border-right: 1px solid #f1f5f9;
+            border-top-right-radius: 8px;
+            border-bottom-right-radius: 8px;
+        }
+
+        .log-row-info td:first-child {
+            border-left: 3px solid #3b82f6;
+        }
+
+        .log-row-warning td:first-child {
+            border-left: 3px solid #f59e0b;
+        }
+
+        .log-row-error td:first-child {
+            border-left: 3px solid #ef4444;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: #64748b;
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+
+        .empty-state h2 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #334155;
+        }
+
+        .detail-panel {
+            background: #f8fafc;
+            border-top: 2px solid #e2e8f0;
+            padding: 20px 24px;
+            max-height: 250px;
+            overflow: auto;
+            display: none;
+        }
+
+        .detail-panel.active {
+            display: block;
+        }
+
+        .detail-panel h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #334155;
+        }
+
+        .detail-content {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            overflow-x: auto;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .highlight {
+            background: #fef08a;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: 600;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #667eea;
+        }
+
+        .status-bar {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 12px 24px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            color: #64748b;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .toolbar-section {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .divider {
+            height: 24px;
+            width: 1px;
+            background: #e2e8f0;
+        }
+
+        .filter-bar {
+            padding: 16px 24px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .icon {
+            width: 16px;
+            height: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <div class="card header-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <div>
+                    <h1 style="font-size: 28px; font-weight: 700; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 4px;">
+                        Software Log Viewer
+                    </h1>
+                    <p style="color: #64748b; font-size: 14px;">Simple software log analysis</p>
+                </div>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="autoScroll" checked>
+                    <span style="font-size: 14px; color: #64748b;">Auto-scroll</span>
+                </label>
+            </div>
+            
+            <div class="toolbar-section">
+                <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                    <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                    </svg>
+                    Open Log File
+                </button>
+                <input type="file" id="fileInput" accept=".log,.txt" onchange="handleFileSelect(event)">
+                
+                <button class="btn btn-ghost" onclick="clearLog()">
+                    <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                    Clear
+                </button>
+                
+                <div class="divider"></div>
+                
+                <input type="text" class="input" id="searchInput" placeholder="Search logs..." oninput="filterLogs()" style="min-width: 300px;">
+                
+                <button class="btn btn-secondary" onclick="exportFiltered()">
+                    <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    Export
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="card main-card">
+            <!-- Filter Bar -->
+            <div class="filter-bar">
+                <label class="checkbox-label">
+                    <input type="checkbox" class="severity-filter" value="info" checked onchange="filterLogs()">
+                    <span class="badge badge-info">
+                        <span style="font-size: 16px;">●</span> Info
+                    </span>
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" class="severity-filter" value="warning" checked onchange="filterLogs()">
+                    <span class="badge badge-warning">
+                        <span style="font-size: 16px;">●</span> Warning
+                    </span>
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" class="severity-filter" value="error" checked onchange="filterLogs()">
+                    <span class="badge badge-error">
+                        <span style="font-size: 16px;">●</span> Error
+                    </span>
+                </label>
+                
+                <div class="divider"></div>
+                
+                <select id="componentFilter" class="select" onchange="filterLogs()">
+                    <option value="">All Components</option>
+                </select>
+            </div>
+
+            <!-- Log Table -->
+            <div class="log-table-container" id="logContainer">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📋</div>
+                    <h2>No Log File Loaded</h2>
+                    <p>Click "Open Log File" to load a software log file</p>
+                </div>
+            </div>
+
+            <!-- Detail Panel -->
+            <div class="detail-panel" id="detailPanel">
+                <h3>Log Entry Details</h3>
+                <pre class="detail-content font-mono" id="detailContent"></pre>
+            </div>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div style="display: flex; align-items: center;">
+                <span id="statusLeft">Ready</span>
+            </div>
+            <span id="statusRight" style="font-weight: 600; color: #334155;">0 entries</span>
+        </div>
+    </div>
+
+    <script>
+        let allLogs = [];
+        let filteredLogs = [];
+        let selectedRow = null;
+        let currentFile = null;
+        let lastFileSize = 0;
+
+        function scrollToBottom(element) {
+            // Multiple scroll methods for maximum WebView compatibility
+            if (!element) return;
+            
+            // Method 1: scrollTop (most compatible)
+            element.scrollTop = element.scrollHeight;
+            
+            // Method 2: scrollTo with immediate behavior
+            if (element.scrollTo) {
+                element.scrollTo(0, element.scrollHeight);
+            }
+            
+            // Method 3: scrollIntoView on last element
+            const lastElement = element.lastElementChild?.querySelector('tbody tr:last-child');
+            if (lastElement && lastElement.scrollIntoView) {
+                lastElement.scrollIntoView({ behavior: 'auto', block: 'end' });
+            }
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            currentFile = file;
+            lastFileSize = file.size;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const content = e.target.result;
+                parseCMLog(content);
+                updateStatus(`Loaded: ${file.name}`, `${allLogs.length} entries`);
+            };
+            reader.readAsText(file);
+        }
+
+        function parseCMLog(content) {
+            allLogs = [];
+            const lines = content.split('\n');
+            
+            const regex = /<!\[LOG\[(.*?)\]LOG\]!><time="(.*?)".*?date="(.*?)".*?component="(.*?)".*?type="(\d+)".*?thread="(\d+)".*?>/;
+            
+            let lineNumber = 0;
+            let lastWasError = false; // Track if previous entry was an error
+            
+            for (const line of lines) {
+                lineNumber++;
+                if (!line.trim()) continue;
+
+                const match = line.match(regex);
+                if (match) {
+                    const [, message, time, date, component, type, thread] = match;
+                    
+                    let severity = 'info';
+                    if (type === '2') severity = 'warning';
+                    else if (type === '3') severity = 'error';
+                    
+                    // Check if message contains "error" keyword
+                    const hasErrorKeyword = /\berror\b/i.test(message);
+                    if (hasErrorKeyword && severity === 'info') {
+                        severity = 'error';
+                    }
+                    
+                    allLogs.push({
+                        lineNumber,
+                        time,
+                        date,
+                        dateTime: `${date} ${time}`,
+                        component: component || 'Unknown',
+                        severity,
+                        type: severity === 'error' ? '3' : (severity === 'warning' ? '2' : '1'),
+                        thread,
+                        message: message.trim(),
+                        raw: line
+                    });
+                    
+                    lastWasError = (severity === 'error');
+                } else {
+                    const parts = line.split('\t');
+                    if (parts.length >= 2) {
+                        const component = parts[0] || 'Unknown';
+                        const message = parts.slice(1).join(' ');
+                        const hasErrorKeyword = /\berror\b/i.test(message);
+                        
+                        let severity = 'info';
+                        // If previous entry was error, or this is a "Log" entry following an error, mark as error
+                        if (component.toLowerCase() === 'log' && lastWasError) {
+                            severity = 'error';
+                        } else if (hasErrorKeyword) {
+                            severity = 'error';
+                        }
+                        
+                        allLogs.push({
+                            lineNumber,
+                            time: new Date().toLocaleTimeString(),
+                            date: new Date().toLocaleDateString(),
+                            dateTime: new Date().toLocaleString(),
+                            component: component,
+                            severity,
+                            type: severity === 'error' ? '3' : '1',
+                            thread: '0',
+                            message: message,
+                            raw: line
+                        });
+                        
+                        // Keep tracking errors, but reset if this is not a Log component
+                        if (component.toLowerCase() !== 'log') {
+                            lastWasError = (severity === 'error');
+                        }
+                    } else if (line.trim()) {
+                        const message = line.trim();
+                        const hasErrorKeyword = /\berror\b/i.test(message);
+                        
+                        let severity = 'info';
+                        // Plain text lines following errors are marked as error output
+                        if (lastWasError) {
+                            severity = 'error';
+                        } else if (hasErrorKeyword) {
+                            severity = 'error';
+                        }
+                        
+                        allLogs.push({
+                            lineNumber,
+                            time: '',
+                            date: '',
+                            dateTime: '',
+                            component: 'Log',
+                            severity,
+                            type: severity === 'error' ? '3' : '1',
+                            thread: '0',
+                            message: message,
+                            raw: line
+                        });
+                        
+                        // Don't reset lastWasError for plain log lines - keep tracking
+                    }
+                }
+            }
+
+            populateComponentFilter();
+            filterLogs();
+        }
+
+        function populateComponentFilter() {
+            const components = [...new Set(allLogs.map(log => log.component))].sort();
+            const select = document.getElementById('componentFilter');
+            select.innerHTML = '<option value="">All Components</option>';
+            components.forEach(comp => {
+                const option = document.createElement('option');
+                option.value = comp;
+                option.textContent = comp;
+                select.appendChild(option);
+            });
+        }
+
+        function filterLogs() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const componentFilter = document.getElementById('componentFilter').value;
+            const severityFilters = Array.from(document.querySelectorAll('.severity-filter:checked')).map(cb => cb.value);
+
+            filteredLogs = allLogs.filter(log => {
+                const matchesSearch = !searchTerm || 
+                    log.message.toLowerCase().includes(searchTerm) ||
+                    log.component.toLowerCase().includes(searchTerm);
+                
+                const matchesComponent = !componentFilter || log.component === componentFilter;
+                const matchesSeverity = severityFilters.includes(log.severity);
+
+                return matchesSearch && matchesComponent && matchesSeverity;
+            });
+
+            renderLogs();
+            updateStatus(`Filtered`, `${filteredLogs.length} of ${allLogs.length} entries`);
+        }
+
+        function renderLogs() {
+            const container = document.getElementById('logContainer');
+            
+            if (filteredLogs.length === 0) {
+                container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔍</div><h2>No Logs Found</h2><p>Try adjusting your filters</p></div>';
+                return;
+            }
+
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            
+            // Use DocumentFragment for better performance
+            const table = document.createElement('table');
+            table.className = 'log-table';
+            
+            // Create header
+            const thead = document.createElement('thead');
+            thead.innerHTML = `<tr>
+                <th style="width: 120px;">Time</th>
+                <th style="width: 180px;">Component</th>
+                <th style="width: 120px;">Severity</th>
+                <th style="width: 100px;">Thread</th>
+                <th>Message</th>
+            </tr>`;
+            table.appendChild(thead);
+            
+            // Create body
+            const tbody = document.createElement('tbody');
+            
+            // Batch DOM operations
+            const fragment = document.createDocumentFragment();
+            
+            filteredLogs.forEach((log, index) => {
+                const tr = document.createElement('tr');
+                tr.className = `log-row log-row-${log.severity}`;
+                tr.setAttribute('data-index', index);
+                tr.onclick = () => selectRow(index);
+                
+                let message = escapeHtml(log.message);
+                
+                // Highlight "Error" text in messages (case-insensitive)
+                message = message.replace(/\b(error|errors|errored)\b/gi, '<span class="highlight">$1</span>');
+                
+                // Apply search highlighting
+                if (searchTerm) {
+                    const regex = new RegExp(`(${escapeRegex(searchTerm)})`, 'gi');
+                    message = message.replace(regex, '<span class="highlight">$1</span>');
+                }
+
+                let badgeClass = 'badge-info';
+                if (log.severity === 'warning') badgeClass = 'badge-warning';
+                if (log.severity === 'error') badgeClass = 'badge-error';
+
+                tr.innerHTML = `
+                    <td class="font-mono" style="color: #64748b; font-size: 12px;">${escapeHtml(log.time)}</td>
+                    <td style="font-weight: 500; color: #334155;">${escapeHtml(log.component)}</td>
+                    <td><span class="badge ${badgeClass}">${log.severity}</span></td>
+                    <td class="font-mono" style="color: #94a3b8; font-size: 12px;">${escapeHtml(log.thread)}</td>
+                    <td class="font-mono" style="font-size: 13px; color: #1e293b;">${message}</td>
+                `;
+                
+                fragment.appendChild(tr);
+            });
+            
+            tbody.appendChild(fragment);
+            table.appendChild(tbody);
+            
+            // Single DOM update
+            container.innerHTML = '';
+            container.appendChild(table);
+
+            // Auto-scroll - WebView compatible with multiple fallbacks
+            if (document.getElementById('autoScroll').checked) {
+                // Use multiple timing strategies for maximum WebView compatibility
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        scrollToBottom(container);
+                    });
+                });
+                
+                // Additional fallback with setTimeout for stubborn WebViews
+                setTimeout(() => {
+                    scrollToBottom(container);
+                }, 100);
+            }
+        }
+
+        function selectRow(index) {
+            const rows = document.querySelectorAll('.log-row');
+            rows.forEach(row => row.classList.remove('selected'));
+
+            const row = document.querySelector(`[data-index="${index}"]`);
+            if (row) {
+                row.classList.add('selected');
+                selectedRow = index;
+                showDetails(filteredLogs[index]);
+            }
+        }
+
+        function showDetails(log) {
+            const panel = document.getElementById('detailPanel');
+            const content = document.getElementById('detailContent');
+            
+            let details = `Line Number: ${log.lineNumber}\n`;
+            details += `Date/Time: ${log.dateTime}\n`;
+            details += `Component: ${log.component}\n`;
+            details += `Severity: ${log.severity.toUpperCase()} (Type ${log.type})\n`;
+            details += `Thread: ${log.thread}\n`;
+            details += `\nMessage:\n${log.message}\n`;
+            details += `\nRaw Entry:\n${log.raw}`;
+            
+            content.textContent = details;
+            panel.classList.add('active');
+        }
+
+        function clearLog() {
+            currentFile = null;
+            lastFileSize = 0;
+            allLogs = [];
+            filteredLogs = [];
+            const container = document.getElementById('logContainer');
+            container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><h2>No Log File Loaded</h2><p>Click "Open Log File" to load a software log file</p></div>';
+            document.getElementById('detailPanel').classList.remove('active');
+            updateStatus('Ready', '0 entries');
+            document.getElementById('fileInput').value = '';
+        }
+
+        function exportFiltered() {
+            if (filteredLogs.length === 0) {
+                alert('No logs to export');
+                return;
+            }
+
+            let content = 'Time\tComponent\tSeverity\tThread\tMessage\n';
+            filteredLogs.forEach(log => {
+                content += `${log.time}\t${log.component}\t${log.severity}\t${log.thread}\t${log.message}\n`;
+            });
+
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `cmtrace_export_${new Date().getTime()}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function updateStatus(left, right) {
+            document.getElementById('statusLeft').textContent = left;
+            document.getElementById('statusRight').textContent = right;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function escapeRegex(text) {
+            return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'f') {
+                e.preventDefault();
+                document.getElementById('searchInput').focus();
+            }
+            if (e.key === 'Escape') {
+                document.getElementById('searchInput').value = '';
+                filterLogs();
+            }
+        });
+    </script>
+</body>
+</html>

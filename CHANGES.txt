@@ -4,6 +4,12 @@ ToDo's
 * More validations / and checks on UI
 (...)
 
+Version 2.2.0 (UI Bugfixes + PSADT Update):
+* [Important] PSADT and templates updated to version 4.1.8
+* Added feature: Built-in Software Log Reader (for .log files)
+* Fixed issue with saving project settings names and values (#13)
+* Fixed save-close procedure after running plugins with a closed database request
+
 Version 2.1.0:
 * [Important] PSADT and templates updated to version 4.1.7
 * Added Feature: New Plugin - Microsoft Intune Upload

@@ -146,35 +146,13 @@ Global WinGet_Identifier.s = "", WinGet_Version.s = "", WinGet_SilentSwitch.s = 
 ; Script Editor
 Global ScriptEditorGadget
 
+; Log Reader
+Global LogReaderFilePath.s = GetCurrentDirectory() + "Web\LogReader\logreader.html"
+
 ;------------------------------------------------------------------------------------
 ;- Shortcuts
 ;------------------------------------------------------------------------------------
 Enumeration KeyboardShortcuts
-  
-  ; Menu
-  #MenuItem_New
-  #MenuItem_Open
-  #MenuItem_Save
-  #MenuItem_Reload
-  #MenuItem_Quit
-  #MenuItem_ShowProjectFolder
-  #MenuItem_ShowFilesFolder
-  #MenuItem_ShowSupportFilesFolder
-  #MenuItem_OpenWithISE
-  #MenuItem_OpenWithNotepadPlusPlus
-  #MenuItem_OpenWithVSCode
-  #MenuItem_RunInstallation
-  #MenuItem_RunInstallationSandbox
-  #MenuItem_RunRemoteMachine
-  #MenuItem_RunUninstall
-  #MenuItem_RunRepair
-  #MenuItem_CreateIntunePackage
-  #MenuItem_ShowLogs
-  #MenuItem_GenerateExecutablesList
-  #MenuItem_ShowPlugins
-  #MenuItem_PSADT_OnlineDocumentation
-  #MenuItem_PSADT_OnlineVariablesOverview
-  #MenuItem_AboutApp
   
   ; Keyboard
   #Keyboard_Shortcut_Save
@@ -212,6 +190,7 @@ XIncludeFile "Forms/ProgressWindow.pbf"
 XIncludeFile "Forms/ImportExeWindow.pbf"
 XIncludeFile "Forms/ImportMsiWindow.pbf"
 XIncludeFile "Forms/ScriptEditorWindow.pbf"
+XIncludeFile "Forms/LogReaderWindow.pbf"
 
 ;------------------------------------------------------------------------------------
 ;- Helpers
@@ -371,15 +350,30 @@ Procedure AddSnippet(EventType)
 EndProcedure
 
 Procedure UpdateProjectSettings(SettingName.s, Value.s)
+  ; Check if the setting already exists to update
   SetDatabaseString(1, 0, SettingName)
-  SetDatabaseString(1, 1, Value)
-  CheckDatabaseUpdate(1, "INSERT INTO Settings (Name, Value) VALUES (?, ?)")
+  CheckDatabaseUpdate(1, "INSERT OR IGNORE INTO Settings (Name) VALUES (?)")
+  FinishDatabaseQuery(1)
+  
+  ; Update setting value
+  SetDatabaseString(1, 0, Value)
+  SetDatabaseString(1, 1, SettingName)
+  CheckDatabaseUpdate(1, "UPDATE Settings SET VALUE = ? WHERE Name = ?;")
+  FinishDatabaseQuery(1)
 EndProcedure
 
-Procedure UpdateProjectSettingByGadget(SettingName.s, Gadget)
+Procedure UpdateProjectSettingByGadget(SettingName.s, Gadget.i)
+  ; Check if the setting already exists to update
+  SetDatabaseString(1, 0, SettingName)
+  CheckDatabaseUpdate(1, "INSERT OR IGNORE INTO Settings (Name) VALUES (?)")
+  FinishDatabaseQuery(1)
+  
+  ; Update setting value
+  Debug GetGadgetText(Gadget)
   SetDatabaseString(1, 0, GetGadgetText(Gadget))
   SetDatabaseString(1, 1, SettingName)
-  CheckDatabaseUpdate(1, "UPDATE Settings SET Value = ? WHERE Name = ?")
+  CheckDatabaseUpdate(1, "UPDATE Settings SET VALUE = ? WHERE Name = ?;")
+  FinishDatabaseQuery(1)
 EndProcedure
 
 Procedure.s ReplaceDotsAndForwardSlashes(String.s)
@@ -770,7 +764,7 @@ Procedure LoadProjectSettings()
   
   ; Read all new settings from the database
   If OpenDatabase(1, Project_Database, "", "")
-    Debug "[Debug: Project Setting] Loaded Project Database successfully: " + PSADT_Database
+    Debug "[Debug: Project Setting] Active Project Database: " + PSADT_Database
     
     ; Get all project settings
     If DatabaseQuery(1, "SELECT Name, Value FROM Settings")
@@ -872,6 +866,20 @@ Procedure CloseNewProjectWindow(EventType)
   EndIf
 EndProcedure
 
+Procedure RenderProjectSettings()
+  SetGadgetText(PSW_ProjectName_String, GetProjectSetting("Project_Name"))
+  SetGadgetText(PSW_AppName_String, GetProjectSetting("App_Name"))
+  SetGadgetText(PSW_AppVersion_String, GetProjectSetting("App_Version"))
+  SetGadgetText(PSW_AppVendor_String, GetProjectSetting("App_Vendor"))
+  SetGadgetText(PSW_AppArch_Combo, GetProjectSetting("App_Architecture"))
+  SetGadgetText(PSW_AppLanguage_String, GetProjectSetting("App_Language"))
+  SetGadgetText(PSW_ScriptAuthor_String, GetProjectSetting("App_Author"))
+  
+  If IsWindow(MainWindow)
+    SetGadgetText(Text_ProjectName, GetProjectSetting("Project_Name"))
+  EndIf
+EndProcedure
+
 Procedure ShowProjectSettingsWindow(EventType)    
   If IsWindow(ProjectSettingsWindow)
     HideWindow(ProjectSettingsWindow, #False)
@@ -881,13 +889,7 @@ Procedure ShowProjectSettingsWindow(EventType)
   EndIf
   
   LoadProjectSettings()
-  SetGadgetText(PSW_ProjectName_String, GetProjectSetting("Project_Name"))
-  SetGadgetText(PSW_AppName_String, GetProjectSetting("App_Name"))
-  SetGadgetText(PSW_AppVersion_String, GetProjectSetting("App_Version"))
-  SetGadgetText(PSW_AppVendor_String, GetProjectSetting("App_Vendor"))
-  SetGadgetText(PSW_AppArch_Combo, GetProjectSetting("App_Architecture"))
-  SetGadgetText(PSW_AppLanguage_String, GetProjectSetting("App_Language"))
-  SetGadgetText(PSW_ScriptAuthor_String, GetProjectSetting("App_Author"))
+  RenderProjectSettings()
 EndProcedure
 
 Procedure CloseProjectSettingsWindow(EventType)
@@ -912,9 +914,8 @@ Procedure SaveProjectSettings(EventType)
   
   ; Load new values
   LoadProjectSettings()
-  
-  ; Update Main Window
-  SetGadgetText(Text_ProjectName, GetProjectSetting("Project_Name"))
+  Debug GetProjectSetting("Project_Name")
+  RenderProjectSettings()
   
   ; Close Window
   CloseProjectSettingsWindow(0)
@@ -935,6 +936,30 @@ Procedure CloseAboutWindow(EventType)
     
     Debug "[Debug: Close About Window] Active window ID is: "+GetActiveWindow()
     Debug "[Debug: Close About Window] New project window ID is: "+NewProjectWindow
+    
+    If GetActiveWindow() = NewProjectWindow
+      SetActiveWindow(NewProjectWindow)
+    Else
+      SetActiveWindow(MainWindow)
+    EndIf
+  EndIf
+EndProcedure
+
+Procedure ShowLogReaderWindow(EventType)
+  If IsWindow(LogReaderWindow)
+    HideWindow(LogReaderWindow, #False)
+    SetActiveWindow(LogReaderWindow)
+  Else
+    OpenLogReaderWindow()
+  EndIf
+  
+  ; Load log reader html
+  SetGadgetText(WebView_LogReader, "file://" + LogReaderFilePath)
+EndProcedure
+
+Procedure CloseLogReaderWindow(EventType)
+  If IsWindow(LogReaderWindow)
+    HideWindow(LogReaderWindow, #True)
     
     If GetActiveWindow() = NewProjectWindow
       SetActiveWindow(NewProjectWindow)
@@ -2931,7 +2956,7 @@ Procedure RunPlugin(EventType)
         Protected UnloadProjectRequester = MessageRequester("Unload Project to Continue", "To continue and execute the plugin script, the project must be unloaded from the Deployment Editor. Do you want to save all actions and continue?", #PB_MessageRequester_YesNo | #PB_MessageRequester_Info)
         
         If UnloadProjectRequester = #PB_MessageRequester_Yes
-          CloseProject(0)
+          SaveAndCloseProject()
           ClosePluginWindow(0)
           HideWindow(MainWindow, #True)
           ShowNewProjectWindow(0)
@@ -3070,11 +3095,12 @@ Repeat
           Case #MenuItem_ShowSupportFilesFolder : ShowSupportFilesFolder(0)
           Case #MenuItem_PSADT_OnlineVariablesOverview : ShowOnlineVariablesOverview(0)
           Case #MenuItem_RunInstallation : GenerateAndStartInstallation(0)
-          Case #MenuItem_RunInstallationSandbox : GenerateAndStartInstallationSandbox(0)
-          Case #MenuItem_RunRemoteMachine : NotAvailableFeatureMessage(0)
+          Case #MenuItem_RunWindowsSandbox : GenerateAndStartInstallationSandbox(0)
+          Case #MenuItem_RunOnRemoteMachine : NotAvailableFeatureMessage(0)
           Case #MenuItem_RunUninstall : GenerateAndStartUninstall(0)
           Case #MenuItem_RunRepair : GenerateAndStartRepair(0)
           Case #MenuItem_GenerateExecutablesList : GenerateExecutablesList(0)
+          Case #MenuItem_SoftwareLogReader : ShowLogReaderWindow(0)
           Case #MenuItem_CreateIntunePackage : CreateIntunePackage(0)
           Case #MenuItem_ShowPlugins : ShowPluginWindow(0)
         EndSelect
@@ -3115,22 +3141,24 @@ Repeat
       
     ;- [New Project Window]
     Case NewProjectWindow
+      NewProjectWindow_Events(Event)
+      
       If Event = #PB_Event_CloseWindow
         CloseNewProjectWindow(0)
-      Else
-        NewProjectWindow_Events(Event)
       EndIf
       
     ;- [Project Settings Window]
     Case ProjectSettingsWindow
+      ProjectSettingsWindow_Events(Event)
+      
       If Event = #PB_Event_CloseWindow
         CloseProjectSettingsWindow(0)
-      Else
-        ProjectSettingsWindow_Events(Event)
       EndIf
       
     ;- [Plugin Window]
     Case PluginWindow
+      PluginWindow_Events(Event)
+      
       If Event = #PB_Event_CloseWindow
         ClosePluginWindow(0)
       ElseIf Event = #PB_Event_Gadget And EventGadget() = ListView_Plugins
@@ -3138,68 +3166,73 @@ Repeat
           Case #PB_EventType_LeftClick
             RenderPluginDetails(Event)
         EndSelect
-      Else
-        PluginWindow_Events(Event)
       EndIf
       
     ;- [About Window]
     Case AboutWindow
+      AboutWindow_Events(Event)
+      
       If Event = #PB_Event_CloseWindow
         CloseAboutWindow(0)
-      Else
-        AboutWindow_Events(Event)
       EndIf
       
     ;- [WinGet Import Window]
     Case WinGetImportWindow
+      WinGetImportWindow_Events(Event)
+      
       If Event = #PB_Event_CloseWindow
         CloseWinGetImportWindow(0)
       ElseIf Event = #PB_Event_Menu
           Select EventMenu()
             Case #WinGetImport_Enter : SearchWinGetPackage(Event)
           EndSelect
-      Else
-        WinGetImportWindow_Events(Event)
       EndIf
       
     ;- [Progress Window]
     Case ProgressWindow
+      ProgressWindow_Events(Event)
+      
       If Event = #PB_Event_CloseWindow
         CloseProgressWindow(0)
-      Else
-        ProgressWindow_Events(Event)
       EndIf
       
      ;- [Import Exe Window]
     Case ImportExeWindow
+      ImportExeWindow_Events(Event)
+      
       If Event = #PB_Event_CloseWindow
         CloseImportExeWindow(0)
-      Else
-        ImportExeWindow_Events(Event)
       EndIf
       
      ;- [Import Msi Window]
     Case ImportMsiWindow
+      ImportMsiWindow_Events(Event)
+      
       If Event = #PB_Event_CloseWindow
         CloseImportMsiWindow(0)
-      Else
-        ImportMsiWindow_Events(Event)
       EndIf
       
      ;- [Script Editor Window]
     Case ScriptEditorWindow
+      ScriptEditorWindow_Events(Event)
+      
       If Event = #PB_Event_CloseWindow
         CloseScriptEditorWindow(0)
-      Else
-        ScriptEditorWindow_Events(Event)
+      EndIf
+      
+     ;- [Log Reader Window]
+    Case LogReaderWindow
+      LogReaderWindow_Events(Event)
+      
+      If Event = #PB_Event_CloseWindow
+        CloseLogReaderWindow(0)
       EndIf
       
   EndSelect
   
 Until Quit = #True
-; IDE Options = PureBasic 6.30 beta 6 (Windows - x64)
-; CursorPosition = 2935
-; FirstLine = 2902
-; Folding = --------------------
+; IDE Options = PureBasic 6.30 (Windows - x64)
+; CursorPosition = 3
+; Folding = AAAAAAAAAAAAAAAAAAAA-
 ; EnableXP
 ; DPIAware

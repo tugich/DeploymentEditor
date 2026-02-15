@@ -88,8 +88,8 @@ param
 # By setting the "AppName" property, Zero-Config MSI will be disabled.
 $adtSession = @{
     # App variables.
-    AppVendor = 'Igor Pavlov'
-    AppName = '7-Zip'
+    AppVendor = '7zip'
+    AppName = '7zip'
     AppVersion = '25.01'
     AppArch = 'x64'
     AppLang = 'EN'
@@ -98,7 +98,7 @@ $adtSession = @{
     AppRebootExitCodes = @(1641, 3010)
     AppProcessesToClose = @()  # Example: @('excel', @{ Name = 'winword'; Description = 'Microsoft Word' })
     AppScriptVersion = '1.0.0'
-    AppScriptDate = '2026-01-02'
+    AppScriptDate = '2026-02-15'
     AppScriptAuthor = 'WinGet Import by Deployment Editor'
     RequireAdmin = $true
 
@@ -148,7 +148,7 @@ function Install-ADTDeployment
     ##================================================
     $adtSession.InstallPhase = $adtSession.DeploymentType
 
-    # Execute installer in silent mode
+    # Running the setup installer
     Start-ADTProcess -ArgumentList "/S" -FilePath "Installer.exe"
 
 
@@ -189,7 +189,6 @@ function Uninstall-ADTDeployment
     ##================================================
     $adtSession.InstallPhase = $adtSession.DeploymentType
 
-    # Execute uninstaller in silent mode
     Start-ADTProcess -ArgumentList "/S" -FilePath "$envProgramFiles\7-Zip\Uninstall.exe"
 
 

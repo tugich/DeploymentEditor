@@ -1,4 +1,4 @@
-<#
+﻿<#
 
 .SYNOPSIS
 PSAppDeployToolkit - This module script contains the PSADT core runtime and functions using by a Invoke-AppDeployToolkit.ps1 script.
@@ -12,7 +12,7 @@ PSAppDeployToolkit is licensed under the GNU LGPLv3 License - © 2025 PSAppDeplo
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the
 Free Software Foundation, either version 3 of the License, or any later version. This program is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License
 for more details. You should have received a copy of the GNU Lesser General Public License along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 .LINK
@@ -1583,7 +1583,7 @@ function Private:Invoke-ADTServiceAndDependencyOperation
             }
             catch
             {
-                & $Script:CommandTable.'Write-ADTLogEntry' -Message "Failed to $($Operation.ToLower()) dependent service [$($dependent.ServiceName)] with display name [$($dependent.DisplayName)] and a status of [$($dependent.Status)]. Continue..." -Severity 2
+                & $Script:CommandTable.'Write-ADTLogEntry' -Message "Failed to $($Operation.ToLowerInvariant()) dependent service [$($dependent.ServiceName)] with display name [$($dependent.DisplayName)] and a status of [$($dependent.Status)]. Continue..." -Severity 2
             }
         }
     }
@@ -1757,7 +1757,7 @@ function Private:Invoke-ADTTerminalServerModeChange
     )
 
     # Change the terminal server mode. An exit code of 1 is considered successful.
-    & $Script:CommandTable.'Write-ADTLogEntry' -Message "$(($msg = "Changing terminal server into user $($Mode.ToLower()) mode"))."
+    & $Script:CommandTable.'Write-ADTLogEntry' -Message "$(($msg = "Changing terminal server into user $($Mode.ToLowerInvariant()) mode"))."
     $terminalServerResult = & "$([System.Environment]::SystemDirectory)\change.exe" User /$Mode 2>&1
     if ($Global:LASTEXITCODE.Equals(1))
     {
@@ -1806,8 +1806,8 @@ function Private:New-ADTEnvironmentTable
     ## Variables: Culture
     $variables.Add('culture', $Host.CurrentCulture)
     $variables.Add('uiculture', $Host.CurrentUICulture)
-    $variables.Add('currentLanguage', $variables.culture.TwoLetterISOLanguageName.ToUpper())
-    $variables.Add('currentUILanguage', $variables.uiculture.TwoLetterISOLanguageName.ToUpper())
+    $variables.Add('currentLanguage', $variables.culture.TwoLetterISOLanguageName.ToUpperInvariant())
+    $variables.Add('currentUILanguage', $variables.uiculture.TwoLetterISOLanguageName.ToUpperInvariant())
 
     ## Variables: Environment Variables
     $variables.Add('envHost', $Host)
@@ -1866,14 +1866,14 @@ function Private:New-ADTEnvironmentTable
     $variables.Add('envMachineADDomain', $null)
     $variables.Add('envLogonServer', $null)
     $variables.Add('MachineDomainController', $null)
-    $variables.Add('envMachineDNSDomain', ([System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().DomainName | & { process { if ($_) { return $_.ToLower() } } } | & $Script:CommandTable.'Select-Object' -First 1))
-    $variables.Add('envUserDNSDomain', ([System.Environment]::GetEnvironmentVariable('USERDNSDOMAIN') | & { process { if ($_) { return $_.ToLower() } } } | & $Script:CommandTable.'Select-Object' -First 1))
-    $variables.Add('envUserDomain', $(if ([System.Environment]::UserDomainName) { [System.Environment]::UserDomainName.ToUpper() }))
-    $variables.Add('envComputerName', $w32cs.DNSHostName.ToUpper())
+    $variables.Add('envMachineDNSDomain', ([System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().DomainName | & { process { if ($_) { return $_.ToLowerInvariant() } } } | & $Script:CommandTable.'Select-Object' -First 1))
+    $variables.Add('envUserDNSDomain', ([System.Environment]::GetEnvironmentVariable('USERDNSDOMAIN') | & { process { if ($_) { return $_.ToLowerInvariant() } } } | & $Script:CommandTable.'Select-Object' -First 1))
+    $variables.Add('envUserDomain', $(if ([System.Environment]::UserDomainName) { [System.Environment]::UserDomainName.ToUpperInvariant() }))
+    $variables.Add('envComputerName', $w32cs.DNSHostName.ToUpperInvariant())
     $variables.Add('envComputerNameFQDN', $variables.envComputerName)
     if ($variables.IsMachinePartOfDomain)
     {
-        $variables.envMachineADDomain = $w32csd.ToLower()
+        $variables.envMachineADDomain = $w32csd.ToLowerInvariant()
         $variables.envComputerNameFQDN = try
         {
             [System.Net.Dns]::GetHostEntry('localhost').HostName
@@ -1910,7 +1910,7 @@ function Private:New-ADTEnvironmentTable
     }
     else
     {
-        $variables.envMachineWorkgroup = $w32csd.ToUpper()
+        $variables.envMachineWorkgroup = $w32csd.ToUpperInvariant()
     }
 
     # Get the OS Architecture.
@@ -2097,8 +2097,8 @@ function Private:New-ADTEnvironmentTable
 
     ## Variables: User profile information.
     $variables.Add('dirUserProfile', [System.IO.Directory]::GetParent($variables.envPublic))
-    $variables.Add('userProfileName', $(if ($variables.RunAsActiveUser) { $variables.RunAsActiveUser.UserName }))
-    $variables.Add('runasUserProfile', $(if ($variables.userProfileName) { & $Script:CommandTable.'Join-Path' -Path $variables.dirUserProfile -ChildPath $variables.userProfileName -Resolve -ErrorAction Ignore }))
+    $variables.Add('runasUserProfile', $(if ($variables.RunAsActiveUser) { [Microsoft.Win32.Registry]::GetValue("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$($variables.RunAsActiveUser.SID)", 'ProfileImagePath', $null) }))
+    $variables.Add('userProfileName', $(if ($variables.runasUserProfile) { $variables.runasUserProfile.Split('\')[-1] }))
 
     ## Variables: Invalid FileName Characters
     $variables.Add('invalidFileNameChars', [System.Collections.Generic.IReadOnlyList[System.Char]][System.Collections.ObjectModel.ReadOnlyCollection[System.Char]][System.IO.Path]::GetInvalidFileNameChars())
@@ -2324,60 +2324,6 @@ function Private:Unblock-ADTAppExecutionInternal
             Write-Verbose -Message "Deleting Scheduled Tasks ['$([System.String]::Join("', '", $Tasks.TaskName))']."
             $Tasks | Unregister-ScheduledTask -Confirm:$false -Verbose:$false
             break
-        }
-    }
-}
-
-
-#-----------------------------------------------------------------------------
-#
-# MARK: Write-ADTLogEntryToOutputStream
-#
-#-----------------------------------------------------------------------------
-
-function Private:Write-ADTLogEntryToOutputStream
-{
-    [CmdletBinding()]
-    param
-    (
-        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
-        [ValidateNotNullOrEmpty()]
-        [System.String]$Message,
-
-        [Parameter(Mandatory = $true)]
-        [ValidateNotNullOrEmpty()]
-        [System.String]$Source,
-
-        [Parameter(Mandatory = $false)]
-        [ValidateNotNullOrEmpty()]
-        [System.ConsoleColor]$ForegroundColor,
-
-        [Parameter(Mandatory = $false)]
-        [ValidateNotNullOrEmpty()]
-        [System.ConsoleColor]$BackgroundColor
-    )
-
-    begin
-    {
-        # Remove parameters that aren't used to generate an InformationRecord object.
-        $null = $PSBoundParameters.Remove('Verbose')
-        $null = $PSBoundParameters.Remove('Source')
-
-        # Establish the base InformationRecord to write out.
-        $infoRecord = [System.Management.Automation.InformationRecord]::new([System.Management.Automation.HostInformationMessage]$PSBoundParameters, $Source)
-    }
-
-    process
-    {
-        # Update the message for piped operations and write out to the InformationStream.
-        $infoRecord.MessageData.Message = $Message
-        if ($VerbosePreference.Equals([System.Management.Automation.ActionPreference]::Continue))
-        {
-            $PSCmdlet.WriteVerbose($infoRecord.MessageData.Message)
-        }
-        else
-        {
-            $PSCmdlet.WriteInformation($infoRecord)
         }
     }
 }
@@ -2635,7 +2581,7 @@ function Block-ADTAppExecution
         4) Modifies the "Image File Execution Options" registry key for the specified process(s) to call `Show-ADTInstallationPrompt` with the appropriate messaging via this module.
         5) When the script is called with those parameters, it will display a custom message to the user to indicate that execution of the application has been blocked while the installation is in progress. The text of this message can be customized in the strings.psd1 file.
 
-    .PARAMETER ProcessName
+    .PARAMETER Processes
         Name of the process or processes separated by commas.
 
     .PARAMETER WindowLocation
@@ -2652,7 +2598,7 @@ function Block-ADTAppExecution
         This function does not generate any output.
 
     .EXAMPLE
-        Block-ADTAppExecution -ProcessName ('winword','excel')
+        Block-ADTAppExecution -Processes ('winword','excel')
 
         This example blocks the execution of Microsoft Word and Excel.
 
@@ -2675,7 +2621,8 @@ function Block-ADTAppExecution
     (
         [Parameter(Mandatory = $true, HelpMessage = 'Specify process names, separated by commas.')]
         [ValidateNotNullOrEmpty()]
-        [System.String[]]$ProcessName,
+        [Alias('ProcessName')]
+        [PSADT.ProcessManagement.ProcessDefinition[]]$Processes,
 
         [Parameter(Mandatory = $false, HelpMessage = 'The location of the dialog on the screen.')]
         [ValidateNotNullOrEmpty()]
@@ -2708,7 +2655,7 @@ function Block-ADTAppExecution
             & $Script:CommandTable.'Write-ADTLogEntry' -Message "Bypassing Function [$($MyInvocation.MyCommand.Name)], because [User: $($adtEnv.ProcessNTAccount)] is not admin."
             return
         }
-        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Preparing to block execution of the following processes: ['$([System.String]::Join("', '", $ProcessName))']."
+        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Preparing to block execution of the following processes: ['$([System.String]::Join("', '", $Processes.Name))']."
 
         try
         {
@@ -2729,7 +2676,7 @@ function Block-ADTAppExecution
                         & $Script:CommandTable.'Write-ADTLogEntry' -Message "There is no active logged on user. Verifying client/server access permissions using [BUILTIN\Users]."
                         $usersSid = [PSADT.AccountManagement.AccountUtilities]::GetWellKnownSid([System.Security.Principal.WellKnownSidType]::BuiltinUsersSid)
                         $usersNtAccount = $usersSid.Translate([System.Security.Principal.NTAccount]); $usersSessionId = [System.UInt32]::MaxValue
-                        & $Script:CommandTable.'Set-ADTClientServerProcessPermissions' -User ([PSADT.Module.RunAsActiveUser]::new($usersNtAccount, $usersSid, $usersSessionId))
+                        & $Script:CommandTable.'Set-ADTClientServerProcessPermissions' -User ([PSADT.Module.RunAsActiveUser]::new($usersNtAccount, $usersSid, $usersSessionId, $false))
                     }
                     else
                     {
@@ -2799,7 +2746,7 @@ function Block-ADTAppExecution
                 }
 
                 # Enumerate each process and set the debugger value to block application execution.
-                foreach ($process in $ProcessName)
+                foreach ($process in $Processes.Name)
                 {
                     & $Script:CommandTable.'Write-ADTLogEntry' -Message "Setting the Image File Execution Option registry key to block execution of [$process]."
                     if ([System.IO.Path]::IsPathRooted($process))
@@ -3868,7 +3815,7 @@ function ConvertTo-ADTNTAccountOrSID
         {
             try
             {
-                [System.Security.Principal.SecurityIdentifier]::new([System.DirectoryServices.DirectoryEntry]::new("$LdapUri$((& $Script:CommandTable.'Get-CimInstance' -ClassName Win32_ComputerSystem).Domain.ToLower())").ObjectSid[0], 0)
+                [System.Security.Principal.SecurityIdentifier]::new([System.DirectoryServices.DirectoryEntry]::new("$LdapUri$((& $Script:CommandTable.'Get-CimInstance' -ClassName Win32_ComputerSystem).Domain.ToLowerInvariant())").ObjectSid[0], 0)
             }
             catch
             {
@@ -4040,7 +3987,15 @@ function Copy-ADTContentToCache
         {
             try
             {
-                & $Script:CommandTable.'Copy-ADTFile' -Path (& $Script:CommandTable.'Join-Path' -Path $scriptDir -ChildPath *) -Destination $LiteralPath -Recurse
+                # Check if source and destination are the same (already running from cache)
+                if ((& $Script:CommandTable.'Resolve-Path' $scriptDir).Path -eq (& $Script:CommandTable.'Resolve-Path' $LiteralPath).Path)
+                {
+                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Source and destination are the same path [$LiteralPath]. Skipping copy operation."
+                }
+                else
+                {
+                    & $Script:CommandTable.'Copy-ADTFile' -Path (& $Script:CommandTable.'Join-Path' -Path $scriptDir -ChildPath *) -Destination $LiteralPath -Recurse
+                }
                 $adtSession.DirFiles = & $Script:CommandTable.'Join-Path' -Path $LiteralPath -ChildPath Files
                 $adtSession.DirSupportFiles = & $Script:CommandTable.'Join-Path' -Path $LiteralPath -ChildPath SupportFiles
             }
@@ -4248,7 +4203,7 @@ function Copy-ADTFile
                 try
                 {
                     # Determine whether the path exists before continuing. This will throw a suitable error for us.
-                    $null = & $Script:CommandTable.'Get-Item' -Path $srcPath
+                    $null = & $Script:CommandTable.'Get-Item' -Path $srcPath -Force
 
                     # Pre-create destination folder if it does not exist; Robocopy will auto-create non-existent destination folders, but pre-creating ensures we can use Resolve-Path.
                     if (!(& $Script:CommandTable.'Test-Path' -LiteralPath $Destination -PathType Container))
@@ -4435,7 +4390,7 @@ function Copy-ADTFile
                     try
                     {
                         # Determine whether the path exists before continuing. This will throw a suitable error for us.
-                        $null = & $Script:CommandTable.'Get-Item' -Path $srcPath
+                        $null = & $Script:CommandTable.'Get-Item' -Path $srcPath -Force
 
                         # If destination has no extension, or if it has an extension only and no name (e.g. a .config folder) and the destination folder does not exist.
                         if ((![System.IO.Path]::HasExtension($Destination) -or ([System.IO.Path]::HasExtension($Destination) -and ![System.IO.Path]::GetFileNameWithoutExtension($Destination))) -and !(& $Script:CommandTable.'Test-Path' -LiteralPath $Destination -PathType Container))
@@ -8387,7 +8342,7 @@ function Get-ADTShortcut
     (
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateScript({
-                if (!(& $Script:CommandTable.'Test-Path' -LiteralPath $_ -PathType Leaf) -or (![System.IO.Path]::GetExtension($_).ToLower().Equals('.lnk') -and ![System.IO.Path]::GetExtension($_).ToLower().Equals('.url')))
+                if (!(& $Script:CommandTable.'Test-Path' -LiteralPath $_ -PathType Leaf) -or (![System.IO.Path]::GetExtension($_).ToLowerInvariant().Equals('.lnk') -and ![System.IO.Path]::GetExtension($_).ToLowerInvariant().Equals('.url')))
                 {
                     $PSCmdlet.ThrowTerminatingError((& $Script:CommandTable.'New-ADTValidateScriptErrorRecord' -ParameterName Path -ProvidedValue $_ -ExceptionMessage 'The specified path does not exist or does not have the correct extension.'))
                 }
@@ -8692,6 +8647,7 @@ function Get-ADTUserNotificationState
     #>
 
     [CmdletBinding()]
+    [OutputType([PSADT.LibraryInterfaces.QUERY_USER_NOTIFICATION_STATE])]
     param
     (
     )
@@ -8716,7 +8672,7 @@ function Get-ADTUserNotificationState
             try
             {
                 & $Script:CommandTable.'Write-ADTLogEntry' -Message "Detected user notification state [$(($UserNotificationState = & $Script:CommandTable.'Invoke-ADTClientServerOperation' -GetUserNotificationState -User $runAsActiveUser))]."
-                return $UserNotificationState
+                return [PSADT.LibraryInterfaces.QUERY_USER_NOTIFICATION_STATE]$UserNotificationState
             }
             catch
             {
@@ -9380,7 +9336,7 @@ function Initialize-ADTModule
                     {
                         [System.String[]]$Script:ADT.Directories.$_ = foreach ($directory in $Script:ADT.Directories.Script)
                         {
-                            if (& $Script:CommandTable.'Test-Path' -LiteralPath (& $Script:CommandTable.'Join-Path' -Path $directory -ChildPath "$_\$($_.ToLower()).psd1") -PathType Leaf)
+                            if (& $Script:CommandTable.'Test-Path' -LiteralPath (& $Script:CommandTable.'Join-Path' -Path $directory -ChildPath "$_\$($_.ToLowerInvariant()).psd1") -PathType Leaf)
                             {
                                 (& $Script:CommandTable.'Join-Path' -Path $directory -ChildPath $_).Trim()
                             }
@@ -9775,24 +9731,24 @@ function Invoke-ADTAllUsersRegistryAction
 
     .EXAMPLE
         Invoke-ADTAllUsersRegistryAction -ScriptBlock {
-            Set-ADTRegistryKey -SID $_.SID -Key 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'qmenable' -Value 0 -Type DWord
-            Set-ADTRegistryKey -SID $_.SID -Key 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'updatereliabilitydata' -Value 1 -Type DWord
+            Set-ADTRegistryKey -SID $_.SID -LiteralPath 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'qmenable' -Value 0 -Type DWord
+            Set-ADTRegistryKey -SID $_.SID -LiteralPath 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'updatereliabilitydata' -Value 1 -Type DWord
         }
 
         Example demonstrating the setting of two values within each user's HKEY_CURRENT_USER hive.
 
     .EXAMPLE
         Invoke-ADTAllUsersRegistryAction {
-            Set-ADTRegistryKey -SID $_.SID -Key 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'qmenable' -Value 0 -Type DWord
-            Set-ADTRegistryKey -SID $_.SID -Key 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'updatereliabilitydata' -Value 1 -Type DWord
+            Set-ADTRegistryKey -SID $_.SID -LiteralPath 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'qmenable' -Value 0 -Type DWord
+            Set-ADTRegistryKey -SID $_.SID -LiteralPath 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'updatereliabilitydata' -Value 1 -Type DWord
         }
 
         As the previous example, but showing how to use ScriptBlock as a positional parameter with no name specified.
 
     .EXAMPLE
         Invoke-ADTAllUsersRegistryAction -UserProfiles (Get-ADTUserProfiles -ExcludeDefaultUser) -ScriptBlock {
-            Set-ADTRegistryKey -SID $_.SID -Key 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'qmenable' -Value 0 -Type DWord
-            Set-ADTRegistryKey -SID $_.SID -Key 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'updatereliabilitydata' -Value 1 -Type DWord
+            Set-ADTRegistryKey -SID $_.SID -LiteralPath 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'qmenable' -Value 0 -Type DWord
+            Set-ADTRegistryKey -SID $_.SID -LiteralPath 'HKCU\Software\Microsoft\Office\14.0\Common' -Name 'updatereliabilitydata' -Value 1 -Type DWord
         }
 
         As the previous example, but sending specific user profiles through to exclude the Default profile.
@@ -9878,7 +9834,7 @@ function Invoke-ADTAllUsersRegistryAction
                                 $naerParams = @{
                                     Exception = [System.IO.FileNotFoundException]::new("Failed to find the registry hive file [$($regHive.Path)] for User [$($UserProfile.NTAccount)] with SID [$($UserProfile.SID)]. Continue...")
                                     Category = [System.Management.Automation.ErrorCategory]::ObjectNotFound
-                                    ErrorId = "$([System.IO.Path]::GetFileNameWithoutExtension($regHive.Path).ToUpper())RegistryHiveFileNotFound"
+                                    ErrorId = "$([System.IO.Path]::GetFileNameWithoutExtension($regHive.Path).ToUpperInvariant())RegistryHiveFileNotFound"
                                     TargetObject = $regHive.Path
                                     RecommendedAction = "Please confirm the state of this user profile and try again."
                                 }
@@ -10539,7 +10495,7 @@ function Invoke-ADTRegSvr32
     {
         # Define parameters to pass to regsrv32.exe.
         & $Script:CommandTable.'Initialize-ADTFunction' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState
-        $ActionParameters = switch ($Action = $Host.CurrentCulture.TextInfo.ToTitleCase($Action.ToLower()))
+        $ActionParameters = switch ($Action = $Host.CurrentCulture.TextInfo.ToTitleCase($Action.ToLowerInvariant()))
         {
             Register
             {
@@ -10565,7 +10521,7 @@ function Invoke-ADTRegSvr32
                 if ((($DLLFileBitness = & $Script:CommandTable.'Get-ADTPEFileArchitecture' -FilePath $FilePath) -ne [PSADT.LibraryInterfaces.IMAGE_FILE_MACHINE]::IMAGE_FILE_MACHINE_AMD64) -and ($DLLFileBitness -ne [PSADT.LibraryInterfaces.IMAGE_FILE_MACHINE]::IMAGE_FILE_MACHINE_I386))
                 {
                     $naerParams = @{
-                        Exception = [System.PlatformNotSupportedException]::new("File [$filePath] has a detected file architecture of [$DLLFileBitness]. Only 32-bit or 64-bit DLL files can be $($Action.ToLower() + 'ed').")
+                        Exception = [System.PlatformNotSupportedException]::new("File [$filePath] has a detected file architecture of [$DLLFileBitness]. Only 32-bit or 64-bit DLL files can be $($Action.ToLowerInvariant() + 'ed').")
                         Category = [System.Management.Automation.ErrorCategory]::InvalidOperation
                         ErrorId = 'DllFileArchitectureError'
                         TargetObject = $FilePath
@@ -10600,7 +10556,7 @@ function Invoke-ADTRegSvr32
                 else
                 {
                     $naerParams = @{
-                        Exception = [System.PlatformNotSupportedException]::new("File [$filePath] cannot be $($Action.ToLower()) because it is a 64-bit file on a 32-bit operating system.")
+                        Exception = [System.PlatformNotSupportedException]::new("File [$filePath] cannot be $($Action.ToLowerInvariant()) because it is a 64-bit file on a 32-bit operating system.")
                         Category = [System.Management.Automation.ErrorCategory]::InvalidOperation
                         ErrorId = 'DllFileArchitectureError'
                         TargetObject = $FilePath
@@ -10643,7 +10599,7 @@ function Invoke-ADTRegSvr32
         }
         catch
         {
-            & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorRecord $_ -LogMessage "Failed to $($Action.ToLower()) DLL file."
+            & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorRecord $_ -LogMessage "Failed to $($Action.ToLowerInvariant()) DLL file."
         }
     }
 
@@ -11546,7 +11502,7 @@ function New-ADTShortcut
     (
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateScript({
-                if (![System.IO.Path]::GetExtension($_).ToLower().Equals('.lnk') -and ![System.IO.Path]::GetExtension($_).ToLower().Equals('.url'))
+                if (![System.IO.Path]::GetExtension($_).ToLowerInvariant().Equals('.lnk') -and ![System.IO.Path]::GetExtension($_).ToLowerInvariant().Equals('.url'))
                 {
                     $PSCmdlet.ThrowTerminatingError((& $Script:CommandTable.'New-ADTValidateScriptErrorRecord' -ParameterName Path -ProvidedValue $_ -ExceptionMessage 'The specified path does not have the correct extension.'))
                 }
@@ -17076,7 +17032,7 @@ function Set-ADTShortcut
     (
         [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, Position = 0)]
         [ValidateScript({
-                if (!(& $Script:CommandTable.'Test-Path' -LiteralPath $_ -PathType Leaf) -or (![System.IO.Path]::GetExtension($_).ToLower().Equals('.lnk') -and ![System.IO.Path]::GetExtension($_).ToLower().Equals('.url')))
+                if (!(& $Script:CommandTable.'Test-Path' -LiteralPath $_ -PathType Leaf) -or (![System.IO.Path]::GetExtension($_).ToLowerInvariant().Equals('.lnk') -and ![System.IO.Path]::GetExtension($_).ToLowerInvariant().Equals('.url')))
                 {
                     $PSCmdlet.ThrowTerminatingError((& $Script:CommandTable.'New-ADTValidateScriptErrorRecord' -ParameterName Path -ProvidedValue $_ -ExceptionMessage 'The specified path does not exist or does not have the correct extension.'))
                 }
@@ -19364,34 +19320,34 @@ function Show-ADTInstallationWelcome
         [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed only if the processes to close are open, with a close processes countdown irrespective of whether the user can defer or not, and a free disk space check.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
         [System.Management.Automation.SwitchParameter]$NotTopMost,
 
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with no modifying options.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, and with a free disk space check.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, and with processes to close.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, and a free disk space check.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, and with deferral allowed.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with deferral allowed, and a free disk space check.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with deferral allowed, and with a continue countdown irrespective of deferrals.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with deferral allowed, with a continue countdown irrespective of deferrals, and a free disk space check.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, and with a close processes countdown if the user has no available deferrals.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with a close processes countdown if the user has no available deferrals, and a free disk space check.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, and with a close processes countdown irrespective of whether the user can defer or not.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with a close processes countdown irrespective of whether the user can defer or not, and a free disk space check.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, and with deferral allowed irrespective of whether processes to close are open.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed irrespective of whether processes to close are open, and a free disk space check.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed irrespective of whether processes to close are open, and with a continue/defer countdown depending on whether processes to close are open or not.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed irrespective of whether processes to close are open, with a continue/defer countdown depending on whether processes to close are open or not, and a free disk space check.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed irrespective of whether processes to close are open, and with a close processes countdown if the user has no available deferrals.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed irrespective of whether processes to close are open, with a close processes countdown if the user has no available deferrals, and a free disk space check.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed irrespective of whether processes to close are open, and with a close processes countdown irrespective of whether the user can defer or not.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed irrespective of whether processes to close are open, with a close processes countdown irrespective of whether the user can defer or not, and a free disk space check.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, and with deferral allowed only if the processes to close are open.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed only if the processes to close are open, and a free disk space check.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed only if the processes to close are open, and with a continue/defer countdown depending on whether processes to close are open or not.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed only if the processes to close are open, with a continue/defer countdown depending on whether processes to close are open or not, and a free disk space check.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed only if the processes to close are open, and with a close processes countdown if the user has no available deferrals.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed only if the processes to close are open, with a close processes countdown if the user has no available deferrals, and a free disk space check.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed only if the processes to close are open, and with a close processes countdown irrespective of whether the user can defer or not.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
-        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed only if the processes to close are open, with a close processes countdown irrespective of whether the user can defer or not, and a free disk space check.', HelpMessage = "Specifies whether the window shouldn't be on top of other windows.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with no modifying options.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, and with a free disk space check.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, and with processes to close.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, and a free disk space check.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, and with deferral allowed.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with deferral allowed, and a free disk space check.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with deferral allowed, and with a continue countdown irrespective of deferrals.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with deferral allowed, with a continue countdown irrespective of deferrals, and a free disk space check.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, and with a close processes countdown if the user has no available deferrals.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with a close processes countdown if the user has no available deferrals, and a free disk space check.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, and with a close processes countdown irrespective of whether the user can defer or not.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with a close processes countdown irrespective of whether the user can defer or not, and a free disk space check.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, and with deferral allowed irrespective of whether processes to close are open.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed irrespective of whether processes to close are open, and a free disk space check.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed irrespective of whether processes to close are open, and with a continue/defer countdown depending on whether processes to close are open or not.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed irrespective of whether processes to close are open, with a continue/defer countdown depending on whether processes to close are open or not, and a free disk space check.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed irrespective of whether processes to close are open, and with a close processes countdown if the user has no available deferrals.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed irrespective of whether processes to close are open, with a close processes countdown if the user has no available deferrals, and a free disk space check.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed irrespective of whether processes to close are open, and with a close processes countdown irrespective of whether the user can defer or not.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed irrespective of whether processes to close are open, with a close processes countdown irrespective of whether the user can defer or not, and a free disk space check.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, and with deferral allowed only if the processes to close are open.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed only if the processes to close are open, and a free disk space check.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed only if the processes to close are open, and with a continue/defer countdown depending on whether processes to close are open or not.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed only if the processes to close are open, with a continue/defer countdown depending on whether processes to close are open or not, and a free disk space check.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed only if the processes to close are open, and with a close processes countdown if the user has no available deferrals.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed only if the processes to close are open, with a close processes countdown if the user has no available deferrals, and a free disk space check.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed only if the processes to close are open, and with a close processes countdown irrespective of whether the user can defer or not.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with processes to close, with deferral allowed only if the processes to close are open, with a close processes countdown irrespective of whether the user can defer or not, and a free disk space check.', HelpMessage = "Specifies that the user is allowed to move the dialog on the screen.")]
         [System.Management.Automation.SwitchParameter]$AllowMove,
 
         [Parameter(Mandatory = $false, ParameterSetName = 'Interactive, with no modifying options.', HelpMessage = 'Specify whether to display a custom message specified in the [strings.psd1] file. Custom message must be populated for each language section in the [strings.psd1] file.')]
@@ -19599,6 +19555,38 @@ function Show-ADTInstallationWelcome
             if ($sadhParams.Count)
             {
                 & $Script:CommandTable.'Set-ADTDeferHistory' @sadhParams
+            }
+        }
+
+        # Internal worker to get running processes, factoring in whether we're running as SYSTEM and the user can see the process or not.
+        function Get-ADTRunningProcessesUserCanClose
+        {
+            param
+            (
+                [System.Management.Automation.ActionPreference]$InformationAction
+            )
+
+            # Return early if there's no processes to close.
+            if (!$CloseProcesses -or !($runningApps = & $Script:CommandTable.'Get-ADTRunningProcesses' -ProcessObjects $CloseProcesses @PSBoundParameters))
+            {
+                return
+            }
+
+            # If we're not running as SYSTEM, return the process list.
+            if (![PSADT.AccountManagement.AccountUtilities]::CallerIsLocalSystem -or $runAsActiveUser.IsLocalAdmin)
+            {
+                return $runningApps
+            }
+
+            # Filter the running apps list based on the process's username.
+            return $runningApps | & {
+                process
+                {
+                    if ($_.Username -eq $runAsActiveUser.NTAccount)
+                    {
+                        return $_
+                    }
+                }
             }
         }
     }
@@ -19828,7 +19816,8 @@ function Show-ADTInstallationWelcome
                     $dialogOptions = [PSADT.UserInterface.DialogOptions.CloseAppsDialogOptions]::new($DeploymentType, $dialogOptions)
 
                     # Spin until apps are closed, countdown elapses, or deferrals are exhausted.
-                    while (($runningApps = if ($CloseProcesses) { & $Script:CommandTable.'Get-ADTRunningProcesses' -ProcessObjects $CloseProcesses }) -or (($promptResult -ne 'Defer') -and ($promptResult -ne 'Close')))
+                    $sessionClosed = $false
+                    while (($runningApps = Get-ADTRunningProcessesUserCanClose) -or (($promptResult -ne 'Defer') -and ($promptResult -ne 'Close')))
                     {
                         # Check if we need to prompt the user to defer, to defer and close apps, or not to prompt them at all
                         if ($AllowDefer)
@@ -19850,7 +19839,7 @@ function Show-ADTInstallationWelcome
                                         if ($deferRunIntervalNextTime -gt [System.TimeSpan]::Zero)
                                         {
                                             & $Script:CommandTable.'Write-ADTLogEntry' -Message "Next run interval not due until [$(($currentDateTimeLocal + $deferRunIntervalNextTime).ToString('O'))], exiting gracefully."
-                                            & $Script:CommandTable.'Close-ADTSession' -ExitCode $adtConfig.UI.DefaultExitCode
+                                            $sessionClosed = $true; & $Script:CommandTable.'Close-ADTSession' -ExitCode $adtConfig.UI.DefaultExitCode
                                         }
                                     }
                                 }
@@ -19872,13 +19861,13 @@ function Show-ADTInstallationWelcome
                         if ($promptResult.Equals([PSADT.UserInterface.DialogResults.CloseAppsDialogResult]::Continue))
                         {
                             # If the user has clicked OK, wait a few seconds for the process to terminate before evaluating the running processes again.
-                            if (!$AllowDeferCloseProcesses -and !($runningApps = if ($CloseProcesses) { & $Script:CommandTable.'Get-ADTRunningProcesses' -ProcessObjects $CloseProcesses -InformationAction Ignore }))
+                            if (!$AllowDeferCloseProcesses -and !($runningApps = Get-ADTRunningProcessesUserCanClose -InformationAction Ignore))
                             {
                                 & $Script:CommandTable.'Write-ADTLogEntry' -Message 'The user selected to continue...'
                             }
                             for ($i = 0; $i -lt 5; $i++)
                             {
-                                if (($runningApps = if ($CloseProcesses) { & $Script:CommandTable.'Get-ADTRunningProcesses' -ProcessObjects $CloseProcesses -InformationAction Ignore }))
+                                if (($runningApps = Get-ADTRunningProcessesUserCanClose -InformationAction Ignore))
                                 {
                                     & $Script:CommandTable.'Write-ADTLogEntry' -Message "The application(s) ['$([System.String]::Join("', '", ($runningApps.Description | & $Script:CommandTable.'Sort-Object' -Unique)))'] are still running, checking again in 1 second..."
                                     [System.Threading.Thread]::Sleep(1000)
@@ -19899,7 +19888,7 @@ function Show-ADTInstallationWelcome
                         {
                             # Force the applications to close. Update the process list right before closing, in case it changed.
                             & $Script:CommandTable.'Write-ADTLogEntry' -Message 'The user selected to close the application(s)...'
-                            if (($runningApps = if ($CloseProcesses) { & $Script:CommandTable.'Get-ADTRunningProcesses' -ProcessObjects $CloseProcesses -InformationAction Ignore }))
+                            if (($runningApps = Get-ADTRunningProcessesUserCanClose -InformationAction Ignore))
                             {
                                 if (!$PromptToSave)
                                 {
@@ -19919,7 +19908,7 @@ function Show-ADTInstallationWelcome
                                 # Test whether apps are still running. If they are still running, the Welcome Window will be displayed again after 5 seconds.
                                 for ($i = 0; $i -lt 5; $i++)
                                 {
-                                    if (($runningApps = if ($CloseProcesses) { & $Script:CommandTable.'Get-ADTRunningProcesses' -ProcessObjects $CloseProcesses -InformationAction Ignore }))
+                                    if (($runningApps = Get-ADTRunningProcessesUserCanClose -InformationAction Ignore))
                                     {
                                         & $Script:CommandTable.'Write-ADTLogEntry' -Message "The application(s) ['$([System.String]::Join("', '", ($runningApps.Description | & $Script:CommandTable.'Sort-Object' -Unique)))'] are still running, checking again in 1 second..."
                                         [System.Threading.Thread]::Sleep(1000)
@@ -19955,12 +19944,9 @@ function Show-ADTInstallationWelcome
                             if ($adtSession)
                             {
                                 Update-ADTDeferHistory
-                                & $Script:CommandTable.'Close-ADTSession' -ExitCode $adtConfig.UI.DefaultExitCode
+                                $sessionClosed = $true; & $Script:CommandTable.'Close-ADTSession' -ExitCode $adtConfig.UI.DefaultExitCode
                             }
-                            else
-                            {
-                                return
-                            }
+                            return
                         }
                         elseif ($promptResult.Equals([PSADT.UserInterface.DialogResults.CloseAppsDialogResult]::Defer))
                         {
@@ -19978,12 +19964,9 @@ function Show-ADTInstallationWelcome
                             if ($adtSession)
                             {
                                 Update-ADTDeferHistory
-                                & $Script:CommandTable.'Close-ADTSession' -ExitCode $adtConfig.UI.DeferExitCode
+                                $sessionClosed = $true; & $Script:CommandTable.'Close-ADTSession' -ExitCode $adtConfig.UI.DeferExitCode
                             }
-                            else
-                            {
-                                return
-                            }
+                            return
                         }
                         elseif (!$promptResult.Equals('TerminatedTryAgain'))
                         {
@@ -19998,6 +19981,21 @@ function Show-ADTInstallationWelcome
                             throw (& $Script:CommandTable.'New-ADTErrorRecord' @naerParams)
                         }
                     }
+
+                    # Break if the session has closed as Close-ADTSession won't be able to break out of the above while loop.
+                    if ($sessionClosed)
+                    {
+                        break
+                    }
+
+                    # Close any remaining processes that are open that the user couldn't close.
+                    if (($runningApps = if ($CloseProcesses) { & $Script:CommandTable.'Get-ADTRunningProcesses' -ProcessObjects $CloseProcesses }))
+                    {
+                        # Force the processes to close silently, without prompting the user.
+                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Force closing application(s) ['$([System.String]::Join("', '", $runningApps.Description))'] that the user had no permissions to close."
+                        & $Script:CommandTable.'Stop-Process' -InputObject $runningApps.Process -Force -ErrorAction Ignore
+                        [System.Threading.Thread]::Sleep(2000)
+                    }
                 }
                 elseif (($runningApps = if ($CloseProcesses) { & $Script:CommandTable.'Get-ADTRunningProcesses' -ProcessObjects $CloseProcesses }))
                 {
@@ -20010,7 +20008,7 @@ function Show-ADTInstallationWelcome
                 # If block execution switch is true, call the function to block execution of these processes.
                 if ($adtSession -and $BlockExecution -and $CloseProcesses)
                 {
-                    $baaeParams = @{ ProcessName = $CloseProcesses.Name }
+                    $baaeParams = @{ Processes = $CloseProcesses }
                     if ($PSBoundParameters.ContainsKey('WindowLocation'))
                     {
                         $baaeParams.Add('WindowLocation', $WindowLocation)
@@ -20069,7 +20067,7 @@ function Start-ADTMsiProcess
         Specifies the action to be performed. Available options: Install, Uninstall, Patch, Repair, ActiveSetup.
 
     .PARAMETER FilePath
-        The file path to the MSI/MSP file.
+        The file path to the MSI/MSP file. If the specified FilePath is just a file name, the function will look within `$adtSession.DirFiles` for the specified file, so long as a session is active.
 
     .PARAMETER ProductCode
         The product code of the installed MSI.
@@ -20187,6 +20185,11 @@ function Start-ADTMsiProcess
         $ExecuteMSIResult = Start-ADTMsiProcess -Action 'Install' -FilePath 'Adobe_FlashPlayer_11.2.202.233_x64_EN.msi' -PassThru
 
         Install an MSI and stores the result of the execution into a variable by using the -PassThru option.
+
+    .EXAMPLE
+        $ExecuteMSIResult = Start-ADTMsiProcess -Action 'Install' -FilePath 'Adobe_FlashPlayer_11.2.202.233_x64_EN.msi' -AdditionalArgumentList 'ALLUSERS=1', 'SOMEPROPERTY=TRUE' -PassThru
+
+        Install an MSI and stores the result of the execution into a variable by using the -PassThru option, specifically taking advantage of our `-AdditionalArgumentList` array support to avoid escaped quote issues.
 
     .EXAMPLE
         Start-ADTMsiProcess -Action 'Uninstall' -ProductCode '{26923b43-4d38-484f-9b9e-de460746276c}'
@@ -20524,9 +20527,13 @@ function Start-ADTMsiProcess
                     $gmtpParams = @{ Path = $msiProduct; Table = 'Property' }; if ($Transforms) { $gmtpParams.Add('TransformPath', $Transforms) }
                     & $Script:CommandTable.'Get-ADTMsiTableProperty' @gmtpParams
                 }
+                $msiPatchData = if ([System.IO.Path]::GetExtension($msiProduct) -eq '.msp')
+                {
+                    [PSADT.Utilities.MsiUtilities]::ExtractPatchXmlData($msiProduct).MsiPatch.TargetProduct
+                }
 
                 # Get the ProductCode of the MSI.
-                $msiProductCode = if ($ProductCode)
+                [System.Guid[]]$msiProductCode = if ($ProductCode)
                 {
                     $ProductCode
                 }
@@ -20537,6 +20544,10 @@ function Start-ADTMsiProcess
                 elseif ($msiPropertyTable)
                 {
                     $msiPropertyTable.ProductCode
+                }
+                elseif ($msiPatchData)
+                {
+                    $msiPatchData.TargetProductCode.'#text'
                 }
 
                 # Check if the MSI is already installed. If no valid ProductCode to check or SkipMSIAlreadyInstalledCheck supplied, then continue with requested MSI action.
@@ -20562,7 +20573,7 @@ function Start-ADTMsiProcess
                 elseif (!$msiInstalled -and ($Action -ne 'Install'))
                 {
                     & $Script:CommandTable.'Write-ADTLogEntry' -Message "The MSI is not installed on this system. Skipping action [$Action]..."
-                    return
+                    return $(if ($PassThru) { [PSADT.ProcessManagement.ProcessResult]::new(1605) })
                 }
 
                 # Set up the log file to use.
@@ -20572,11 +20583,39 @@ function Start-ADTMsiProcess
                 }
                 elseif ($InstalledApplication)
                 {
-                    (& $Script:CommandTable.'Remove-ADTInvalidFileNameChars' -Name ($InstalledApplication.DisplayName + '_' + $InstalledApplication.DisplayVersion)) -replace '\s+'
+                    if ($msiPatchData)
+                    {
+                        if ($msiPatchData.ChildNodes.LocalName.Contains('UpdatedVersion'))
+                        {
+                            (& $Script:CommandTable.'Remove-ADTInvalidFileNameChars' -Name ($InstalledApplication.DisplayName + '_' + ($msiPatchData.UpdatedVersion | & $Script:CommandTable.'Select-Object' -First 1))) -replace '\s+'
+                        }
+                        else
+                        {
+                            (& $Script:CommandTable.'Remove-ADTInvalidFileNameChars' -Name $InstalledApplication.DisplayName) -replace '\s+'
+                        }
+                    }
+                    else
+                    {
+                        if (![System.String]::IsNullOrWhiteSpace($InstalledApplication.DisplayVersion))
+                        {
+                            (& $Script:CommandTable.'Remove-ADTInvalidFileNameChars' -Name ($InstalledApplication.DisplayName + '_' + $InstalledApplication.DisplayVersion)) -replace '\s+'
+                        }
+                        else
+                        {
+                            (& $Script:CommandTable.'Remove-ADTInvalidFileNameChars' -Name $InstalledApplication.DisplayName) -replace '\s+'
+                        }
+                    }
                 }
                 elseif ($msiPropertyTable)
                 {
-                    (& $Script:CommandTable.'Remove-ADTInvalidFileNameChars' -Name ($msiPropertyTable.ProductName + '_' + $msiPropertyTable.ProductVersion)) -replace '\s+'
+                    if ($msiPropertyTable.ContainsKey('ProductVersion'))
+                    {
+                        (& $Script:CommandTable.'Remove-ADTInvalidFileNameChars' -Name ($msiPropertyTable.ProductName + '_' + $msiPropertyTable.ProductVersion)) -replace '\s+'
+                    }
+                    else
+                    {
+                        (& $Script:CommandTable.'Remove-ADTInvalidFileNameChars' -Name $msiPropertyTable.ProductName) -replace '\s+'
+                    }
                 }
 
                 # Build the log path to use.
@@ -20729,7 +20768,7 @@ function Start-ADTMsiProcess
                         $msiArgs.AddRange($ArgumentList)
                     }
                 }
-                else
+                elseif (![System.String]::IsNullOrWhiteSpace($msiDefaultParams))
                 {
                     $msiArgs.AddRange([PSADT.ProcessManagement.CommandLineUtilities]::CommandLineToArgumentList($msiDefaultParams))
                 }
@@ -20811,7 +20850,7 @@ function Start-ADTMsiProcess
                 }
 
                 # Return the results if passing through.
-                if ($PassThru -and $result)
+                if ($result -and $PassThru)
                 {
                     return $result
                 }
@@ -21172,7 +21211,10 @@ function Start-ADTMsiProcessAsUser
         # Just farm it out to Start-ADTMsiProcess as it can do it all.
         try
         {
-            return & $Script:CommandTable.'Start-ADTMsiProcess' @PSBoundParameters
+            if (($result = & $Script:CommandTable.'Start-ADTMsiProcess' @PSBoundParameters) -and $PassThru)
+            {
+                return $result
+            }
         }
         catch
         {
@@ -21210,6 +21252,9 @@ function Start-ADTMspProcess
     .PARAMETER AdditionalArgumentList
         Additional parameters.
 
+    .PARAMETER SecureArgumentList
+        Hides all parameters passed to the MSI or MSP file from the toolkit log file.
+
     .PARAMETER RunAsActiveUser
         A RunAsActiveUser object to invoke the process as.
 
@@ -21230,6 +21275,38 @@ function Start-ADTMspProcess
 
     .PARAMETER ExpandEnvironmentVariables
         Specifies whether to expand any Windows/DOS-style environment variables in the specified FilePath/ArgumentList.
+
+    .PARAMETER LoggingOptions
+        Overrides the default logging options specified in the config.psd1 file.
+
+    .PARAMETER LogFileName
+        Overrides the default log file name. The default log file name is generated from the MSI file name. If LogFileName does not end in .log, it will be automatically appended.
+
+        For uninstallations, by default the product code is resolved to the DisplayName and version of the application.
+
+    .PARAMETER SuccessExitCodes
+        List of exit codes to be considered successful. Defaults to values set during ADTSession initialization, otherwise: 0
+
+    .PARAMETER RebootExitCodes
+        List of exit codes to indicate a reboot is required. Defaults to values set during ADTSession initialization, otherwise: 1641, 3010
+
+    .PARAMETER IgnoreExitCodes
+        List the exit codes to ignore or * to ignore all exit codes.
+
+    .PARAMETER PriorityClass
+        Specifies priority class for the process. Options: Idle, Normal, High, AboveNormal, BelowNormal, RealTime.
+
+    .PARAMETER ExitOnProcessFailure
+        Automatically closes the active deployment session via Close-ADTSession in the event the process exits with a non-success or non-ignored exit code.
+
+    .PARAMETER NoDesktopRefresh
+        If specifies, doesn't refresh the desktop and environment after successful MSI installation.
+
+    .PARAMETER NoWait
+        Immediately continue after executing the process.
+
+    .PARAMETER PassThru
+        Returns ExitCode, StdOut, and StdErr output from the process. Note that a failed execution will only return an object if either `-ErrorAction` is set to `SilentlyContinue`/`Ignore`, or if `-IgnoreExitCodes`/`-SuccessExitCodes` are used.
 
     .INPUTS
         None
@@ -21281,6 +21358,9 @@ function Start-ADTMspProcess
         [ValidateNotNullOrEmpty()]
         [System.String[]]$AdditionalArgumentList,
 
+        [Parameter(Mandatory = $false)]
+        [System.Management.Automation.SwitchParameter]$SecureArgumentList,
+
         [Parameter(Mandatory = $true, ParameterSetName = 'RunAsActiveUser')]
         [ValidateNotNullOrEmpty()]
         [PSADT.Module.RunAsActiveUser]$RunAsActiveUser,
@@ -21301,70 +21381,69 @@ function Start-ADTMspProcess
         [System.Management.Automation.SwitchParameter]$UseUnelevatedToken,
 
         [Parameter(Mandatory = $false)]
-        [System.Management.Automation.SwitchParameter]$ExpandEnvironmentVariables
+        [System.Management.Automation.SwitchParameter]$ExpandEnvironmentVariables,
+
+        [Parameter(Mandatory = $false)]
+        [ValidateNotNullOrEmpty()]
+        [System.String]$LoggingOptions = [System.Management.Automation.Language.NullString]::Value,
+
+        [Parameter(Mandatory = $false)]
+        [ValidateScript({
+                if ([System.String]::IsNullOrWhiteSpace($_))
+                {
+                    $PSCmdlet.ThrowTerminatingError((& $Script:CommandTable.'New-ADTValidateScriptErrorRecord' -ParameterName LogFileName -ProvidedValue $_ -ExceptionMessage 'The specified input is null or white space.'))
+                }
+                return $true
+            })]
+        [System.String]$LogFileName = [System.Management.Automation.Language.NullString]::Value,
+
+        [Parameter(Mandatory = $false)]
+        [ValidateNotNullOrEmpty()]
+        [System.Int32[]]$SuccessExitCodes,
+
+        [Parameter(Mandatory = $false)]
+        [ValidateNotNullOrEmpty()]
+        [System.Int32[]]$RebootExitCodes,
+
+        [Parameter(Mandatory = $false)]
+        [ValidateNotNullOrEmpty()]
+        [System.String[]]$IgnoreExitCodes,
+
+        [Parameter(Mandatory = $false)]
+        [ValidateNotNullOrEmpty()]
+        [System.Diagnostics.ProcessPriorityClass]$PriorityClass,
+
+        [Parameter(Mandatory = $false)]
+        [System.Management.Automation.SwitchParameter]$ExitOnProcessFailure,
+
+        [Parameter(Mandatory = $false)]
+        [System.Management.Automation.SwitchParameter]$NoDesktopRefresh,
+
+        [Parameter(Mandatory = $false)]
+        [System.Management.Automation.SwitchParameter]$NoWait,
+
+        [Parameter(Mandatory = $false)]
+        [System.Management.Automation.SwitchParameter]$PassThru
     )
 
     begin
     {
-        $adtSession = & $Script:CommandTable.'Initialize-ADTModuleIfUnitialized' -Cmdlet $PSCmdlet
         & $Script:CommandTable.'Initialize-ADTFunction' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState
     }
 
     process
     {
+        # Just proxy this through to `Start-ADTMsiProcess` as it does everything.
         try
         {
-            try
+            if (($result = & $Script:CommandTable.'Start-ADTMsiProcess' -Action Patch @PSBoundParameters) -and $PassThru)
             {
-                # If the MSP is in the Files directory, set the full path to the MSP.
-                $mspFile = if ($adtSession -and ![System.String]::IsNullOrWhiteSpace($adtSession.DirFiles) -and (& $Script:CommandTable.'Test-Path' -LiteralPath ($dirFilesPath = (& $Script:CommandTable.'Join-Path' -Path $adtSession.DirFiles -ChildPath $FilePath).Trim()) -PathType Leaf))
-                {
-                    $dirFilesPath
-                }
-                elseif (& $Script:CommandTable.'Test-Path' -LiteralPath $FilePath)
-                {
-                    (& $Script:CommandTable.'Get-Item' -LiteralPath $FilePath).FullName
-                }
-                else
-                {
-                    $naerParams = @{
-                        Exception = [System.IO.FileNotFoundException]::new("Failed to find MSP file [$FilePath].")
-                        Category = [System.Management.Automation.ErrorCategory]::ObjectNotFound
-                        ErrorId = 'MspFileNotFound'
-                        TargetObject = $FilePath
-                        RecommendedAction = "Please confirm the path of the MSP file and try again."
-                    }
-                    throw (& $Script:CommandTable.'New-ADTErrorRecord' @naerParams)
-                }
-
-                # Create a Windows Installer object and open the database in read-only mode.
-                & $Script:CommandTable.'Write-ADTLogEntry' -Message 'Checking MSP file for valid product codes.'
-                [__ComObject]$Installer = & $Script:CommandTable.'New-Object' -ComObject WindowsInstaller.Installer
-                [__ComObject]$Database = & $Script:CommandTable.'Invoke-ADTObjectMethod' -InputObject $Installer -MethodName OpenDatabase -ArgumentList @($mspFile, 32)
-
-                # Get the SummaryInformation from the Windows Installer database and store all product codes found.
-                [__ComObject]$SummaryInformation = & $Script:CommandTable.'Get-ADTObjectProperty' -InputObject $Database -PropertyName SummaryInformation
-                $AllTargetedProductCodes = & $Script:CommandTable.'Get-ADTApplication' -ProductCode (& $Script:CommandTable.'Get-ADTObjectProperty' -InputObject $SummaryInformation -PropertyName Property -ArgumentList @(7)).Split(';')
-
-                # Free our COM objects.
-                $null = [System.Runtime.InteropServices.Marshal]::ReleaseComObject($SummaryInformation)
-                $null = [System.Runtime.InteropServices.Marshal]::ReleaseComObject($Database)
-                $null = [System.Runtime.InteropServices.Marshal]::ReleaseComObject($Installer)
-
-                # If the application is installed, patch it.
-                if ($AllTargetedProductCodes)
-                {
-                    & $Script:CommandTable.'Start-ADTMsiProcess' -Action Patch @PSBoundParameters
-                }
-            }
-            catch
-            {
-                & $Script:CommandTable.'Write-Error' -ErrorRecord $_
+                return $result
             }
         }
         catch
         {
-            & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' -Cmdlet $PSCmdlet -SessionState $ExecutionContext.SessionState -ErrorRecord $_
+            $PSCmdlet.ThrowTerminatingError($_)
         }
     }
 
@@ -21410,11 +21489,43 @@ function Start-ADTMspProcessAsUser
     .PARAMETER InheritEnvironmentVariables
         Specifies whether the process running as a user should inherit the SYSTEM account's environment variables.
 
+    .PARAMETER DenyUserTermination
+        Specifies that users cannot terminate the process started in their context. The user will still be able to terminate the process if they're an administrator, though.
+
     .PARAMETER ExpandEnvironmentVariables
         Specifies whether to expand any Windows/DOS-style environment variables in the specified FilePath/ArgumentList.
 
-    .PARAMETER DenyUserTermination
-        Specifies that users cannot terminate the process started in their context. The user will still be able to terminate the process if they're an administrator, though.
+    .PARAMETER LoggingOptions
+        Overrides the default logging options specified in the config.psd1 file.
+
+    .PARAMETER LogFileName
+        Overrides the default log file name. The default log file name is generated from the MSI file name. If LogFileName does not end in .log, it will be automatically appended.
+
+        For uninstallations, by default the product code is resolved to the DisplayName and version of the application.
+
+    .PARAMETER SuccessExitCodes
+        List of exit codes to be considered successful. Defaults to values set during ADTSession initialization, otherwise: 0
+
+    .PARAMETER RebootExitCodes
+        List of exit codes to indicate a reboot is required. Defaults to values set during ADTSession initialization, otherwise: 1641, 3010
+
+    .PARAMETER IgnoreExitCodes
+        List the exit codes to ignore or * to ignore all exit codes.
+
+    .PARAMETER PriorityClass
+        Specifies priority class for the process. Options: Idle, Normal, High, AboveNormal, BelowNormal, RealTime.
+
+    .PARAMETER ExitOnProcessFailure
+        Automatically closes the active deployment session via Close-ADTSession in the event the process exits with a non-success or non-ignored exit code.
+
+    .PARAMETER NoDesktopRefresh
+        If specifies, doesn't refresh the desktop and environment after successful MSI installation.
+
+    .PARAMETER NoWait
+        Immediately continue after executing the process.
+
+    .PARAMETER PassThru
+        Returns ExitCode, StdOut, and StdErr output from the process. Note that a failed execution will only return an object if either `-ErrorAction` is set to `SilentlyContinue`/`Ignore`, or if `-IgnoreExitCodes`/`-SuccessExitCodes` are used.
 
     .INPUTS
         None
@@ -21481,10 +21592,52 @@ function Start-ADTMspProcessAsUser
         [System.Management.Automation.SwitchParameter]$InheritEnvironmentVariables,
 
         [Parameter(Mandatory = $false)]
+        [System.Management.Automation.SwitchParameter]$DenyUserTermination,
+
+        [Parameter(Mandatory = $false)]
         [System.Management.Automation.SwitchParameter]$ExpandEnvironmentVariables,
 
         [Parameter(Mandatory = $false)]
-        [System.Management.Automation.SwitchParameter]$DenyUserTermination
+        [ValidateNotNullOrEmpty()]
+        [System.String]$LoggingOptions = [System.Management.Automation.Language.NullString]::Value,
+
+        [Parameter(Mandatory = $false)]
+        [ValidateScript({
+                if ([System.String]::IsNullOrWhiteSpace($_))
+                {
+                    $PSCmdlet.ThrowTerminatingError((& $Script:CommandTable.'New-ADTValidateScriptErrorRecord' -ParameterName LogFileName -ProvidedValue $_ -ExceptionMessage 'The specified input is null or white space.'))
+                }
+                return $true
+            })]
+        [System.String]$LogFileName = [System.Management.Automation.Language.NullString]::Value,
+
+        [Parameter(Mandatory = $false)]
+        [ValidateNotNullOrEmpty()]
+        [System.Int32[]]$SuccessExitCodes,
+
+        [Parameter(Mandatory = $false)]
+        [ValidateNotNullOrEmpty()]
+        [System.Int32[]]$RebootExitCodes,
+
+        [Parameter(Mandatory = $false)]
+        [ValidateNotNullOrEmpty()]
+        [System.String[]]$IgnoreExitCodes,
+
+        [Parameter(Mandatory = $false)]
+        [ValidateNotNullOrEmpty()]
+        [System.Diagnostics.ProcessPriorityClass]$PriorityClass,
+
+        [Parameter(Mandatory = $false)]
+        [System.Management.Automation.SwitchParameter]$ExitOnProcessFailure,
+
+        [Parameter(Mandatory = $false)]
+        [System.Management.Automation.SwitchParameter]$NoDesktopRefresh,
+
+        [Parameter(Mandatory = $false)]
+        [System.Management.Automation.SwitchParameter]$NoWait,
+
+        [Parameter(Mandatory = $false)]
+        [System.Management.Automation.SwitchParameter]$PassThru
     )
 
     begin
@@ -21521,10 +21674,13 @@ function Start-ADTMspProcessAsUser
         }
         $null = $PSBoundParameters.Remove('Username')
 
-        # Just farm it out to Start-ADTMspProcessAsUser as it can do it all.
+        # Just farm it out to Start-ADTMspProcess as it can do it all.
         try
         {
-            return & $Script:CommandTable.'Start-ADTMspProcessAsUser' @PSBoundParameters
+            if (($result = & $Script:CommandTable.'Start-ADTMspProcess' @PSBoundParameters) -and $PassThru)
+            {
+                return $result
+            }
         }
         catch
         {
@@ -21686,6 +21842,11 @@ function Start-ADTProcess
         $result = Start-ADTProcess -FilePath "setup.exe" -ArgumentList "-i -f `"$($adtSession.DirFiles)\licenseFile.lic`"" -CreateNoWindow -ErrorAction SilentlyContinue -PassThru
 
         Launch "setup.exe" with -PassThru so we can capture the exit code and stdout/stderr from the executable if it's a console application.
+
+    .EXAMPLE
+        $result = Start-ADTProcess -FilePath cmd.exe -ArgumentList '/c', 'echo Testing stdout capture. & exit 0' -CreateNoWindow -PassThru
+
+        Launch cmd.exe to echo out a message to stdout, specifically taking advantage of our `-ArgumentList` array support to avoid escaped quote issues.
 
     .INPUTS
         None
@@ -22421,6 +22582,7 @@ function Start-ADTProcess
             }
 
             # Switch on the exception type's name.
+            $sessionClosed = $false
             switch -Regex ($_.Exception.GetType().FullName)
             {
                 '^System\.Runtime\.InteropServices\.ExternalException$'
@@ -22443,6 +22605,7 @@ function Start-ADTProcess
                     & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' @iafehParams -Silent
                     if ($iafehParams.ContainsKey('ErrorAction'))
                     {
+                        $sessionClosed = $true
                         & $Script:CommandTable.'Close-ADTSession'
                     }
                     break
@@ -22463,6 +22626,12 @@ function Start-ADTProcess
                     & $Script:CommandTable.'Invoke-ADTFunctionErrorHandler' @iafehParams -LogMessage "Error occurred while attempting to start the specified process." -DisableErrorResolving:$false -ErrorAction Stop
                     break
                 }
+            }
+
+            # Break if the session has closed as Close-ADTSession won't be able to break out of the above switch.
+            if ($sessionClosed)
+            {
+                break
             }
 
             # If the passthru switch is specified, return the exit code and any output from process.
@@ -22761,6 +22930,7 @@ function Start-ADTProcessAsUser
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_CreateNoWindow_Timeout')]
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_CreateNoWindow_Wait')]
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_CreateWindow_Timeout')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Default_CreateWindow_Wait')]
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_WindowStyle_Timeout')]
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_WindowStyle_Wait')]
         [ValidateNotNullOrEmpty()]
@@ -22769,6 +22939,7 @@ function Start-ADTProcessAsUser
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_CreateNoWindow_Timeout')]
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_CreateNoWindow_Wait')]
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_CreateWindow_Timeout')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Default_CreateWindow_Wait')]
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_WindowStyle_Timeout')]
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_WindowStyle_Wait')]
         [ValidateNotNullOrEmpty()]
@@ -22777,6 +22948,7 @@ function Start-ADTProcessAsUser
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_CreateNoWindow_Timeout')]
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_CreateNoWindow_Wait')]
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_CreateWindow_Timeout')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Default_CreateWindow_Wait')]
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_WindowStyle_Timeout')]
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_WindowStyle_Wait')]
         [ValidateNotNullOrEmpty()]
@@ -22790,6 +22962,7 @@ function Start-ADTProcessAsUser
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_CreateNoWindow_Timeout')]
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_CreateNoWindow_Wait')]
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_CreateWindow_Timeout')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Default_CreateWindow_Wait')]
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_WindowStyle_Timeout')]
         [Parameter(Mandatory = $false, ParameterSetName = 'Default_WindowStyle_Wait')]
         [System.Management.Automation.SwitchParameter]$ExitOnProcessFailure,
@@ -22841,7 +23014,10 @@ function Start-ADTProcessAsUser
         # Just farm it out to Start-ADTProcess as it can do it all.
         try
         {
-            return & $Script:CommandTable.'Start-ADTProcess' @PSBoundParameters
+            if (($result = & $Script:CommandTable.'Start-ADTProcess' @PSBoundParameters) -and $PassThru)
+            {
+                return $result
+            }
         }
         catch
         {
@@ -23380,13 +23556,6 @@ function Test-ADTEspActive
         {
             try
             {
-                # Test whether the device is Autopilot-enrolled.
-                if (![Microsoft.Win32.Registry]::GetValue("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Provisioning\Diagnostics\AutoPilot", "CloudAssignedTenantId", $null))
-                {
-                    & $Script:CommandTable.'Write-ADTLogEntry' -Message "Current ESP state is [$false]. Reason: [Device has no Autopilot cloud-assigned tenant Id]."
-                    return $false
-                }
-
                 # Test whether wwahost.exe is running. This is responsible for displaying the ESP.
                 if (!($wwaHostProcess = [System.Diagnostics.Process]::GetProcessesByName('wwahost')).Length)
                 {
@@ -23865,10 +24034,13 @@ function Test-ADTNetworkConnection
 {
     <#
     .SYNOPSIS
-        Tests for an active local network connection, excluding wireless and virtual network adapters.
+        Tests for an active local network connection; ethernet/Wi-Fi by default but can test for a number of other connection types.
 
     .DESCRIPTION
-        Tests for an active local network connection, excluding wireless and virtual network adapters, by querying the Win32_NetworkAdapter WMI class. This function checks if any physical network adapter is in the 'Up' status.
+        Tests for an active local network connection via Get-NetAdapter; ethernet/Wi-Fi by default but can test for a number of other connection types. This function checks if any of the nominated interface types is in the 'Up' status.
+
+    .PARAMETER InterfaceType
+        Specifies one or more interface types to test. Defaults to `Ethernet` and `Wireless80211` (Wi-Fi).
 
     .INPUTS
         None
@@ -23901,6 +24073,9 @@ function Test-ADTNetworkConnection
     [OutputType([System.Boolean])]
     param
     (
+        [Parameter(Mandatory = $false)]
+        [ValidateNotNullOrEmpty()]
+        [System.Net.NetworkInformation.NetworkInterfaceType[]]$InterfaceType = ([System.Net.NetworkInformation.NetworkInterfaceType]::Ethernet, [System.Net.NetworkInformation.NetworkInterfaceType]::Wireless80211)
     )
 
     begin
@@ -23910,17 +24085,22 @@ function Test-ADTNetworkConnection
 
     process
     {
-        & $Script:CommandTable.'Write-ADTLogEntry' -Message 'Checking if system is using a wired network connection...'
+        $connectionTypes = [System.String]::Join(', ', $InterfaceType)
+        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Checking if system has an active connection of type [$connectionTypes]..."
         try
         {
             try
             {
-                if (& $Script:CommandTable.'Get-NetAdapter' -Physical | & { process { if ($_.Status.Equals('Up')) { return $_ } } } | & $Script:CommandTable.'Select-Object' -First 1)
+                [System.UInt32[]]$interfaceTypes = $InterfaceType.value__
+                foreach ($adapter in (& $Script:CommandTable.'Get-NetAdapter' -Physical))
                 {
-                    & $Script:CommandTable.'Write-ADTLogEntry' -Message 'Wired network connection found.'
-                    return $true
+                    if ($adapter.Status.Equals('Up') -and $interfaceTypes.Contains($adapter.InterfaceType))
+                    {
+                        & $Script:CommandTable.'Write-ADTLogEntry' -Message "Active connection of type [$([System.Net.NetworkInformation.NetworkInterfaceType]$adapter.InterfaceType)] found."
+                        return $true
+                    }
                 }
-                & $Script:CommandTable.'Write-ADTLogEntry' -Message 'Wired network connection not found.'
+                & $Script:CommandTable.'Write-ADTLogEntry' -Message "Active connection of type [$connectionTypes] not found."
                 return $false
             }
             catch
@@ -25683,10 +25863,10 @@ $ADT.Durations.ModuleImport = [System.DateTime]::Now - $ModuleImportStart
 
 
 # SIG # Begin signature block
-# MIIuaQYJKoZIhvcNAQcCoIIuWjCCLlYCAQExDzANBglghkgBZQMEAgEFADB5Bgor
+# MIIuaAYJKoZIhvcNAQcCoIIuWTCCLlUCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAun0VIr2QjCo93
-# MLKGvk15DkW6AwcuBMlngAYRZWtejqCCE5UwggWQMIIDeKADAgECAhAFmxtXno4h
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAB8n7YXhBzDPdr
+# hyIu/3ma8JV5wlq74pRogzeeSQAyHKCCE5UwggWQMIIDeKADAgECAhAFmxtXno4h
 # MuI5B72nd3VcMA0GCSqGSIb3DQEBDAUAMGIxCzAJBgNVBAYTAlVTMRUwEwYDVQQK
 # EwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xITAfBgNV
 # BAMTGERpZ2lDZXJ0IFRydXN0ZWQgUm9vdCBHNDAeFw0xMzA4MDExMjAwMDBaFw0z
@@ -25791,144 +25971,144 @@ $ADT.Durations.ModuleImport = [System.DateTime]::Now - $ModuleImportStart
 # z+pfEMPqeX/g5+mpb4ap6ZmNJuAYJFmU0LIkCLQN9mKXi1Il9WU6ifn3vYutGMSL
 # /BdeWP+7fM7MZLiO+1BIsBdSmV6pZVS3LRBAy3wIlbWL69mvyLCPIQ7z4dtfuzwC
 # 36E9k2vhzeiDQ+k1dFJDSdxTDetsck0FuD1ovhiu2caL4BdFsCWsXPLMyvu6OlYx
-# ghoqMIIaJgIBATB9MGkxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwg
+# ghopMIIaJQIBATB9MGkxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwg
 # SW5jLjFBMD8GA1UEAxM4RGlnaUNlcnQgVHJ1c3RlZCBHNCBDb2RlIFNpZ25pbmcg
 # UlNBNDA5NiBTSEEzODQgMjAyMSBDQTECEAr5W7a+ogyFDpjG+46sCPkwDQYJYIZI
 # AWUDBAIBBQCggYQwGAYKKwYBBAGCNwIBDDEKMAigAoAAoQKAADAZBgkqhkiG9w0B
 # CQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3AgELMQ4wDAYKKwYBBAGCNwIBFTAv
-# BgkqhkiG9w0BCQQxIgQgQwqDiQfs//Fn/RNNDUQG7nOkWSoIQcd+8KZjCXxcsz0w
-# DQYJKoZIhvcNAQEBBQAEggGAbyxejVUeNFxOq5eamHvpbW8Ojf7E845LWQh2aTdU
-# 0CeQVYbhh+K2hNqb8zylRcmo/btAkSv7BcyX2cp5obfUVlA63RahWobpKsemrsnM
-# davpoWRolS7tcNO8iTv7T5kTD6pTh7RRdRygDCEuFQpcUJAZ1Q3Bl3eIjiOPX6UU
-# UDgw8UYP/peBButCGc5HbY0KLOGIfLjaLJUmNI7VOjV6m/k36dI4YlJiiqsc4os+
-# S9BtcdHRGgCXTaR3Z1alKQQZH3GJZU/8DDVD9g0q5C++PI8Hf96eZDmaCWnfxBw3
-# NEzzGyzx9pjLuMNpiCZxjnCiJh7pE9+tsct/b7JiDPJx3Cq7pwot9IOPJ30l6EAA
-# DQyFsAhlc6NGSy6FcVH9rmeZjaRDehrU7m6NcwvMC6i9ar7HYi26cqlmFxcVLApT
-# M3pmf1/jPSlmoN6GkRUI/kTmtoF1E7FRxbgK8O1x0hb/Me6tDHavNb8cpa+VlfG9
-# RrJ9xnWyN+2vkV/yhf0iZYpdoYIXdzCCF3MGCisGAQQBgjcDAwExghdjMIIXXwYJ
-# KoZIhvcNAQcCoIIXUDCCF0wCAQMxDzANBglghkgBZQMEAgEFADB4BgsqhkiG9w0B
-# CRABBKBpBGcwZQIBAQYJYIZIAYb9bAcBMDEwDQYJYIZIAWUDBAIBBQAEIIEOKEw3
-# 4yftRU9ROdYh/cVrb1Bcy2mwXapTDZc4diwPAhEA/aged4eSuxFh5Yk/N+KYuxgP
-# MjAyNTEwMjEwODE2MDBaoIITOjCCBu0wggTVoAMCAQICEAqA7xhLjfEFgtHEdqeV
-# dGgwDQYJKoZIhvcNAQELBQAwaTELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lD
-# ZXJ0LCBJbmMuMUEwPwYDVQQDEzhEaWdpQ2VydCBUcnVzdGVkIEc0IFRpbWVTdGFt
-# cGluZyBSU0E0MDk2IFNIQTI1NiAyMDI1IENBMTAeFw0yNTA2MDQwMDAwMDBaFw0z
-# NjA5MDMyMzU5NTlaMGMxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwg
-# SW5jLjE7MDkGA1UEAxMyRGlnaUNlcnQgU0hBMjU2IFJTQTQwOTYgVGltZXN0YW1w
-# IFJlc3BvbmRlciAyMDI1IDEwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoIC
-# AQDQRqwtEsae0OquYFazK1e6b1H/hnAKAd/KN8wZQjBjMqiZ3xTWcfsLwOvRxUwX
-# cGx8AUjni6bz52fGTfr6PHRNv6T7zsf1Y/E3IU8kgNkeECqVQ+3bzWYesFtkepEr
-# vUSbf+EIYLkrLKd6qJnuzK8Vcn0DvbDMemQFoxQ2Dsw4vEjoT1FpS54dNApZfKY6
-# 1HAldytxNM89PZXUP/5wWWURK+IfxiOg8W9lKMqzdIo7VA1R0V3Zp3DjjANwqAf4
-# lEkTlCDQ0/fKJLKLkzGBTpx6EYevvOi7XOc4zyh1uSqgr6UnbksIcFJqLbkIXIPb
-# cNmA98Oskkkrvt6lPAw/p4oDSRZreiwB7x9ykrjS6GS3NR39iTTFS+ENTqW8m6TH
-# uOmHHjQNC3zbJ6nJ6SXiLSvw4Smz8U07hqF+8CTXaETkVWz0dVVZw7knh1WZXOLH
-# gDvundrAtuvz0D3T+dYaNcwafsVCGZKUhQPL1naFKBy1p6llN3QgshRta6Eq4B40
-# h5avMcpi54wm0i2ePZD5pPIssoszQyF4//3DoK2O65Uck5Wggn8O2klETsJ7u8xE
-# ehGifgJYi+6I03UuT1j7FnrqVrOzaQoVJOeeStPeldYRNMmSF3voIgMFtNGh86w3
-# ISHNm0IaadCKCkUe2LnwJKa8TIlwCUNVwppwn4D3/Pt5pwIDAQABo4IBlTCCAZEw
-# DAYDVR0TAQH/BAIwADAdBgNVHQ4EFgQU5Dv88jHt/f3X85FxYxlQQ89hjOgwHwYD
-# VR0jBBgwFoAU729TSunkBnx6yuKQVvYv1Ensy04wDgYDVR0PAQH/BAQDAgeAMBYG
-# A1UdJQEB/wQMMAoGCCsGAQUFBwMIMIGVBggrBgEFBQcBAQSBiDCBhTAkBggrBgEF
-# BQcwAYYYaHR0cDovL29jc3AuZGlnaWNlcnQuY29tMF0GCCsGAQUFBzAChlFodHRw
-# Oi8vY2FjZXJ0cy5kaWdpY2VydC5jb20vRGlnaUNlcnRUcnVzdGVkRzRUaW1lU3Rh
-# bXBpbmdSU0E0MDk2U0hBMjU2MjAyNUNBMS5jcnQwXwYDVR0fBFgwVjBUoFKgUIZO
-# aHR0cDovL2NybDMuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0VHJ1c3RlZEc0VGltZVN0
-# YW1waW5nUlNBNDA5NlNIQTI1NjIwMjVDQTEuY3JsMCAGA1UdIAQZMBcwCAYGZ4EM
-# AQQCMAsGCWCGSAGG/WwHATANBgkqhkiG9w0BAQsFAAOCAgEAZSqt8RwnBLmuYEHs
-# 0QhEnmNAciH45PYiT9s1i6UKtW+FERp8FgXRGQ/YAavXzWjZhY+hIfP2JkQ38U+w
-# tJPBVBajYfrbIYG+Dui4I4PCvHpQuPqFgqp1PzC/ZRX4pvP/ciZmUnthfAEP1HSh
-# TrY+2DE5qjzvZs7JIIgt0GCFD9ktx0LxxtRQ7vllKluHWiKk6FxRPyUPxAAYH2Vy
-# 1lNM4kzekd8oEARzFAWgeW3az2xejEWLNN4eKGxDJ8WDl/FQUSntbjZ80FU3i54t
-# px5F/0Kr15zW/mJAxZMVBrTE2oi0fcI8VMbtoRAmaaslNXdCG1+lqvP4FbrQ6IwS
-# BXkZagHLhFU9HCrG/syTRLLhAezu/3Lr00GrJzPQFnCEH1Y58678IgmfORBPC1JK
-# kYaEt2OdDh4GmO0/5cHelAK2/gTlQJINqDr6JfwyYHXSd+V08X1JUPvB4ILfJdmL
-# +66Gp3CSBXG6IwXMZUXBhtCyIaehr0XkBoDIGMUG1dUtwq1qmcwbdUfcSYCn+Own
-# cVUXf53VJUNOaMWMts0VlRYxe5nK+At+DI96HAlXHAL5SlfYxJ7La54i71McVWRP
-# 66bW+yERNpbJCjyCYG2j+bdpxo/1Cy4uPcU3AWVPGrbn5PhDBf3Froguzzhk++am
-# i+r3Qrx5bIbY3TVzgiFI7Gq3zWcwgga0MIIEnKADAgECAhANx6xXBf8hmS5AQyIM
-# OkmGMA0GCSqGSIb3DQEBCwUAMGIxCzAJBgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdp
-# Q2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xITAfBgNVBAMTGERp
-# Z2lDZXJ0IFRydXN0ZWQgUm9vdCBHNDAeFw0yNTA1MDcwMDAwMDBaFw0zODAxMTQy
-# MzU5NTlaMGkxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwgSW5jLjFB
-# MD8GA1UEAxM4RGlnaUNlcnQgVHJ1c3RlZCBHNCBUaW1lU3RhbXBpbmcgUlNBNDA5
-# NiBTSEEyNTYgMjAyNSBDQTEwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoIC
-# AQC0eDHTCphBcr48RsAcrHXbo0ZodLRRF51NrY0NlLWZloMsVO1DahGPNRcybEKq
-# +RuwOnPhof6pvF4uGjwjqNjfEvUi6wuim5bap+0lgloM2zX4kftn5B1IpYzTqpyF
-# Q/4Bt0mAxAHeHYNnQxqXmRinvuNgxVBdJkf77S2uPoCj7GH8BLuxBG5AvftBdsOE
-# CS1UkxBvMgEdgkFiDNYiOTx4OtiFcMSkqTtF2hfQz3zQSku2Ws3IfDReb6e3mmdg
-# lTcaarps0wjUjsZvkgFkriK9tUKJm/s80FiocSk1VYLZlDwFt+cVFBURJg6zMUjZ
-# a/zbCclF83bRVFLeGkuAhHiGPMvSGmhgaTzVyhYn4p0+8y9oHRaQT/aofEnS5xLr
-# fxnGpTXiUOeSLsJygoLPp66bkDX1ZlAeSpQl92QOMeRxykvq6gbylsXQskBBBnGy
-# 3tW/AMOMCZIVNSaz7BX8VtYGqLt9MmeOreGPRdtBx3yGOP+rx3rKWDEJlIqLXvJW
-# nY0v5ydPpOjL6s36czwzsucuoKs7Yk/ehb//Wx+5kMqIMRvUBDx6z1ev+7psNOdg
-# JMoiwOrUG2ZdSoQbU2rMkpLiQ6bGRinZbI4OLu9BMIFm1UUl9VnePs6BaaeEWvjJ
-# SjNm2qA+sdFUeEY0qVjPKOWug/G6X5uAiynM7Bu2ayBjUwIDAQABo4IBXTCCAVkw
-# EgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQU729TSunkBnx6yuKQVvYv1Ens
-# y04wHwYDVR0jBBgwFoAU7NfjgtJxXWRM3y5nP+e6mK4cD08wDgYDVR0PAQH/BAQD
-# AgGGMBMGA1UdJQQMMAoGCCsGAQUFBwMIMHcGCCsGAQUFBwEBBGswaTAkBggrBgEF
-# BQcwAYYYaHR0cDovL29jc3AuZGlnaWNlcnQuY29tMEEGCCsGAQUFBzAChjVodHRw
-# Oi8vY2FjZXJ0cy5kaWdpY2VydC5jb20vRGlnaUNlcnRUcnVzdGVkUm9vdEc0LmNy
-# dDBDBgNVHR8EPDA6MDigNqA0hjJodHRwOi8vY3JsMy5kaWdpY2VydC5jb20vRGln
-# aUNlcnRUcnVzdGVkUm9vdEc0LmNybDAgBgNVHSAEGTAXMAgGBmeBDAEEAjALBglg
-# hkgBhv1sBwEwDQYJKoZIhvcNAQELBQADggIBABfO+xaAHP4HPRF2cTC9vgvItTSm
-# f83Qh8WIGjB/T8ObXAZz8OjuhUxjaaFdleMM0lBryPTQM2qEJPe36zwbSI/mS83a
-# fsl3YTj+IQhQE7jU/kXjjytJgnn0hvrV6hqWGd3rLAUt6vJy9lMDPjTLxLgXf9r5
-# nWMQwr8Myb9rEVKChHyfpzee5kH0F8HABBgr0UdqirZ7bowe9Vj2AIMD8liyrukZ
-# 2iA/wdG2th9y1IsA0QF8dTXqvcnTmpfeQh35k5zOCPmSNq1UH410ANVko43+Cdmu
-# 4y81hjajV/gxdEkMx1NKU4uHQcKfZxAvBAKqMVuqte69M9J6A47OvgRaPs+2ykgc
-# GV00TYr2Lr3ty9qIijanrUR3anzEwlvzZiiyfTPjLbnFRsjsYg39OlV8cipDoq7+
-# qNNjqFzeGxcytL5TTLL4ZaoBdqbhOhZ3ZRDUphPvSRmMThi0vw9vODRzW6AxnJll
-# 38F0cuJG7uEBYTptMSbhdhGQDpOXgpIUsWTjd6xpR6oaQf/DJbg3s6KCLPAlZ66R
-# zIg9sC+NJpud/v4+7RWsWCiKi9EOLLHfMR2ZyJ/+xhCx9yHbxtl5TPau1j/1MIDp
-# MPx0LckTetiSuEtQvLsNz3Qbp7wGWqbIiOWCnb5WqxL3/BAPvIXKUjPSxyZsq8Wh
-# baM2tszWkPZPubdcMIIFjTCCBHWgAwIBAgIQDpsYjvnQLefv21DiCEAYWjANBgkq
-# hkiG9w0BAQwFADBlMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5j
-# MRkwFwYDVQQLExB3d3cuZGlnaWNlcnQuY29tMSQwIgYDVQQDExtEaWdpQ2VydCBB
-# c3N1cmVkIElEIFJvb3QgQ0EwHhcNMjIwODAxMDAwMDAwWhcNMzExMTA5MjM1OTU5
-# WjBiMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQL
-# ExB3d3cuZGlnaWNlcnQuY29tMSEwHwYDVQQDExhEaWdpQ2VydCBUcnVzdGVkIFJv
-# b3QgRzQwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQC/5pBzaN675F1K
-# PDAiMGkz7MKnJS7JIT3yithZwuEppz1Yq3aaza57G4QNxDAf8xukOBbrVsaXbR2r
-# snnyyhHS5F/WBTxSD1Ifxp4VpX6+n6lXFllVcq9ok3DCsrp1mWpzMpTREEQQLt+C
-# 8weE5nQ7bXHiLQwb7iDVySAdYyktzuxeTsiT+CFhmzTrBcZe7FsavOvJz82sNEBf
-# sXpm7nfISKhmV1efVFiODCu3T6cw2Vbuyntd463JT17lNecxy9qTXtyOj4DatpGY
-# QJB5w3jHtrHEtWoYOAMQjdjUN6QuBX2I9YI+EJFwq1WCQTLX2wRzKm6RAXwhTNS8
-# rhsDdV14Ztk6MUSaM0C/CNdaSaTC5qmgZ92kJ7yhTzm1EVgX9yRcRo9k98FpiHaY
-# dj1ZXUJ2h4mXaXpI8OCiEhtmmnTK3kse5w5jrubU75KSOp493ADkRSWJtppEGSt+
-# wJS00mFt6zPZxd9LBADMfRyVw4/3IbKyEbe7f/LVjHAsQWCqsWMYRJUadmJ+9oCw
-# ++hkpjPRiQfhvbfmQ6QYuKZ3AeEPlAwhHbJUKSWJbOUOUlFHdL4mrLZBdd56rF+N
-# P8m800ERElvlEFDrMcXKchYiCd98THU/Y+whX8QgUWtvsauGi0/C1kVfnSD8oR7F
-# wI+isX4KJpn15GkvmB0t9dmpsh3lGwIDAQABo4IBOjCCATYwDwYDVR0TAQH/BAUw
-# AwEB/zAdBgNVHQ4EFgQU7NfjgtJxXWRM3y5nP+e6mK4cD08wHwYDVR0jBBgwFoAU
-# Reuir/SSy4IxLVGLp6chnfNtyA8wDgYDVR0PAQH/BAQDAgGGMHkGCCsGAQUFBwEB
-# BG0wazAkBggrBgEFBQcwAYYYaHR0cDovL29jc3AuZGlnaWNlcnQuY29tMEMGCCsG
-# AQUFBzAChjdodHRwOi8vY2FjZXJ0cy5kaWdpY2VydC5jb20vRGlnaUNlcnRBc3N1
-# cmVkSURSb290Q0EuY3J0MEUGA1UdHwQ+MDwwOqA4oDaGNGh0dHA6Ly9jcmwzLmRp
-# Z2ljZXJ0LmNvbS9EaWdpQ2VydEFzc3VyZWRJRFJvb3RDQS5jcmwwEQYDVR0gBAow
-# CDAGBgRVHSAAMA0GCSqGSIb3DQEBDAUAA4IBAQBwoL9DXFXnOF+go3QbPbYW1/e/
-# Vwe9mqyhhyzshV6pGrsi+IcaaVQi7aSId229GhT0E0p6Ly23OO/0/4C5+KH38nLe
-# JLxSA8hO0Cre+i1Wz/n096wwepqLsl7Uz9FDRJtDIeuWcqFItJnLnU+nBgMTdydE
-# 1Od/6Fmo8L8vC6bp8jQ87PcDx4eo0kxAGTVGamlUsLihVo7spNU96LHc/RzY9Hda
-# XFSMb++hUD38dglohJ9vytsgjTVgHAIDyyCwrFigDkBjxZgiwbJZ9VVrzyerbHbO
-# byMt9H5xaiNrIv8SuFQtJ37YOtnwtoeW/VvRXKwYw02fc7cBqZ9Xql4o4rmUMYID
-# fDCCA3gCAQEwfTBpMQswCQYDVQQGEwJVUzEXMBUGA1UEChMORGlnaUNlcnQsIElu
-# Yy4xQTA/BgNVBAMTOERpZ2lDZXJ0IFRydXN0ZWQgRzQgVGltZVN0YW1waW5nIFJT
-# QTQwOTYgU0hBMjU2IDIwMjUgQ0ExAhAKgO8YS43xBYLRxHanlXRoMA0GCWCGSAFl
-# AwQCAQUAoIHRMBoGCSqGSIb3DQEJAzENBgsqhkiG9w0BCRABBDAcBgkqhkiG9w0B
-# CQUxDxcNMjUxMDIxMDgxNjAwWjArBgsqhkiG9w0BCRACDDEcMBowGDAWBBTdYjCs
-# hgotMGvaOLFoeVIwB/tBfjAvBgkqhkiG9w0BCQQxIgQgPxRmNYjmu2j8/xP8hiwX
-# 3Vrok6pOi91bugCtfOlaXGQwNwYLKoZIhvcNAQkQAi8xKDAmMCQwIgQgSqA/oizX
-# XITFXJOPgo5na5yuyrM/420mmqM08UYRCjMwDQYJKoZIhvcNAQEBBQAEggIAg3My
-# 8ptYRlybgwp2fy1DF9WiOI+wG2esASOrM2jITXIqUtNZ5wlaYXiFEDECKjg3+mYB
-# FAS+Tn/8CGQevmWBJ7Zzzsedi+/n2FgHxuZKHD2nGYfRQo56yPVR4g1wApjON+SK
-# 1iNLbbGC0c+K3G/rFJpxXv3A89PJTezpH0I71I6Lf1pvc2af89/xUGHce5RVBdnU
-# as2he+4p1x0gVfqP6VBC4z09MGzvL115ec4GRBFBZ/w/fqh/KRIC4IT1zLZOujSz
-# pr8lL8KkIfRfjYmGKFLVp21jHxw1fOxpaB3vnG83h6RhlBT6HudmGzTA+ziiNLAo
-# HdJrai4KXGMQiRDaK5Wncwh7jgleCyUjyEXrjkGSKWy0uiyB+c0hnPz3ph0sLOU1
-# CQVtyiblvvZqrKjHjT5HW3aEFFXclVxJ9sPLEoPDu7rnCxWPy1VshUZvv9/chdoM
-# ipr24fq/G2i/Z+waCfJpTFgmEWht4O/Z7cpesPO/PgPq3zg9r8ZTiAUWmHYt8XAl
-# nLVuvEllMp2y/YFoxJIksmIr7ENIcYm4dkmbPGhW4tkIBsr9LOMYBAImCLqNlQzB
-# AF49p+Thqyn/Kmlk8Edk5DKNzOvw8nMnnlfCr+wxfG87P3t4/Qe0ITZAnAhOomLN
-# 1u2EplBsSq+S/eXA3GK3TujzzbSgsshkagzw83c=
+# BgkqhkiG9w0BCQQxIgQg3fBZQ/DDdPDf4BIVmx1QWxyRJmnKN+50m+ENN0APsOww
+# DQYJKoZIhvcNAQEBBQAEggGAebobN7uLVpJoUiM8Z4vXaPSq9lc4v9lZaFJ2ICHn
+# AqQoFFV7iQLNtaYrZJ/f3SIw5FzNxwnQ/flQjC2xnEC3KULk6BZNrPruahH2pfND
+# 9KYwROAFrspR8l6paZ1cTUcotbP42Jt1D+ZqKGjSlhD8vuhJSYZPJGe6Ud31OVRn
+# /ksDE4khp/DJBUlQBtwxl0NFQzEdzrAiTF1IucWW0fg7xGRoB1vpATSk7KI1mVTn
+# uW+48gcaTrYfJDJnQU73uMxlW0aKfw2naB2C8g95DqMVoIYQVOv/Fy44z9mtLCo7
+# AGP2UmZ8p5+yuMWHEH9sP1zN83+UeaL8AbPs8okQN/rfHwfahNCWkfeJDdH+kwKR
+# E9oDncjjfmeYaO0Nv3x2DBi1pnePMtB04kX/TUeShAKwE3zte0ZWGKKIuweDzwZe
+# IKsjdYWNhuSZxDUVzEkH9XRQyWtZf9k0i/R0unx+Ab72+k1iaXdZYxF5Ww0ByQjI
+# DFIC2e/zzSHyvZAdlQuTc5kxoYIXdjCCF3IGCisGAQQBgjcDAwExghdiMIIXXgYJ
+# KoZIhvcNAQcCoIIXTzCCF0sCAQMxDzANBglghkgBZQMEAgEFADB3BgsqhkiG9w0B
+# CRABBKBoBGYwZAIBAQYJYIZIAYb9bAcBMDEwDQYJYIZIAWUDBAIBBQAEIGvjGbhc
+# 7HZD71t2asZW2XBGb6xeoHbbv8WP8Yc4iJYfAhAm/K4Dl3l6EpnbybNbXhdxGA8y
+# MDI2MDExNDEwNTY0NlqgghM6MIIG7TCCBNWgAwIBAgIQCoDvGEuN8QWC0cR2p5V0
+# aDANBgkqhkiG9w0BAQsFADBpMQswCQYDVQQGEwJVUzEXMBUGA1UEChMORGlnaUNl
+# cnQsIEluYy4xQTA/BgNVBAMTOERpZ2lDZXJ0IFRydXN0ZWQgRzQgVGltZVN0YW1w
+# aW5nIFJTQTQwOTYgU0hBMjU2IDIwMjUgQ0ExMB4XDTI1MDYwNDAwMDAwMFoXDTM2
+# MDkwMzIzNTk1OVowYzELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJ
+# bmMuMTswOQYDVQQDEzJEaWdpQ2VydCBTSEEyNTYgUlNBNDA5NiBUaW1lc3RhbXAg
+# UmVzcG9uZGVyIDIwMjUgMTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIB
+# ANBGrC0Sxp7Q6q5gVrMrV7pvUf+GcAoB38o3zBlCMGMyqJnfFNZx+wvA69HFTBdw
+# bHwBSOeLpvPnZ8ZN+vo8dE2/pPvOx/Vj8TchTySA2R4QKpVD7dvNZh6wW2R6kSu9
+# RJt/4QhguSssp3qome7MrxVyfQO9sMx6ZAWjFDYOzDi8SOhPUWlLnh00Cll8pjrU
+# cCV3K3E0zz09ldQ//nBZZREr4h/GI6Dxb2UoyrN0ijtUDVHRXdmncOOMA3CoB/iU
+# SROUINDT98oksouTMYFOnHoRh6+86Ltc5zjPKHW5KqCvpSduSwhwUmotuQhcg9tw
+# 2YD3w6ySSSu+3qU8DD+nigNJFmt6LAHvH3KSuNLoZLc1Hf2JNMVL4Q1OpbybpMe4
+# 6YceNA0LfNsnqcnpJeItK/DhKbPxTTuGoX7wJNdoRORVbPR1VVnDuSeHVZlc4seA
+# O+6d2sC26/PQPdP51ho1zBp+xUIZkpSFA8vWdoUoHLWnqWU3dCCyFG1roSrgHjSH
+# lq8xymLnjCbSLZ49kPmk8iyyizNDIXj//cOgrY7rlRyTlaCCfw7aSUROwnu7zER6
+# EaJ+AliL7ojTdS5PWPsWeupWs7NpChUk555K096V1hE0yZIXe+giAwW00aHzrDch
+# Ic2bQhpp0IoKRR7YufAkprxMiXAJQ1XCmnCfgPf8+3mnAgMBAAGjggGVMIIBkTAM
+# BgNVHRMBAf8EAjAAMB0GA1UdDgQWBBTkO/zyMe39/dfzkXFjGVBDz2GM6DAfBgNV
+# HSMEGDAWgBTvb1NK6eQGfHrK4pBW9i/USezLTjAOBgNVHQ8BAf8EBAMCB4AwFgYD
+# VR0lAQH/BAwwCgYIKwYBBQUHAwgwgZUGCCsGAQUFBwEBBIGIMIGFMCQGCCsGAQUF
+# BzABhhhodHRwOi8vb2NzcC5kaWdpY2VydC5jb20wXQYIKwYBBQUHMAKGUWh0dHA6
+# Ly9jYWNlcnRzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydFRydXN0ZWRHNFRpbWVTdGFt
+# cGluZ1JTQTQwOTZTSEEyNTYyMDI1Q0ExLmNydDBfBgNVHR8EWDBWMFSgUqBQhk5o
+# dHRwOi8vY3JsMy5kaWdpY2VydC5jb20vRGlnaUNlcnRUcnVzdGVkRzRUaW1lU3Rh
+# bXBpbmdSU0E0MDk2U0hBMjU2MjAyNUNBMS5jcmwwIAYDVR0gBBkwFzAIBgZngQwB
+# BAIwCwYJYIZIAYb9bAcBMA0GCSqGSIb3DQEBCwUAA4ICAQBlKq3xHCcEua5gQezR
+# CESeY0ByIfjk9iJP2zWLpQq1b4URGnwWBdEZD9gBq9fNaNmFj6Eh8/YmRDfxT7C0
+# k8FUFqNh+tshgb4O6Lgjg8K8elC4+oWCqnU/ML9lFfim8/9yJmZSe2F8AQ/UdKFO
+# tj7YMTmqPO9mzskgiC3QYIUP2S3HQvHG1FDu+WUqW4daIqToXFE/JQ/EABgfZXLW
+# U0ziTN6R3ygQBHMUBaB5bdrPbF6MRYs03h4obEMnxYOX8VBRKe1uNnzQVTeLni2n
+# HkX/QqvXnNb+YkDFkxUGtMTaiLR9wjxUxu2hECZpqyU1d0IbX6Wq8/gVutDojBIF
+# eRlqAcuEVT0cKsb+zJNEsuEB7O7/cuvTQasnM9AWcIQfVjnzrvwiCZ85EE8LUkqR
+# hoS3Y50OHgaY7T/lwd6UArb+BOVAkg2oOvol/DJgddJ35XTxfUlQ+8Hggt8l2Yv7
+# roancJIFcbojBcxlRcGG0LIhp6GvReQGgMgYxQbV1S3CrWqZzBt1R9xJgKf47Cdx
+# VRd/ndUlQ05oxYy2zRWVFjF7mcr4C34Mj3ocCVccAvlKV9jEnstrniLvUxxVZE/r
+# ptb7IRE2lskKPIJgbaP5t2nGj/ULLi49xTcBZU8atufk+EMF/cWuiC7POGT75qaL
+# 6vdCvHlshtjdNXOCIUjsarfNZzCCBrQwggScoAMCAQICEA3HrFcF/yGZLkBDIgw6
+# SYYwDQYJKoZIhvcNAQELBQAwYjELMAkGA1UEBhMCVVMxFTATBgNVBAoTDERpZ2lD
+# ZXJ0IEluYzEZMBcGA1UECxMQd3d3LmRpZ2ljZXJ0LmNvbTEhMB8GA1UEAxMYRGln
+# aUNlcnQgVHJ1c3RlZCBSb290IEc0MB4XDTI1MDUwNzAwMDAwMFoXDTM4MDExNDIz
+# NTk1OVowaTELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMUEw
+# PwYDVQQDEzhEaWdpQ2VydCBUcnVzdGVkIEc0IFRpbWVTdGFtcGluZyBSU0E0MDk2
+# IFNIQTI1NiAyMDI1IENBMTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIB
+# ALR4MdMKmEFyvjxGwBysddujRmh0tFEXnU2tjQ2UtZmWgyxU7UNqEY81FzJsQqr5
+# G7A6c+Gh/qm8Xi4aPCOo2N8S9SLrC6Kbltqn7SWCWgzbNfiR+2fkHUiljNOqnIVD
+# /gG3SYDEAd4dg2dDGpeZGKe+42DFUF0mR/vtLa4+gKPsYfwEu7EEbkC9+0F2w4QJ
+# LVSTEG8yAR2CQWIM1iI5PHg62IVwxKSpO0XaF9DPfNBKS7Zazch8NF5vp7eaZ2CV
+# NxpqumzTCNSOxm+SAWSuIr21Qomb+zzQWKhxKTVVgtmUPAW35xUUFREmDrMxSNlr
+# /NsJyUXzdtFUUt4aS4CEeIY8y9IaaGBpPNXKFifinT7zL2gdFpBP9qh8SdLnEut/
+# GcalNeJQ55IuwnKCgs+nrpuQNfVmUB5KlCX3ZA4x5HHKS+rqBvKWxdCyQEEGcbLe
+# 1b8Aw4wJkhU1JrPsFfxW1gaou30yZ46t4Y9F20HHfIY4/6vHespYMQmUiote8lad
+# jS/nJ0+k6MvqzfpzPDOy5y6gqztiT96Fv/9bH7mQyogxG9QEPHrPV6/7umw052Ak
+# yiLA6tQbZl1KhBtTasySkuJDpsZGKdlsjg4u70EwgWbVRSX1Wd4+zoFpp4Ra+MlK
+# M2baoD6x0VR4RjSpWM8o5a6D8bpfm4CLKczsG7ZrIGNTAgMBAAGjggFdMIIBWTAS
+# BgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBTvb1NK6eQGfHrK4pBW9i/USezL
+# TjAfBgNVHSMEGDAWgBTs1+OC0nFdZEzfLmc/57qYrhwPTzAOBgNVHQ8BAf8EBAMC
+# AYYwEwYDVR0lBAwwCgYIKwYBBQUHAwgwdwYIKwYBBQUHAQEEazBpMCQGCCsGAQUF
+# BzABhhhodHRwOi8vb2NzcC5kaWdpY2VydC5jb20wQQYIKwYBBQUHMAKGNWh0dHA6
+# Ly9jYWNlcnRzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydFRydXN0ZWRSb290RzQuY3J0
+# MEMGA1UdHwQ8MDowOKA2oDSGMmh0dHA6Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdp
+# Q2VydFRydXN0ZWRSb290RzQuY3JsMCAGA1UdIAQZMBcwCAYGZ4EMAQQCMAsGCWCG
+# SAGG/WwHATANBgkqhkiG9w0BAQsFAAOCAgEAF877FoAc/gc9EXZxML2+C8i1NKZ/
+# zdCHxYgaMH9Pw5tcBnPw6O6FTGNpoV2V4wzSUGvI9NAzaoQk97frPBtIj+ZLzdp+
+# yXdhOP4hCFATuNT+ReOPK0mCefSG+tXqGpYZ3essBS3q8nL2UwM+NMvEuBd/2vmd
+# YxDCvwzJv2sRUoKEfJ+nN57mQfQXwcAEGCvRR2qKtntujB71WPYAgwPyWLKu6Rna
+# ID/B0ba2H3LUiwDRAXx1Neq9ydOal95CHfmTnM4I+ZI2rVQfjXQA1WSjjf4J2a7j
+# LzWGNqNX+DF0SQzHU0pTi4dBwp9nEC8EAqoxW6q17r0z0noDjs6+BFo+z7bKSBwZ
+# XTRNivYuve3L2oiKNqetRHdqfMTCW/NmKLJ9M+MtucVGyOxiDf06VXxyKkOirv6o
+# 02OoXN4bFzK0vlNMsvhlqgF2puE6FndlENSmE+9JGYxOGLS/D284NHNboDGcmWXf
+# wXRy4kbu4QFhOm0xJuF2EZAOk5eCkhSxZON3rGlHqhpB/8MluDezooIs8CVnrpHM
+# iD2wL40mm53+/j7tFaxYKIqL0Q4ssd8xHZnIn/7GELH3IdvG2XlM9q7WP/UwgOkw
+# /HQtyRN62JK4S1C8uw3PdBunvAZapsiI5YKdvlarEvf8EA+8hcpSM9LHJmyrxaFt
+# oza2zNaQ9k+5t1wwggWNMIIEdaADAgECAhAOmxiO+dAt5+/bUOIIQBhaMA0GCSqG
+# SIb3DQEBDAUAMGUxCzAJBgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMx
+# GTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20xJDAiBgNVBAMTG0RpZ2lDZXJ0IEFz
+# c3VyZWQgSUQgUm9vdCBDQTAeFw0yMjA4MDEwMDAwMDBaFw0zMTExMDkyMzU5NTla
+# MGIxCzAJBgNVBAYTAlVTMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsT
+# EHd3dy5kaWdpY2VydC5jb20xITAfBgNVBAMTGERpZ2lDZXJ0IFRydXN0ZWQgUm9v
+# dCBHNDCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAL/mkHNo3rvkXUo8
+# MCIwaTPswqclLskhPfKK2FnC4SmnPVirdprNrnsbhA3EMB/zG6Q4FutWxpdtHauy
+# efLKEdLkX9YFPFIPUh/GnhWlfr6fqVcWWVVyr2iTcMKyunWZanMylNEQRBAu34Lz
+# B4TmdDttceItDBvuINXJIB1jKS3O7F5OyJP4IWGbNOsFxl7sWxq868nPzaw0QF+x
+# embud8hIqGZXV59UWI4MK7dPpzDZVu7Ke13jrclPXuU15zHL2pNe3I6PgNq2kZhA
+# kHnDeMe2scS1ahg4AxCN2NQ3pC4FfYj1gj4QkXCrVYJBMtfbBHMqbpEBfCFM1Lyu
+# GwN1XXhm2ToxRJozQL8I11pJpMLmqaBn3aQnvKFPObURWBf3JFxGj2T3wWmIdph2
+# PVldQnaHiZdpekjw4KISG2aadMreSx7nDmOu5tTvkpI6nj3cAORFJYm2mkQZK37A
+# lLTSYW3rM9nF30sEAMx9HJXDj/chsrIRt7t/8tWMcCxBYKqxYxhElRp2Yn72gLD7
+# 6GSmM9GJB+G9t+ZDpBi4pncB4Q+UDCEdslQpJYls5Q5SUUd0viastkF13nqsX40/
+# ybzTQRESW+UQUOsxxcpyFiIJ33xMdT9j7CFfxCBRa2+xq4aLT8LWRV+dIPyhHsXA
+# j6KxfgommfXkaS+YHS312amyHeUbAgMBAAGjggE6MIIBNjAPBgNVHRMBAf8EBTAD
+# AQH/MB0GA1UdDgQWBBTs1+OC0nFdZEzfLmc/57qYrhwPTzAfBgNVHSMEGDAWgBRF
+# 66Kv9JLLgjEtUYunpyGd823IDzAOBgNVHQ8BAf8EBAMCAYYweQYIKwYBBQUHAQEE
+# bTBrMCQGCCsGAQUFBzABhhhodHRwOi8vb2NzcC5kaWdpY2VydC5jb20wQwYIKwYB
+# BQUHMAKGN2h0dHA6Ly9jYWNlcnRzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEFzc3Vy
+# ZWRJRFJvb3RDQS5jcnQwRQYDVR0fBD4wPDA6oDigNoY0aHR0cDovL2NybDMuZGln
+# aWNlcnQuY29tL0RpZ2lDZXJ0QXNzdXJlZElEUm9vdENBLmNybDARBgNVHSAECjAI
+# MAYGBFUdIAAwDQYJKoZIhvcNAQEMBQADggEBAHCgv0NcVec4X6CjdBs9thbX979X
+# B72arKGHLOyFXqkauyL4hxppVCLtpIh3bb0aFPQTSnovLbc47/T/gLn4offyct4k
+# vFIDyE7QKt76LVbP+fT3rDB6mouyXtTP0UNEm0Mh65ZyoUi0mcudT6cGAxN3J0TU
+# 53/oWajwvy8LpunyNDzs9wPHh6jSTEAZNUZqaVSwuKFWjuyk1T3osdz9HNj0d1pc
+# VIxv76FQPfx2CWiEn2/K2yCNNWAcAgPLILCsWKAOQGPFmCLBsln1VWvPJ6tsds5v
+# Iy30fnFqI2si/xK4VC0nftg62fC2h5b9W9FcrBjDTZ9ztwGpn1eqXijiuZQxggN8
+# MIIDeAIBATB9MGkxCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5EaWdpQ2VydCwgSW5j
+# LjFBMD8GA1UEAxM4RGlnaUNlcnQgVHJ1c3RlZCBHNCBUaW1lU3RhbXBpbmcgUlNB
+# NDA5NiBTSEEyNTYgMjAyNSBDQTECEAqA7xhLjfEFgtHEdqeVdGgwDQYJYIZIAWUD
+# BAIBBQCggdEwGgYJKoZIhvcNAQkDMQ0GCyqGSIb3DQEJEAEEMBwGCSqGSIb3DQEJ
+# BTEPFw0yNjAxMTQxMDU2NDZaMCsGCyqGSIb3DQEJEAIMMRwwGjAYMBYEFN1iMKyG
+# Ci0wa9o4sWh5UjAH+0F+MC8GCSqGSIb3DQEJBDEiBCCxTSJOJcO1TBiRHFwmL6r4
+# K5z09emysXkLTl5UyWqEUTA3BgsqhkiG9w0BCRACLzEoMCYwJDAiBCBKoD+iLNdc
+# hMVck4+CjmdrnK7Ksz/jbSaaozTxRhEKMzANBgkqhkiG9w0BAQEFAASCAgAM0aiV
+# KJVFLku4hKEPnZmThRBj+6sbpnfJwHUkqyF/73BVlHx8f6jCrd9gcf9h5w2Jxt9P
+# EdzKfyrfE1MWXWi8/H8zzJdWXf9XoEDu/rS6KyXJltnTFGbQA+bvhT143Dhq5CPW
+# xd+HGBv1o0KvP+JYeKGEmi4LRK1dj2nd/KDQe4g3OzthfT0i8LwcDlKI6QbK5q4x
+# L8nqekGu7ooaN3vR812dV1KjPG+lzL+rIr9BxzlHFUFeGrTiAAVb64ddv9vOsXpU
+# fMsA4afMNAGBsapDf3Y92ZvrFRFuaFrJzZIA0jEeBQfP8NrFf79LkuLHWGNoa08r
+# ACPVeavy0MqvZRnIJOEokA6WldLhCu7S272sttuFbiKG1I+cxf3+9Ag0UCYdUhat
+# Wsg8VSUnOHnhCjNzW2kcS2M/Oop2f1C93/EKPfsRpFHgQ0Yht7ocEQ+2T+RhSZOY
+# H73uQ7keiAuw0lPSui5etF2NR0numeovTIm0z5yiXuwUpwMb0yQ8bjwEFDUH/E3y
+# FR5R1JfzjL03Li1fPUDfybnkbPo+bCiM6uAUG0qiPt/HQGvdGrGHcgqwyUdhSgeO
+# dz4xIK9Ry3YziJDxldEgORWyeZcEJu+yGzJbe96jRs/bvLEA/K1Oii0ZjQ3QHyJR
+# F3B3C1tsWnTh02t06S58RZrB+FWXTz1fuX0x/A==
 # SIG # End signature block

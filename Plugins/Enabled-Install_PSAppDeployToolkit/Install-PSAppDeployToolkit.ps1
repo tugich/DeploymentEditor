@@ -8,7 +8,7 @@ param(
 )
 
 try {
-    Install-Module -Name PSAppDeployToolkit -Force
+    Install-Module -Name PSAppDeployToolkit -Force -Verbose
     Write-Host "Successfully installed PSAppDeployToolkit module!"
     Pause
 }
