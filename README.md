@@ -1,66 +1,174 @@
-# DeploymentEditor
-Visual Software Packaging Editor by TUGI.CH
+# DeploymentEditor  
+**Visual Software Packaging Editor for PSAppDeployToolkit (PSADT)**  
+by **TUGI.CH**
 
-<!-- ABOUT THE PROJECT -->
-## 🧑‍💻 About The Project
-**Welcome to the Deployment Editor for PSADT (PSAppDeployToolkit).** This application simplifies the packaging process for all Windows engineers. You can click your sequence for PSADT through the GUI and with just one simple click you get the fully automated coded PowerShell script for the deployment. The best part: It’s free & open-source.<br/><br/>
 ![App Screenshot](Screenshot.png)
 
-<!-- GETTING STARTED -->
+---
+
+## 🧑‍💻 About the Project
+
+**DeploymentEditor** is a **visual, project-based software packaging editor** designed to dramatically simplify the creation of professional deployment packages using **PSAppDeployToolkit (PSADT)**.
+
+Instead of manually writing and maintaining complex PowerShell deployment scripts, DeploymentEditor allows Windows engineers to **build installation, uninstallation and repair logic visually** through an intuitive GUI.  
+With just a few clicks, the editor **automatically generates a fully structured, production-ready PowerShell deployment script** that follows PSADT best practices.
+
+### Key Benefits
+- 🚀 **Accelerated packaging workflow** – build PSADT packages faster and with fewer errors  
+- 🧩 **Visual sequence editor** – no deep PowerShell knowledge required  
+- 📦 **Project-based architecture** – each package is self-contained and portable  
+- 🛠 **Highly customizable** – templates, commands, and plugins are fully editable  
+- 🔓 **Free & Open Source** – no licensing costs, no limitations  
+
+DeploymentEditor is ideal for:
+- Endpoint Management Engineers (Intune, SCCM, MECM)
+- Enterprise IT Administrators
+- Software Packaging Specialists
+- Anyone deploying Windows software at scale
+
+---
+
 ## ✅ Getting Started
 
-### Requirements
-Windows 10/11 64-bit (It also runs well on ARM-based Windows via the translation layer.)<br/>
-PureBasic IDE (to compile the source code if needed, binary is included in each release).
+### System Requirements
+- **Windows 10 / Windows 11 (64-bit)**
+- Fully compatible with **ARM-based Windows** via the Microsoft x64 translation layer  
+- **PureBasic IDE** (only required if you want to compile the source yourself; precompiled binaries are provided)
+
+### ⚠️ Important: PowerShell Execution Policy (Windows Settings)
+DeploymentEditor generates and executes PowerShell scripts based on PSAppDeployToolkit (PSADT).
+For this reason, PowerShell script execution must be enabled on the system where packages are built or tested.
 
 ### Prerequisites
-There are no prerequisites for this tool. All required files are included in this GitHub repository.
+There are **no external prerequisites**.  
+All required components, templates, databases, and resources are included directly in this repository or the release packages.
 
-### Installation
-You can download the latest release from GitHub or use the MSI installer from the releases.<br/>
-The editor runs in user context and doesn't require administrator rights. For packaging, you need administrator rights to run a packaging project (in system context).
+---
 
-<!-- TEMPLATE SYSTEM -->
-## ✅ (v1.0.7) Project-based templates
-There are several templates for each part of the editor. You can customize them and the compiler will take them for each time in the deployment file generation process.
-In the latest version (v1.0.7), each project/PSADT package contains its own template (Invoke-AppDeployToolkit.ps1.template) for the final resulting file (Invoke-AppDeployToolkit.ps1).
+## 📦 Installation
 
-<!-- FOLDERS AND FILES -->
-## 📄 Folders and files
-- ***Databases [Folder]:*** PSADT.sql database for defining all commands and parameters.
-- ***Examples [Folder]:*** Some basic examples with other software than 7-Zip
-- ***Forms [Folder]:*** All forms created with the PureBasic IDE
-- ***Plugins [Folder]:*** Built-in editor plugins written in PowerShell
-- ***Resources [Folder]:*** Images, icons and more
-- ***Scripts [Folder]:*** Some scripts for the development part of the editor
-- ***Snippets [Folder]:*** (Not used yet)
-- ***Templates [Folder]:*** All templates used by the editor to build any script or file for the final package
-- ***Test [Folder]:*** Basic example with 7-Zip installer - ThirdParty: Some third party libraries like PSADT and more
-- ***DeploymentEditor.pb [File]:*** The main source file
-- ***DeploymentEditor.pbp [File]:*** The project file for the PureBasic IDE
+You have two installation options:
 
-<!-- USAGE EXAMPLES -->
+1. **Portable / ZIP Version**  
+   - Download the latest release from GitHub  
+   - Extract and run immediately (no installation required)
+
+2. **MSI Installer**  
+   - Available in the GitHub Releases section (if provided)
+   - Ideal for managed environments
+
+### Execution Context
+- The **editor itself runs in user context** and **does not require administrator privileges**
+- **Administrator rights are only required** when executing a packaging project that builds or tests a deployment in **system context**
+
+---
+
+## 🧩 Project-Based Template System (v1.0.7+)
+
+Starting with **version 1.0.7**, DeploymentEditor introduces a **fully project-scoped template system**.
+
+### How It Works
+- Each deployment project contains its **own PSADT template**
+- Templates are used during compilation to generate the final deployment script
+- This allows **maximum flexibility** between different customers, environments, or packaging standards
+
+### Key Template File
+- `Invoke-AppDeployToolkit.ps1.template`  
+  → Compiled into  
+- `Invoke-AppDeployToolkit.ps1`
+
+This approach ensures:
+- No global template conflicts  
+- Full version control per project  
+- Clean separation between logic and presentation  
+
+---
+
+## 📄 Repository Structure
+
+The repository is organized to clearly separate logic, UI, resources, and extensibility components:
+
+- **Databases/**  
+  PSADT.sql database defining all available commands, parameters, and metadata
+
+- **Examples/**  
+  Sample projects demonstrating packaging workflows beyond 7-Zip
+
+- **Forms/**  
+  All GUI forms created using the PureBasic IDE
+
+- **Plugins/**  
+  Built-in editor plugins written in PowerShell for extended functionality
+
+- **Resources/**  
+  Images, icons, UI assets, and branding resources
+
+- **Scripts/**  
+  Helper scripts used during development of the editor
+
+- **Snippets/**  
+  Reserved for future expansion (currently unused)
+
+- **Templates/**  
+  Core templates used to generate deployment scripts and package files
+
+- **Test/**  
+  Example project using the 7-Zip installer  
+  Includes third-party components such as PSADT
+
+- **DeploymentEditor.pb**  
+  Main PureBasic source file
+
+- **DeploymentEditor.pbp**  
+  PureBasic project file
+
+---
+
 ## 📋 Usage
 
-**Video Tutorial on YouTube:**<br/>
-[Deployment Editor - Package Softwares with PSAppDeployToolkit (PSADT)](https://www.youtube.com/watch?v=1Ct5B27BGP4)<br/>
-There is also an example that shows a simple sequence for installing and uninstalling 7-Zip. Give it a try and if you have any questions just contact me via email or LinkedIn.
+### Video Tutorial
+📺 **YouTube Walkthrough:**  
+[Deployment Editor – Package Software with PSAppDeployToolkit (PSADT)](https://www.youtube.com/watch?v=1Ct5B27BGP4)
 
-<!-- COMPILING -->
-## ⚙️ Compile for Windows
-You need the PureBasic IDE in the latest version to compile the source code for Windows: https://www.purebasic.com.
-Just open the DeploymentEditor.pbp file and run the compiler with [F5] - the rest is magic.
+The tutorial demonstrates:
+- Creating a new project  
+- Building install & uninstall sequences  
+- Packaging 7-Zip as a real-world example  
 
-<!-- LICENSE -->
+If you have questions, feedback, or feature requests, feel free to reach out.
+
+---
+
+## ⚙️ Compiling from Source
+
+To compile DeploymentEditor yourself:
+
+1. Install the **latest version of the PureBasic IDE**  
+   https://www.purebasic.com
+2. Open `DeploymentEditor.pbp`
+3. Compile and run using **F5**
+
+The build process is fully self-contained — no additional dependencies required.
+
+---
+
 ## 📄 License
-See `LICENSE.txt` for more information.
 
-<!-- CREDITS -->
-## 📄 Credits
-[PSAppDeployToolkit/PSAppDeployToolkit](https://github.com/PSAppDeployToolkit/PSAppDeployToolkit)<br/>
-See also LICENSE_ThirdParty.txt
+This project is licensed under the terms described in `LICENSE.txt`.
 
-<!-- CONTACT -->
+---
+
+## 📄 Credits & Third-Party Software
+
+- PSAppDeployToolkit  
+  https://github.com/PSAppDeployToolkit/PSAppDeployToolkit  
+
+Additional third-party licenses can be found in `LICENSE_ThirdParty.txt`.
+
+---
+
 ## 📧 Contact
-TUGI - [contact@tugi.ch](mailto:contact@tugi.ch)<br/>
-Project Link: [https://blog.tugi.ch/deployment-editor-preview](https://blog.tugi.ch/deployment-editor-preview)
+
+**TUGI**  
+📩 Email: [contact@tugi.ch](mailto:contact@tugi.ch)  
+🌐 Project Page: https://blog.tugi.ch/deployment-editor-preview  
