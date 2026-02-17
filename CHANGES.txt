@@ -4,6 +4,9 @@ ToDo's
 * More validations / and checks on UI
 (...)
 
+Version 2.2.1 (Major UI Bugfix):
+* Fixed file menu handling in the Main Window (#18, #14)
+
 Version 2.2.0 (UI Bugfixes + PSADT Update):
 * [Important] PSADT and templates updated to version 4.1.8
 * Added feature: Built-in Software Log Reader (for .log files)

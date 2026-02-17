@@ -88,8 +88,8 @@ param
 # By setting the "AppName" property, Zero-Config MSI will be disabled.
 $adtSession = @{
     # App variables.
-    AppVendor = '7zip'
-    AppName = '7zip'
+    AppVendor = '7-Zip'
+    AppName = '7-Zip'
     AppVersion = '25.01'
     AppArch = 'x64'
     AppLang = 'EN'
@@ -98,7 +98,7 @@ $adtSession = @{
     AppRebootExitCodes = @(1641, 3010)
     AppProcessesToClose = @()  # Example: @('excel', @{ Name = 'winword'; Description = 'Microsoft Word' })
     AppScriptVersion = '1.0.0'
-    AppScriptDate = '2026-02-15'
+    AppScriptDate = '2026-02-17'
     AppScriptAuthor = 'WinGet Import by Deployment Editor'
     RequireAdmin = $true
 

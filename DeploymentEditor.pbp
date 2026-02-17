@@ -7,28 +7,28 @@
   <section name="data">
     <explorer view="C:\ProgramData\PureBasic\Examples\" pattern="0"/>
     <log show="1"/>
-    <lastopen date="2026-02-15 12:00" user="taski" host="TUGI-FUSIONVM"/>
+    <lastopen date="2026-02-17 18:47" user="taski" host="TUGI-FUSIONVM"/>
   </section>
   <section name="files">
     <file name="DeploymentEditor.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="1" panelstate="+"/>
-      <fingerprint md5="26bb2dc66dcaea658d737dc6363d4218"/>
+      <fingerprint md5="0a8a169e077882471f431ec5ba455b84"/>
     </file>
     <file name="CHANGES.txt">
       <config load="0" scan="0" panel="1" warn="1" lastopen="1" sortindex="2" panelstate="+"/>
-      <fingerprint md5="ee939169364e72ba25ec2d2948443c51"/>
+      <fingerprint md5="09563143bc3806065d9e8f0c8e1715e0"/>
     </file>
     <file name="Forms\MainWindow.pbf">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="3" panelstate="++"/>
       <fingerprint md5="1a9dd3d32ac7f07645e983cca5efad4d"/>
     </file>
     <file name="Forms\LogReaderWindow.pbf">
-      <config load="0" scan="1" panel="1" warn="1" lastopen="1" sortindex="4" panelstate="++"/>
+      <config load="0" scan="1" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="++"/>
       <fingerprint md5="5e46be9340554184357b8eb9e6b490e9"/>
     </file>
     <file name="Forms\AboutWindow.pbf">
       <config load="0" scan="1" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="++"/>
-      <fingerprint md5="d257637a79fded710abb61145ffff30b"/>
+      <fingerprint md5="abe0beecb1edec3ddf03deaca27343bb"/>
     </file>
     <file name="Forms\NewProjectWindow.pbf">
       <config load="0" scan="1" panel="1" warn="1" lastopen="0" sortindex="999" panelstate="++"/>
@@ -87,10 +87,10 @@
       <options thread="1" xpskin="1" dpiaware="1" debug="1" optimizer="1"/>
       <icon enable="1">Icon.ico</icon>
       <versioninfo enable="1">
-        <field0 value="2.2.0.0"/>
-        <field1 value="2.2.0.0"/>
-        <field4 value="2.2.0.0"/>
-        <field5 value="2.2.0.0"/>
+        <field0 value="2.2.1.0"/>
+        <field1 value="2.2.1.0"/>
+        <field4 value="2.2.1.0"/>
+        <field5 value="2.2.1.0"/>
       </versioninfo>
     </target>
   </section>

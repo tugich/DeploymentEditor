@@ -152,7 +152,7 @@ Global LogReaderFilePath.s = GetCurrentDirectory() + "Web\LogReader\logreader.ht
 ;------------------------------------------------------------------------------------
 ;- Shortcuts
 ;------------------------------------------------------------------------------------
-Enumeration KeyboardShortcuts
+Enumeration WindowKeyboardShortcuts
   
   ; Keyboard
   #Keyboard_Shortcut_Save
@@ -3073,10 +3073,6 @@ Repeat
       ; Event = Menu
       ElseIf Event = #PB_Event_Menu
         Select EventMenu()
-          
-          ; Keyboard
-          Case #Keyboard_Shortcut_Run : GenerateAndStartInstallation(0)
-          Case #Keyboard_Shortcut_Save : SaveAction(0)
             
           ; Menu
           Case #MenuItem_Open : OpenOtherProject(0)
@@ -3103,6 +3099,11 @@ Repeat
           Case #MenuItem_SoftwareLogReader : ShowLogReaderWindow(0)
           Case #MenuItem_CreateIntunePackage : CreateIntunePackage(0)
           Case #MenuItem_ShowPlugins : ShowPluginWindow(0)
+            
+          ; Keyboard
+          Case #Keyboard_Shortcut_Run : GenerateAndStartInstallation(0)
+          Case #Keyboard_Shortcut_Save : SaveAction(0)
+          
         EndSelect
         
       ; Gadget = Combo for Deployment Type
@@ -3232,7 +3233,8 @@ Repeat
   
 Until Quit = #True
 ; IDE Options = PureBasic 6.30 (Windows - x64)
-; CursorPosition = 3
+; CursorPosition = 3092
+; FirstLine = 466
 ; Folding = AAAAAAAAAAAAAAAAAAAA-
 ; EnableXP
 ; DPIAware
