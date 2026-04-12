@@ -63,5 +63,5 @@ EndProcedure
 
 
 DataSection
-  Img_WinGetImportWindow_0: : IncludeBinary "..\Ressources\Icon_Search.png"
+  Img_WinGetImportWindow_0: : IncludeBinary "..\Resources\Icon_Search.png"
 EndDataSection

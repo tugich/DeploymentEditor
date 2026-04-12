@@ -98,7 +98,7 @@ $adtSession = @{
     AppRebootExitCodes = @(1641, 3010)
     AppProcessesToClose = @()  # Example: @('excel', @{ Name = 'winword'; Description = 'Microsoft Word' })
     AppScriptVersion = '1.0.0'
-    AppScriptDate = '2026-02-17'
+    AppScriptDate = '2026-04-12'
     AppScriptAuthor = 'WinGet Import by Deployment Editor'
     RequireAdmin = $true
 

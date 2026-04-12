@@ -64,6 +64,7 @@
             cursor: pointer;
             border: none;
             outline: none;
+            transition: all 0.15s ease;
         }
 
         .btn-primary {
@@ -94,6 +95,19 @@
 
         .btn-ghost:hover {
             background: #f1f5f9;
+        }
+
+        .btn-danger {
+            background: transparent;
+            color: #ef4444;
+            border: 1px solid #fecaca;
+            padding: 4px 10px;
+            font-size: 12px;
+            border-radius: 6px;
+        }
+
+        .btn-danger:hover {
+            background: #fee2e2;
         }
 
         .input {
@@ -357,6 +371,77 @@
             width: 16px;
             height: 16px;
         }
+
+        /* File list styles */
+        .file-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .file-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            max-width: 220px;
+        }
+
+        .file-chip-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .file-chip-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .file-chip-count {
+            background: rgba(0,0,0,0.12);
+            border-radius: 10px;
+            padding: 1px 6px;
+            font-size: 11px;
+            flex-shrink: 0;
+        }
+
+        .file-chip-remove {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: inherit;
+            opacity: 0.6;
+            font-size: 14px;
+            line-height: 1;
+            padding: 0;
+            flex-shrink: 0;
+        }
+
+        .file-chip-remove:hover {
+            opacity: 1;
+        }
+
+        .file-source-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 120px;
+        }
     </style>
 </head>
 <body>
@@ -368,7 +453,7 @@
                     <h1 style="font-size: 28px; font-weight: 700; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 4px;">
                         Software Log Viewer
                     </h1>
-                    <p style="color: #64748b; font-size: 14px;">Simple software log analysis</p>
+                    <p style="color: #64748b; font-size: 14px;">Multi-file software log analysis</p>
                 </div>
                 <label class="checkbox-label">
                     <input type="checkbox" id="autoScroll" checked>
@@ -381,15 +466,15 @@
                     <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
                     </svg>
-                    Open Log File
+                    Add Log File(s)
                 </button>
-                <input type="file" id="fileInput" accept=".log,.txt" onchange="handleFileSelect(event)">
+                <input type="file" id="fileInput" accept=".log,.txt" multiple onchange="handleFileSelect(event)">
                 
-                <button class="btn btn-ghost" onclick="clearLog()">
+                <button class="btn btn-ghost" onclick="clearAll()">
                     <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                     </svg>
-                    Clear
+                    Clear All
                 </button>
                 
                 <div class="divider"></div>
@@ -403,6 +488,9 @@
                     Export
                 </button>
             </div>
+
+            <!-- Loaded Files List -->
+            <div id="fileList" class="file-list" style="display: none;"></div>
         </div>
 
         <!-- Main Content -->
@@ -433,6 +521,10 @@
                 <select id="componentFilter" class="select" onchange="filterLogs()">
                     <option value="">All Components</option>
                 </select>
+
+                <select id="fileFilter" class="select" onchange="filterLogs()" style="display:none;">
+                    <option value="">All Files</option>
+                </select>
             </div>
 
             <!-- Log Table -->
@@ -440,7 +532,7 @@
                 <div class="empty-state">
                     <div class="empty-state-icon">📋</div>
                     <h2>No Log File Loaded</h2>
-                    <p>Click "Open Log File" to load a software log file</p>
+                    <p>Click "Add Log File(s)" to load one or more log files</p>
                 </div>
             </div>
 
@@ -461,56 +553,146 @@
     </div>
 
     <script>
+        // --- State ---
         let allLogs = [];
         let filteredLogs = [];
         let selectedRow = null;
-        let currentFile = null;
-        let lastFileSize = 0;
 
+        // loadedFiles: array of { name, color, count }
+        let loadedFiles = [];
+
+        // Palette for file color coding
+        const FILE_COLORS = [
+            { bg: '#e0e7ff', color: '#3730a3', dot: '#6366f1' },
+            { bg: '#dcfce7', color: '#166534', dot: '#22c55e' },
+            { bg: '#fef3c7', color: '#92400e', dot: '#f59e0b' },
+            { bg: '#fce7f3', color: '#9d174d', dot: '#ec4899' },
+            { bg: '#e0f2fe', color: '#0c4a6e', dot: '#0ea5e9' },
+            { bg: '#f3e8ff', color: '#581c87', dot: '#a855f7' },
+            { bg: '#fff7ed', color: '#7c2d12', dot: '#f97316' },
+            { bg: '#f0fdf4', color: '#14532d', dot: '#16a34a' },
+        ];
+
+        function getFileColor(index) {
+            return FILE_COLORS[index % FILE_COLORS.length];
+        }
+
+        // --- Scrolling ---
         function scrollToBottom(element) {
-            // Multiple scroll methods for maximum WebView compatibility
             if (!element) return;
-            
-            // Method 1: scrollTop (most compatible)
             element.scrollTop = element.scrollHeight;
-            
-            // Method 2: scrollTo with immediate behavior
-            if (element.scrollTo) {
-                element.scrollTo(0, element.scrollHeight);
-            }
-            
-            // Method 3: scrollIntoView on last element
+            if (element.scrollTo) element.scrollTo(0, element.scrollHeight);
             const lastElement = element.lastElementChild?.querySelector('tbody tr:last-child');
             if (lastElement && lastElement.scrollIntoView) {
                 lastElement.scrollIntoView({ behavior: 'auto', block: 'end' });
             }
         }
 
+        // --- File Handling ---
         function handleFileSelect(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+            const files = Array.from(event.target.files);
+            if (!files.length) return;
 
-            currentFile = file;
-            lastFileSize = file.size;
+            let pending = files.length;
 
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const content = e.target.result;
-                parseCMLog(content);
-                updateStatus(`Loaded: ${file.name}`, `${allLogs.length} entries`);
-            };
-            reader.readAsText(file);
+            files.forEach(file => {
+                // Skip if already loaded
+                if (loadedFiles.find(f => f.name === file.name)) {
+                    alert(`"${file.name}" is already loaded. Remove it first to reload.`);
+                    pending--;
+                    if (pending === 0) finalizeLoad();
+                    return;
+                }
+
+                const fileIndex = loadedFiles.length;
+                const color = getFileColor(fileIndex);
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const logs = parseCMLog(e.target.result, file.name, fileIndex);
+                    loadedFiles.push({ name: file.name, color, count: logs.length });
+                    allLogs.push(...logs);
+                    pending--;
+                    if (pending === 0) finalizeLoad();
+                };
+                reader.readAsText(file);
+            });
+
+            // Reset input so the same file can be re-added after removal
+            event.target.value = '';
         }
 
-        function parseCMLog(content) {
+        function finalizeLoad() {
+            // Sort all logs by dateTime if available
+            allLogs.sort((a, b) => {
+                if (a.dateTime && b.dateTime) return a.dateTime.localeCompare(b.dateTime);
+                return a.fileIndex - b.fileIndex || a.lineNumber - b.lineNumber;
+            });
+
+            renderFileChips();
+            updateFileFilter();
+            populateComponentFilter();
+            filterLogs();
+            updateStatus(`${loadedFiles.length} file(s) loaded`, `${allLogs.length} entries`);
+        }
+
+        function removeFile(fileName) {
+            allLogs = allLogs.filter(log => log.source !== fileName);
+            const removedIndex = loadedFiles.findIndex(f => f.name === fileName);
+            loadedFiles.splice(removedIndex, 1);
+
+            // Re-assign file indices and colors to keep them consistent
+            loadedFiles.forEach((f, i) => {
+                f.color = getFileColor(i);
+            });
+            allLogs.forEach(log => {
+                const idx = loadedFiles.findIndex(f => f.name === log.source);
+                log.fileIndex = idx;
+                log.fileColor = getFileColor(idx);
+            });
+
+            renderFileChips();
+            updateFileFilter();
+            populateComponentFilter();
+            filterLogs();
+            updateStatus(`${loadedFiles.length} file(s) loaded`, `${allLogs.length} entries`);
+
+            if (loadedFiles.length === 0) {
+                clearAll();
+            }
+        }
+
+        function clearAll() {
             allLogs = [];
+            filteredLogs = [];
+            loadedFiles = [];
+            selectedRow = null;
+
+            document.getElementById('fileList').style.display = 'none';
+            document.getElementById('fileList').innerHTML = '';
+            document.getElementById('fileFilter').style.display = 'none';
+            document.getElementById('fileFilter').innerHTML = '<option value="">All Files</option>';
+            document.getElementById('componentFilter').innerHTML = '<option value="">All Components</option>';
+            document.getElementById('detailPanel').classList.remove('active');
+            document.getElementById('logContainer').innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">📋</div>
+                    <h2>No Log File Loaded</h2>
+                    <p>Click "Add Log File(s)" to load one or more log files</p>
+                </div>`;
+            updateStatus('Ready', '0 entries');
+        }
+
+        // --- Parsing ---
+        function parseCMLog(content, fileName, fileIndex) {
+            const logs = [];
             const lines = content.split('\n');
-            
             const regex = /<!\[LOG\[(.*?)\]LOG\]!><time="(.*?)".*?date="(.*?)".*?component="(.*?)".*?type="(\d+)".*?thread="(\d+)".*?>/;
-            
+            const color = getFileColor(fileIndex);
+
             let lineNumber = 0;
-            let lastWasError = false; // Track if previous entry was an error
-            
+            let lastWasError = false;
+
             for (const line of lines) {
                 lineNumber++;
                 if (!line.trim()) continue;
@@ -518,30 +700,28 @@
                 const match = line.match(regex);
                 if (match) {
                     const [, message, time, date, component, type, thread] = match;
-                    
+
                     let severity = 'info';
                     if (type === '2') severity = 'warning';
                     else if (type === '3') severity = 'error';
-                    
-                    // Check if message contains "error" keyword
+
                     const hasErrorKeyword = /\berror\b/i.test(message);
-                    if (hasErrorKeyword && severity === 'info') {
-                        severity = 'error';
-                    }
-                    
-                    allLogs.push({
-                        lineNumber,
-                        time,
-                        date,
+                    if (hasErrorKeyword && severity === 'info') severity = 'error';
+
+                    logs.push({
+                        lineNumber, time, date,
                         dateTime: `${date} ${time}`,
                         component: component || 'Unknown',
                         severity,
                         type: severity === 'error' ? '3' : (severity === 'warning' ? '2' : '1'),
                         thread,
                         message: message.trim(),
-                        raw: line
+                        raw: line,
+                        source: fileName,
+                        fileIndex,
+                        fileColor: color
                     });
-                    
+
                     lastWasError = (severity === 'error');
                 } else {
                     const parts = line.split('\t');
@@ -549,64 +729,100 @@
                         const component = parts[0] || 'Unknown';
                         const message = parts.slice(1).join(' ');
                         const hasErrorKeyword = /\berror\b/i.test(message);
-                        
+
                         let severity = 'info';
-                        // If previous entry was error, or this is a "Log" entry following an error, mark as error
                         if (component.toLowerCase() === 'log' && lastWasError) {
                             severity = 'error';
                         } else if (hasErrorKeyword) {
                             severity = 'error';
                         }
-                        
-                        allLogs.push({
+
+                        logs.push({
                             lineNumber,
-                            time: new Date().toLocaleTimeString(),
-                            date: new Date().toLocaleDateString(),
-                            dateTime: new Date().toLocaleString(),
-                            component: component,
+                            time: '', date: '', dateTime: '',
+                            component,
                             severity,
                             type: severity === 'error' ? '3' : '1',
                             thread: '0',
-                            message: message,
-                            raw: line
+                            message,
+                            raw: line,
+                            source: fileName,
+                            fileIndex,
+                            fileColor: color
                         });
-                        
-                        // Keep tracking errors, but reset if this is not a Log component
-                        if (component.toLowerCase() !== 'log') {
-                            lastWasError = (severity === 'error');
-                        }
+
+                        if (component.toLowerCase() !== 'log') lastWasError = (severity === 'error');
                     } else if (line.trim()) {
                         const message = line.trim();
                         const hasErrorKeyword = /\berror\b/i.test(message);
-                        
+
                         let severity = 'info';
-                        // Plain text lines following errors are marked as error output
-                        if (lastWasError) {
-                            severity = 'error';
-                        } else if (hasErrorKeyword) {
-                            severity = 'error';
-                        }
-                        
-                        allLogs.push({
+                        if (lastWasError) severity = 'error';
+                        else if (hasErrorKeyword) severity = 'error';
+
+                        logs.push({
                             lineNumber,
-                            time: '',
-                            date: '',
-                            dateTime: '',
+                            time: '', date: '', dateTime: '',
                             component: 'Log',
                             severity,
                             type: severity === 'error' ? '3' : '1',
                             thread: '0',
-                            message: message,
-                            raw: line
+                            message,
+                            raw: line,
+                            source: fileName,
+                            fileIndex,
+                            fileColor: color
                         });
-                        
-                        // Don't reset lastWasError for plain log lines - keep tracking
                     }
                 }
             }
+            return logs;
+        }
 
-            populateComponentFilter();
-            filterLogs();
+        // --- UI Updates ---
+        function renderFileChips() {
+            const list = document.getElementById('fileList');
+            if (loadedFiles.length === 0) {
+                list.style.display = 'none';
+                list.innerHTML = '';
+                return;
+            }
+
+            list.style.display = 'flex';
+            list.innerHTML = '';
+
+            loadedFiles.forEach((file, i) => {
+                const chip = document.createElement('div');
+                chip.className = 'file-chip';
+                chip.style.background = file.color.bg;
+                chip.style.color = file.color.color;
+                chip.style.borderColor = file.color.dot + '60';
+                chip.title = file.name;
+                chip.innerHTML = `
+                    <span class="file-chip-dot" style="background:${file.color.dot};"></span>
+                    <span class="file-chip-name">${escapeHtml(file.name)}</span>
+                    <span class="file-chip-count">${file.count}</span>
+                    <button class="file-chip-remove" onclick="removeFile('${escapeHtml(file.name)}')" title="Remove ${escapeHtml(file.name)}">✕</button>
+                `;
+                list.appendChild(chip);
+            });
+        }
+
+        function updateFileFilter() {
+            const select = document.getElementById('fileFilter');
+            select.innerHTML = '<option value="">All Files</option>';
+
+            if (loadedFiles.length > 1) {
+                loadedFiles.forEach(file => {
+                    const option = document.createElement('option');
+                    option.value = file.name;
+                    option.textContent = file.name;
+                    select.appendChild(option);
+                });
+                select.style.display = '';
+            } else {
+                select.style.display = 'none';
+            }
         }
 
         function populateComponentFilter() {
@@ -621,20 +837,22 @@
             });
         }
 
+        // --- Filtering & Rendering ---
         function filterLogs() {
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
             const componentFilter = document.getElementById('componentFilter').value;
+            const fileFilter = document.getElementById('fileFilter').value;
             const severityFilters = Array.from(document.querySelectorAll('.severity-filter:checked')).map(cb => cb.value);
 
             filteredLogs = allLogs.filter(log => {
-                const matchesSearch = !searchTerm || 
+                const matchesSearch = !searchTerm ||
                     log.message.toLowerCase().includes(searchTerm) ||
-                    log.component.toLowerCase().includes(searchTerm);
-                
+                    log.component.toLowerCase().includes(searchTerm) ||
+                    log.source.toLowerCase().includes(searchTerm);
                 const matchesComponent = !componentFilter || log.component === componentFilter;
+                const matchesFile = !fileFilter || log.source === fileFilter;
                 const matchesSeverity = severityFilters.includes(log.severity);
-
-                return matchesSearch && matchesComponent && matchesSeverity;
+                return matchesSearch && matchesComponent && matchesFile && matchesSeverity;
             });
 
             renderLogs();
@@ -643,47 +861,40 @@
 
         function renderLogs() {
             const container = document.getElementById('logContainer');
-            
+
             if (filteredLogs.length === 0) {
                 container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔍</div><h2>No Logs Found</h2><p>Try adjusting your filters</p></div>';
                 return;
             }
 
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-            
-            // Use DocumentFragment for better performance
+            const showSourceColumn = loadedFiles.length > 1;
+
             const table = document.createElement('table');
             table.className = 'log-table';
-            
-            // Create header
+
             const thead = document.createElement('thead');
             thead.innerHTML = `<tr>
                 <th style="width: 120px;">Time</th>
                 <th style="width: 180px;">Component</th>
                 <th style="width: 120px;">Severity</th>
                 <th style="width: 100px;">Thread</th>
+                ${showSourceColumn ? '<th style="width: 140px;">Source</th>' : ''}
                 <th>Message</th>
             </tr>`;
             table.appendChild(thead);
-            
-            // Create body
+
             const tbody = document.createElement('tbody');
-            
-            // Batch DOM operations
             const fragment = document.createDocumentFragment();
-            
+
             filteredLogs.forEach((log, index) => {
                 const tr = document.createElement('tr');
                 tr.className = `log-row log-row-${log.severity}`;
                 tr.setAttribute('data-index', index);
                 tr.onclick = () => selectRow(index);
-                
+
                 let message = escapeHtml(log.message);
-                
-                // Highlight "Error" text in messages (case-insensitive)
                 message = message.replace(/\b(error|errors|errored)\b/gi, '<span class="highlight">$1</span>');
-                
-                // Apply search highlighting
                 if (searchTerm) {
                     const regex = new RegExp(`(${escapeRegex(searchTerm)})`, 'gi');
                     message = message.replace(regex, '<span class="highlight">$1</span>');
@@ -693,44 +904,40 @@
                 if (log.severity === 'warning') badgeClass = 'badge-warning';
                 if (log.severity === 'error') badgeClass = 'badge-error';
 
+                const sourceCell = showSourceColumn ? `
+                    <td>
+                        <span class="file-source-badge" style="background:${log.fileColor.bg};color:${log.fileColor.color};" title="${escapeHtml(log.source)}">
+                            ${escapeHtml(log.source)}
+                        </span>
+                    </td>` : '';
+
                 tr.innerHTML = `
                     <td class="font-mono" style="color: #64748b; font-size: 12px;">${escapeHtml(log.time)}</td>
                     <td style="font-weight: 500; color: #334155;">${escapeHtml(log.component)}</td>
                     <td><span class="badge ${badgeClass}">${log.severity}</span></td>
                     <td class="font-mono" style="color: #94a3b8; font-size: 12px;">${escapeHtml(log.thread)}</td>
+                    ${sourceCell}
                     <td class="font-mono" style="font-size: 13px; color: #1e293b;">${message}</td>
                 `;
-                
+
                 fragment.appendChild(tr);
             });
-            
+
             tbody.appendChild(fragment);
             table.appendChild(tbody);
-            
-            // Single DOM update
             container.innerHTML = '';
             container.appendChild(table);
 
-            // Auto-scroll - WebView compatible with multiple fallbacks
             if (document.getElementById('autoScroll').checked) {
-                // Use multiple timing strategies for maximum WebView compatibility
                 requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                        scrollToBottom(container);
-                    });
+                    requestAnimationFrame(() => scrollToBottom(container));
                 });
-                
-                // Additional fallback with setTimeout for stubborn WebViews
-                setTimeout(() => {
-                    scrollToBottom(container);
-                }, 100);
+                setTimeout(() => scrollToBottom(container), 100);
             }
         }
 
         function selectRow(index) {
-            const rows = document.querySelectorAll('.log-row');
-            rows.forEach(row => row.classList.remove('selected'));
-
+            document.querySelectorAll('.log-row').forEach(row => row.classList.remove('selected'));
             const row = document.querySelector(`[data-index="${index}"]`);
             if (row) {
                 row.classList.add('selected');
@@ -742,29 +949,18 @@
         function showDetails(log) {
             const panel = document.getElementById('detailPanel');
             const content = document.getElementById('detailContent');
-            
-            let details = `Line Number: ${log.lineNumber}\n`;
-            details += `Date/Time: ${log.dateTime}\n`;
-            details += `Component: ${log.component}\n`;
-            details += `Severity: ${log.severity.toUpperCase()} (Type ${log.type})\n`;
-            details += `Thread: ${log.thread}\n`;
+
+            let details = `Source File: ${log.source}\n`;
+            details += `Line Number: ${log.lineNumber}\n`;
+            details += `Date/Time:   ${log.dateTime}\n`;
+            details += `Component:   ${log.component}\n`;
+            details += `Severity:    ${log.severity.toUpperCase()} (Type ${log.type})\n`;
+            details += `Thread:      ${log.thread}\n`;
             details += `\nMessage:\n${log.message}\n`;
             details += `\nRaw Entry:\n${log.raw}`;
-            
+
             content.textContent = details;
             panel.classList.add('active');
-        }
-
-        function clearLog() {
-            currentFile = null;
-            lastFileSize = 0;
-            allLogs = [];
-            filteredLogs = [];
-            const container = document.getElementById('logContainer');
-            container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><h2>No Log File Loaded</h2><p>Click "Open Log File" to load a software log file</p></div>';
-            document.getElementById('detailPanel').classList.remove('active');
-            updateStatus('Ready', '0 entries');
-            document.getElementById('fileInput').value = '';
         }
 
         function exportFiltered() {
@@ -773,16 +969,22 @@
                 return;
             }
 
-            let content = 'Time\tComponent\tSeverity\tThread\tMessage\n';
+            const showSource = loadedFiles.length > 1;
+            let content = showSource
+                ? 'Source\tTime\tComponent\tSeverity\tThread\tMessage\n'
+                : 'Time\tComponent\tSeverity\tThread\tMessage\n';
+
             filteredLogs.forEach(log => {
-                content += `${log.time}\t${log.component}\t${log.severity}\t${log.thread}\t${log.message}\n`;
+                content += showSource
+                    ? `${log.source}\t${log.time}\t${log.component}\t${log.severity}\t${log.thread}\t${log.message}\n`
+                    : `${log.time}\t${log.component}\t${log.severity}\t${log.thread}\t${log.message}\n`;
             });
 
             const blob = new Blob([content], { type: 'text/plain' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `cmtrace_export_${new Date().getTime()}.txt`;
+            a.download = `log_export_${new Date().getTime()}.txt`;
             a.click();
             URL.revokeObjectURL(url);
         }
@@ -794,7 +996,7 @@
 
         function escapeHtml(text) {
             const div = document.createElement('div');
-            div.textContent = text;
+            div.textContent = text || '';
             return div.innerHTML;
         }
 

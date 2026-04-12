@@ -166,10 +166,10 @@ EndProcedure
 
 
 DataSection
-  Img_NewProjectWindow_0: : IncludeBinary "..\Ressources\Icon_Check_24px.png"
-  Img_NewProjectWindow_1: : IncludeBinary "..\Ressources\Icon_Package.png"
-  Img_NewProjectWindow_2: : IncludeBinary "..\Ressources\Icon_MSI.png"
-  Img_NewProjectWindow_3: : IncludeBinary "..\Ressources\Icon_Installer.png"
-  Img_NewProjectWindow_4: : IncludeBinary "..\Ressources\Icon_Help.png"
-  Img_NewProjectWindow_5: : IncludeBinary "..\Ressources\Icon_Exclamation_24px.png"
+  Img_NewProjectWindow_0: : IncludeBinary "..\Resources\Icon_Check_24px.png"
+  Img_NewProjectWindow_1: : IncludeBinary "..\Resources\Icon_Package.png"
+  Img_NewProjectWindow_2: : IncludeBinary "..\Resources\Icon_MSI.png"
+  Img_NewProjectWindow_3: : IncludeBinary "..\Resources\Icon_Installer.png"
+  Img_NewProjectWindow_4: : IncludeBinary "..\Resources\Icon_Help.png"
+  Img_NewProjectWindow_5: : IncludeBinary "..\Resources\Icon_Exclamation_24px.png"
 EndDataSection

@@ -152,12 +152,11 @@ Global LogReaderFilePath.s = GetCurrentDirectory() + "Web\LogReader\logreader.ht
 ;------------------------------------------------------------------------------------
 ;- Shortcuts
 ;------------------------------------------------------------------------------------
-Enumeration WindowKeyboardShortcuts
+Enumeration WindowKeyboardShortcuts 1000
   
   ; Keyboard
   #Keyboard_Shortcut_Save
   #Keyboard_Shortcut_Run
-  #Keyboard_Shortcut_Exit
   
   ; WinGet
   #WinGetImport_Enter
@@ -3233,8 +3232,8 @@ Repeat
   
 Until Quit = #True
 ; IDE Options = PureBasic 6.30 (Windows - x64)
-; CursorPosition = 3092
-; FirstLine = 466
-; Folding = AAAAAAAAAAAAAAAAAAAA-
+; CursorPosition = 154
+; FirstLine = 132
+; Folding = AAAAAAAAAAAABAAAAAAA-
 ; EnableXP
 ; DPIAware

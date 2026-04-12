@@ -82,5 +82,5 @@ EndProcedure
 
 
 DataSection
-  Img_ImportMsiWindow_0: : IncludeBinary "..\Ressources\Icon_MSI.png"
+  Img_ImportMsiWindow_0: : IncludeBinary "..\Resources\Icon_MSI.png"
 EndDataSection

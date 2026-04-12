@@ -82,5 +82,5 @@ EndProcedure
 
 
 DataSection
-  Img_ImportExeWindow_0: : IncludeBinary "..\Ressources\Icon_Installer.png"
+  Img_ImportExeWindow_0: : IncludeBinary "..\Resources\Icon_Installer.png"
 EndDataSection

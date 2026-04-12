@@ -4,6 +4,11 @@ ToDo's
 * More validations / and checks on UI
 (...)
 
+Version 2.3.0:
+* Added Feature: New Plugin - Script Validator
+* Updated Software Log Reader: Support for multiple log files (#17)
+* Fixed Keyboard shortcuts in Main window (#18, #14)
+
 Version 2.2.1 (Major UI Bugfix):
 * Fixed file menu handling in the Main Window (#18, #14)
 
