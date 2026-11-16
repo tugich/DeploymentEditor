@@ -1,4 +1,2 @@
-/Installer
-Scripts/PSADT4_Commands.csv
-Scripts/PSADT4_Parameters.csv
-/Pro
+/target
+*.pdb

@@ -1,0 +1,45 @@
+[package]
+name = "deployment-editor"
+version = "3.0.0"
+edition = "2021"
+description = "Visual software packaging editor for PSAppDeployToolkit (PSADT) - TUGI.CH"
+license = "GPL-3.0-or-later"
+authors = ["TUGI.CH"]
+
+[[bin]]
+name = "DeploymentEditor"
+path = "src/main.rs"
+
+[dependencies]
+eframe = { version = "0.36", default-features = false, features = ["glow", "wgpu", "default_fonts", "persistence", "wayland", "x11"] }
+egui-phosphor = "0.14"
+rusqlite = { version = "0.37", features = ["bundled"] }
+rfd = "0.15"
+anyhow = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+serde = { version = "1", features = ["derive"] }
+open = "5"
+image = { version = "0.25", default-features = false, features = ["png"] }
+serde_json = "1"
+base64 = "0.22"
+# Intune upload: HTTPS (OS certificate store, so corporate TLS inspection works)
+ureq = { version = "3", features = ["json", "platform-verifier"] }
+# .intunewin packaging: zip + AES-256-CBC + HMAC-SHA256
+zip = { version = "2", default-features = false, features = ["deflate"] }
+aes = "0.8"
+cbc = { version = "0.1", features = ["alloc"] }
+hmac = "0.12"
+sha2 = "0.10"
+getrandom = "0.2"
+# Client secret storage in the Windows Credential Manager
+keyring = { version = "3", features = ["windows-native"] }
+# PDF export (stream compression)
+flate2 = "1"
+
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+strip = true
